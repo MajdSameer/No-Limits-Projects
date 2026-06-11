@@ -17,7 +17,7 @@ export function Logo({ className }: { className?: string }) {
         <span className="text-base font-extrabold tracking-tight text-brand-900">
           NO LIMITS
         </span>
-        <span className="mt-1 text-[0.65rem] font-bold tracking-[0.24em] text-accent-600">
+        <span className="mt-1 text-[0.65rem] font-bold tracking-[0.24em] text-accent-700">
           REMOVALISTS
         </span>
       </span>

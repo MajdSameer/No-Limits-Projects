@@ -7,47 +7,52 @@
  *   @import "@nlr/config/tailwind/theme.css";
  *
  * Every token becomes a Tailwind utility automatically:
- *   --color-brand-700  ->  bg-brand-700, text-brand-700, border-brand-700, ...
- *   --color-accent-500 ->  bg-accent-500, ...
+ *   --color-brand-900  ->  bg-brand-900, text-brand-900, border-brand-900, ...
  *
- * ⚠️ PLACEHOLDER PALETTE — see TODO.md.
- * The real site (nolimitsremovalists.com.au) blocks automated access, so these
- * are professional placeholders: deep navy ("brand") + energetic orange
- * ("accent"). Swapping in the real brand colours means editing THIS FILE ONLY —
- * components reference token names, never raw hex values.
- * Keep the two hex values in src/brand.ts (brandColors) in sync when you do.
+ * REAL BRAND PALETTE — extracted from the company's quote email (Jun 2026):
+ *   navy  #182646 (anchored at brand-900) — headers, footers, primary buttons
+ *   yellow #fff389 (anchored at accent-300) — highlight panels, emphasis
+ * Usage follows the email's own pattern: navy surfaces carry white text;
+ * yellow surfaces carry dark text (yellow is a HIGHLIGHT, not a button-with-
+ * white-text colour). Other steps in each scale are derived to harmonise.
+ *
+ * If you change these, keep the two anchor hexes in src/brand.ts
+ * (brandColors) in sync — plus the inline copies in each app's
+ * global-error.tsx and icon.svg (listed in TODO.md).
  */
 
 @theme {
-  /* Brand — primary colour. Headers, footers, headings, secondary buttons. */
-  --color-brand-50: #eef4fb;
-  --color-brand-100: #d9e6f6;
-  --color-brand-200: #b3cdee;
-  --color-brand-300: #84abe0;
-  --color-brand-400: #4f82cd;
-  --color-brand-500: #2b5fb4;
-  --color-brand-600: #1d4994;
-  --color-brand-700: #173a77;
-  --color-brand-800: #142f60;
-  --color-brand-900: #11264c;
-  --color-brand-950: #0a1830;
+  /* Brand — navy. Primary surfaces and text. #182646 is the exact brand hex. */
+  --color-brand-50: #eef2fa;
+  --color-brand-100: #dae4f5;
+  --color-brand-200: #bccbe9;
+  --color-brand-300: #93abd8;
+  --color-brand-400: #6584c2;
+  --color-brand-500: #4263aa;
+  --color-brand-600: #34508f;
+  --color-brand-700: #2a4173;
+  --color-brand-800: #21335c;
+  --color-brand-900: #182646;
+  --color-brand-950: #0f192f;
 
-  /* Accent — call-to-action colour. Primary buttons, highlights, links. */
-  --color-accent-50: #fff4ec;
-  --color-accent-100: #ffe6d5;
-  --color-accent-200: #fec9a8;
-  --color-accent-300: #fda571;
-  --color-accent-400: #fb7d3a;
-  --color-accent-500: #f9621a;
-  --color-accent-600: #ea480d;
-  --color-accent-700: #c2360d;
-  --color-accent-800: #9a2c12;
-  --color-accent-900: #7c2712;
-  --color-accent-950: #431107;
+  /* Accent — brand yellow. Highlights and callout panels; pair with dark
+     text (brand-950) below 500, white text only at 700+. #fff389 is exact. */
+  --color-accent-50: #fffce8;
+  --color-accent-100: #fff9c2;
+  --color-accent-200: #fff6a3;
+  --color-accent-300: #fff389;
+  --color-accent-400: #f9e14e;
+  --color-accent-500: #eec921;
+  --color-accent-600: #d1a30d;
+  --color-accent-700: #a47808;
+  --color-accent-800: #875e10;
+  --color-accent-900: #734d14;
+  --color-accent-950: #432a07;
 
-  /* Typography — system stack until the real brand font is confirmed (TODO.md).
-     To adopt a webfont later: load it via next/font in the app layout and point
-     these tokens at the resulting CSS variable. */
+  /* Typography — the quote email uses Arial; the web brand font is still
+     unconfirmed (TODO.md), so we ship a clean system stack. To adopt a
+     webfont later: load it via next/font in the app layout and point these
+     tokens at the resulting CSS variable. */
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;

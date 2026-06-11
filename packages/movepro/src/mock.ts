@@ -9,16 +9,21 @@ import type {
   QuoteRequest,
 } from "./types";
 
-/** Indicative pricing model for mock quotes — tune freely, it's demo data. */
+/** Indicative pricing model for mock quotes — tune freely, it's demo data.
+ *  The SHAPE mirrors real company quotes (truck + movers + rate ex-GST +
+ *  callout + 2-hour minimum + $200 deposit); the numbers are placeholders. */
 const HOURLY_RATE_AUD = 169;
-const SIZE_HOURS: Record<MoveSize, number> = {
-  "few-items": 2,
-  studio: 3,
-  "1-bedroom": 4,
-  "2-bedroom": 6,
-  "3-bedroom": 8,
-  "4-bedroom-plus": 10,
-  office: 9,
+const MINIMUM_HOURS = 2;
+const DEPOSIT_AUD = 200;
+const CALLOUT = "45 minutes";
+const SIZE_SPECS: Record<MoveSize, { hours: number; crew: number; truck: string }> = {
+  "few-items": { hours: 2, crew: 2, truck: "4.5-tonne" },
+  studio: { hours: 3, crew: 2, truck: "4.5-tonne" },
+  "1-bedroom": { hours: 4, crew: 2, truck: "8-tonne" },
+  "2-bedroom": { hours: 6, crew: 3, truck: "8-tonne" },
+  "3-bedroom": { hours: 8, crew: 3, truck: "10-tonne" },
+  "4-bedroom-plus": { hours: 10, crew: 4, truck: "12-tonne" },
+  office: { hours: 9, crew: 4, truck: "10-tonne" },
 };
 
 function daysFromNow(days: number): ISODateString {
@@ -70,18 +75,24 @@ export class MockMoveproClient implements MoveproClient {
   }
 
   async requestQuote(request: QuoteRequest): Promise<QuoteEstimate> {
-    const hours = SIZE_HOURS[request.size];
-    if (hours === undefined) {
+    const spec = SIZE_SPECS[request.size];
+    if (spec === undefined) {
       throw new MoveproConfigError(`Unknown move size: ${String(request.size)}`);
     }
-    const min = roundToTen(hours * HOURLY_RATE_AUD);
+    const min = roundToTen(Math.max(spec.hours, MINIMUM_HOURS) * HOURLY_RATE_AUD);
     const max = roundToTen(min * 1.35);
     return {
       id: this.nextId("quote"),
       priceRange: { min, max, currency: "AUD" },
       basis: "hourly",
       hourlyRate: HOURLY_RATE_AUD,
-      estimatedHours: hours,
+      gst: "exclusive",
+      estimatedHours: spec.hours,
+      minimumHours: MINIMUM_HOURS,
+      callout: CALLOUT,
+      crewSize: spec.crew,
+      truckSize: spec.truck,
+      depositAmount: DEPOSIT_AUD,
       validUntil: daysFromNow(14),
       disclaimer:
         "Indicative estimate only — final pricing is confirmed after a review of your inventory and access details.",

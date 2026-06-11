@@ -1,15 +1,19 @@
 /**
  * Company constants and locale helpers — the single source of truth for
- * "who we are" across every app. Values marked TODO are placeholders;
- * the full list lives in /TODO.md.
+ * "who we are" across every app. Primary source: the company's own quote
+ * email + Google Business listing (captured 11 Jun 2026). Remaining gaps
+ * are tracked in /TODO.md.
+ *
+ * Deliberately NOT stored here: the company's bank account details (they
+ * appear in quote emails but are payment-operations data, not config).
  */
 
 export const company = {
   name: "No Limits Removalists",
-  /** TODO: confirm registered legal entity name. */
+  /** Confirmed — appears as the account name in the company's quote emails. */
   legalName: "No Limits Removalists Pty Ltd",
-  /** TODO: confirm or replace with the real tagline from the website. */
-  tagline: "Sydney removalists who go the distance.",
+  /** The company's own line, from their quote emails. */
+  tagline: "It takes a family to move a family.",
   /**
    * The company's public website — managed externally; we don't own or
    * control this domain or its DNS. Our tools deploy to Vercel URLs
@@ -17,32 +21,44 @@ export const company = {
    */
   domain: "nolimitsremovalists.com.au",
   url: "https://nolimitsremovalists.com.au",
-  /** TODO: real phone number. E.164 format, used in tel: links. */
-  phone: "+61255550000",
-  /** TODO: real phone number, as displayed to humans. */
-  phoneDisplay: "(02) 5555 0000",
-  /** TODO: confirm the real contact email. */
-  email: "info@nolimitsremovalists.com.au",
+  /** From quote emails + Google listing. E.164-ish form for tel: links. */
+  phone: "+611300609117",
+  phoneDisplay: "1300 609 117",
+  /**
+   * The quotes inbox used in their emails.
+   * TODO: confirm the preferred address for general enquiries.
+   */
+  email: "quote@nolimitsremovalists.com.au",
   /** TODO: real ABN. */
   abn: "00 000 000 000",
+  /** Depot, from the Google Business listing. */
   address: {
-    /** TODO: depot suburb. */
-    suburb: "Sydney",
+    line1: "Unit 6/76 Hume Hwy",
+    suburb: "Lansvale",
     state: "NSW",
+    postcode: "2166",
     country: "Australia",
   },
   locale: "en-AU",
   currency: "AUD",
   timezone: "Australia/Sydney",
+  /** Public T&Cs document the company links from every quote email. */
+  termsUrl:
+    "https://drive.google.com/file/d/1PRJvNSQZXzHxIfuAlsykK3fVFxvML9_X/view",
   /**
-   * Marketing facts gathered from public listings — TODO: verify with the
-   * company before using in customer-facing copy.
+   * Marketing facts — snapshot Jun 2026. fleetSize/fiveStarReviews/guarantees
+   * come from the company's own quote email; foundedYear/afraAccredited/
+   * teamSize come from public listings (TODO: verify those before
+   * customer-facing use). Review counts drift — refresh before quoting them.
    */
   facts: {
     foundedYear: 2016,
     afraAccredited: true,
-    fleetSize: 24,
+    fleetSize: 70,
     teamSize: 60,
+    fiveStarReviews: 5000,
+    googleRating: 4.9,
+    googleReviewCount: 5130,
   },
   services: [
     "Home removals",
@@ -51,6 +67,21 @@ export const company = {
     "Country relocations",
     "Interstate moves",
   ],
+  /** Add-on services offered in every quote email. */
+  addOnServices: [
+    "Packing",
+    "Cleaning",
+    "Virtual site inspections",
+    "Utility connections",
+    "Car relocation",
+  ],
+  /** Standing offers the company makes in every quote email. */
+  guarantees: [
+    "Refundable reservation fee and deposit",
+    "Flexible rescheduling with no cancellation fees",
+    "Price matching — we'll beat any comparable written quote where possible",
+    "No hidden costs",
+  ],
 } as const;
 
 /**
@@ -58,10 +89,10 @@ export const company = {
  * email templates, OG images). MUST stay in sync with tailwind/theme.css.
  */
 export const brandColors = {
-  /** --color-brand-900 */
-  navy: "#11264c",
-  /** --color-accent-500 */
-  orange: "#f9621a",
+  /** --color-brand-900 — exact navy from the company's quote email. */
+  navy: "#182646",
+  /** --color-accent-300 — exact highlight yellow from the quote email. */
+  yellow: "#fff389",
 } as const;
 
 const currencyFormatter = new Intl.NumberFormat(company.locale, {

@@ -23,7 +23,7 @@ export default function GlobalError({
         }}
       >
         <div>
-          <h1 style={{ color: "#11264c" }}>Something went wrong</h1>
+          <h1 style={{ color: "#182646" }}>Something went wrong</h1>
           <p style={{ color: "#475569", maxWidth: "28rem" }}>
             Sorry — the page hit an unexpected error. Please try again.
           </p>
@@ -40,7 +40,7 @@ export default function GlobalError({
               padding: "0 1.5rem",
               borderRadius: "0.5rem",
               border: "none",
-              background: "#f9621a",
+              background: "#182646",
               color: "#fff",
               fontWeight: 600,
               fontSize: "1rem",

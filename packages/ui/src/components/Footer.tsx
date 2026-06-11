@@ -7,7 +7,8 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="mt-auto bg-brand-950 text-brand-100">
+    // brand-900 (#182646) matches the company's own email footer.
+    <footer className="mt-auto bg-brand-900 text-brand-100">
       <Container className="py-10 sm:py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           <div>
@@ -15,8 +16,10 @@ export function Footer() {
               {company.name}
             </p>
             <p className="mt-2 max-w-xs text-sm leading-relaxed">
-              Family-run, AFRA-accredited removalists moving homes and offices
-              across Sydney and Australia since {company.facts.foundedYear}.
+              {company.tagline} Family owned and operated, moving homes and
+              offices across Sydney and Australia — over{" "}
+              {company.facts.fiveStarReviews.toLocaleString(company.locale)}{" "}
+              five-star reviews.
             </p>
           </div>
 
@@ -36,7 +39,18 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                {company.address.suburb}, {company.address.state}
+                {company.address.line1}, {company.address.suburb}{" "}
+                {company.address.state} {company.address.postcode}
+              </li>
+              <li>
+                <a
+                  className="hover:text-white hover:underline"
+                  href={company.termsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Terms and conditions
+                </a>
               </li>
             </ul>
           </div>

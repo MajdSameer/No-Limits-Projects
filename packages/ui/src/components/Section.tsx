@@ -19,7 +19,7 @@ export function Section({ eyebrow, title, lead, className, children, ...rest }: 
         {(eyebrow ?? title ?? lead) && (
           <div className="mb-8 max-w-2xl">
             {eyebrow && (
-              <p className="mb-2 text-sm font-semibold tracking-widest text-accent-600 uppercase">
+              <p className="mb-2 text-sm font-semibold tracking-widest text-accent-700 uppercase">
                 {eyebrow}
               </p>
             )}

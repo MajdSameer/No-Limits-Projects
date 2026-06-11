@@ -5,12 +5,14 @@ import { cx } from "../cx";
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg";
 
+// Follows the brand's own usage (see quote email): navy surfaces carry white
+// text; yellow is a highlight colour and always carries dark text.
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: "bg-accent-500 text-white hover:bg-accent-600 active:bg-accent-700",
-  secondary: "bg-brand-800 text-white hover:bg-brand-700 active:bg-brand-900",
+  primary: "bg-brand-900 text-white hover:bg-brand-800 active:bg-brand-950",
+  secondary: "bg-accent-300 text-brand-950 hover:bg-accent-200 active:bg-accent-400",
   outline:
-    "border-2 border-brand-800 text-brand-800 hover:bg-brand-50 active:bg-brand-100",
-  ghost: "text-brand-800 hover:bg-brand-50 active:bg-brand-100",
+    "border-2 border-brand-900 text-brand-900 hover:bg-brand-50 active:bg-brand-100",
+  ghost: "text-brand-900 hover:bg-brand-50 active:bg-brand-100",
 };
 
 // min-h keeps touch targets >= 44px on md/lg — most customers are on phones.

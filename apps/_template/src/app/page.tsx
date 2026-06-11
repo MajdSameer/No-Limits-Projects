@@ -42,7 +42,7 @@ export default async function HomePage() {
       <main id="main" className="flex-1">
         <div className="bg-brand-950 text-white">
           <Container className="py-16 sm:py-24">
-            <p className="mb-3 text-sm font-semibold tracking-widest text-accent-400 uppercase">
+            <p className="mb-3 text-sm font-semibold tracking-widest text-accent-300 uppercase">
               {company.name} · App template
             </p>
             <h1 className="max-w-2xl text-4xl font-extrabold tracking-tight sm:text-5xl">
@@ -53,7 +53,8 @@ export default async function HomePage() {
               template, swap in your pages, and you&apos;re production-ready.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <ButtonLink href="#movepro" size="lg">
+              {/* On navy, the yellow "secondary" variant is the high-contrast CTA. */}
+              <ButtonLink href="#movepro" variant="secondary" size="lg">
                 See the Movepro demo
               </ButtonLink>
               <ButtonLink
@@ -103,10 +104,18 @@ export default async function HomePage() {
             <p className="mt-4 text-3xl font-extrabold text-brand-900">
               {formatCurrency(estimate.priceRange.min)} –{" "}
               {formatCurrency(estimate.priceRange.max)}
+              {estimate.gst === "exclusive" && (
+                <span className="ml-1.5 text-sm font-semibold text-slate-500">+ GST</span>
+              )}
             </p>
             <p className="mt-1 text-sm text-slate-600">
-              ~{estimate.estimatedHours} hours at {formatCurrency(estimate.hourlyRate ?? 0)}
-              /hr · valid until {formatDate(estimate.validUntil)}
+              ~{estimate.estimatedHours} hours · {estimate.crewSize} movers ·{" "}
+              {estimate.truckSize} truck at {formatCurrency(estimate.hourlyRate ?? 0)}/hr
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {estimate.minimumHours}-hour minimum + {estimate.callout} callout ·{" "}
+              {formatCurrency(estimate.depositAmount ?? 0)} refundable deposit · valid
+              until {formatDate(estimate.validUntil)}
             </p>
             <p className="mt-4 border-t border-slate-200 pt-3 text-xs text-slate-500">
               {estimate.disclaimer}

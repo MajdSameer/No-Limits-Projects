@@ -63,6 +63,11 @@ export interface QuoteRequest {
   accessNotes?: string;
 }
 
+/**
+ * Shaped after the company's real quote emails: truck size + movers +
+ * hourly rate plus GST + callout, with a 2-hour minimum and a refundable
+ * deposit to secure the booking.
+ */
 export interface QuoteEstimate {
   id: string;
   priceRange: {
@@ -73,7 +78,18 @@ export interface QuoteEstimate {
   };
   basis: "hourly" | "fixed";
   hourlyRate?: number;
+  /** The company quotes hourly rates exclusive of GST. */
+  gst?: "inclusive" | "exclusive";
   estimatedHours?: number;
+  /** Minimum billable hours (company policy: 2). */
+  minimumHours?: number;
+  /** Callout charge as quoted, e.g. "45 minutes". */
+  callout?: string;
+  crewSize?: number;
+  /** e.g. "10-tonne" */
+  truckSize?: string;
+  /** Deposit that secures a booking (refundable per company policy). */
+  depositAmount?: number;
   validUntil: ISODateString;
   /** Always show this next to an estimate — it is not a binding quote. */
   disclaimer: string;
