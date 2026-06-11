@@ -4,7 +4,8 @@ import base from "@nlr/config/eslint/base";
 
 export default [
   {
-    ignores: ["apps/**", "packages/**"],
+    // .claude/skills are vendored third-party files — not ours to lint.
+    ignores: ["apps/**", "packages/**", ".claude/**"],
   },
   ...base,
 ];
