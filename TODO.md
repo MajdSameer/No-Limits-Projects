@@ -52,9 +52,12 @@ When answered: implement `packages/movepro/src/live.ts`, then set
 
 ## Infrastructure
 
-- [ ] **Domain plan**: confirm we can create subdomains under
-      `nolimitsremovalists.com.au` (who controls DNS?) — docs assume
-      `<app>.nolimitsremovalists.com.au`
+- [ ] **Hosting domain**: we do NOT own/control `nolimitsremovalists.com.au`
+      (the website and its DNS are managed externally — confirmed 11 Jun 2026),
+      so our tools can't live on its subdomains for now. Apps ship on
+      `<project>.vercel.app` URLs. When a proper domain is wanted, either get
+      DNS access from whoever manages the main site, or register a separate
+      domain for tools and add it in Vercel → Settings → Domains.
 - [ ] **Vercel account/team**: create (or share access to) the team that owns
       these deployments
 - [ ] **GitHub repo access** for whoever else needs it

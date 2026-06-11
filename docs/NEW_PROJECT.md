@@ -55,8 +55,9 @@ Work in small commits on your feature branch. While building:
    per environment).
 4. Deploy → check the preview URL on your actual phone.
 5. Merge the PR into `main` → production deploys automatically.
-6. Custom domain (optional): Vercel project → Settings → Domains → add
-   `<app>.nolimitsremovalists.com.au`, then create the CNAME record it asks for.
+6. Domain: apps ship on their Vercel URL (`<project>.vercel.app`) — we don't
+   control the company domain's DNS, so its subdomains aren't available
+   (see TODO.md). When a domain is sorted: Vercel project → Settings → Domains.
 
 ## 6. Hand over
 

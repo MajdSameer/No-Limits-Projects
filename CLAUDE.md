@@ -44,3 +44,5 @@ When you resolve one, update `TODO.md` in the same change. Brand palette is a
 placeholder (navy/orange) because the live site 403s automated access — if the
 user provides real colours or a screenshot, update
 `packages/config/tailwind/theme.css` + the synced spots listed in TODO.md.
+We do NOT control the company domain (`nolimitsremovalists.com.au`) or its
+DNS — apps deploy to `*.vercel.app` URLs; never assume company subdomains.

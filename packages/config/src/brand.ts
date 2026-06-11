@@ -10,6 +10,11 @@ export const company = {
   legalName: "No Limits Removalists Pty Ltd",
   /** TODO: confirm or replace with the real tagline from the website. */
   tagline: "Sydney removalists who go the distance.",
+  /**
+   * The company's public website — managed externally; we don't own or
+   * control this domain or its DNS. Our tools deploy to Vercel URLs
+   * (see TODO.md → Hosting domain).
+   */
   domain: "nolimitsremovalists.com.au",
   url: "https://nolimitsremovalists.com.au",
   /** TODO: real phone number. E.164 format, used in tel: links. */
