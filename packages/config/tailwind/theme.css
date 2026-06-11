@@ -9,55 +9,58 @@
  * Every token becomes a Tailwind utility automatically:
  *   --color-brand-900  ->  bg-brand-900, text-brand-900, border-brand-900, ...
  *
- * REAL BRAND PALETTE — extracted from the company's quote email (Jun 2026):
- *   navy  #182646 (anchored at brand-900) — headers, footers, primary buttons
- *   yellow #fff389 (anchored at accent-300) — highlight panels, emphasis
- * Usage follows the email's own pattern: navy surfaces carry white text;
- * yellow surfaces carry dark text (yellow is a HIGHLIGHT, not a button-with-
- * white-text colour). Other steps in each scale are derived to harmonise.
+ * REAL BRAND PALETTE — sources: the company's quote email + a screenshot of
+ * the live website (Jun 2026). Exact anchors:
+ *   brand-900  #182646  navy (email header/footer)
+ *   brand-800  #1f3061  brighter hero navy (website hero, estimated)
+ *   accent-400 #ffd42e  CTA gold (website buttons + quote form, estimated)
+ *   accent-200 #fff389  pale highlight (email panels)
+ * Usage rules (the brand's own): navy surfaces carry white text; yellow/gold
+ * is for CTAs and highlight panels and ALWAYS carries dark text; buttons are
+ * pill-shaped.
  *
- * If you change these, keep the two anchor hexes in src/brand.ts
- * (brandColors) in sync — plus the inline copies in each app's
- * global-error.tsx and icon.svg (listed in TODO.md).
+ * If you change these, keep the two hexes in src/brand.ts (brandColors) in
+ * sync — plus the inline copies in each app's global-error.tsx and icon.svg
+ * (listed in TODO.md).
  */
 
 @theme {
-  /* Brand — navy. Primary surfaces and text. #182646 is the exact brand hex. */
-  --color-brand-50: #eef2fa;
-  --color-brand-100: #dae4f5;
-  --color-brand-200: #bccbe9;
-  --color-brand-300: #93abd8;
-  --color-brand-400: #6584c2;
-  --color-brand-500: #4263aa;
-  --color-brand-600: #34508f;
-  --color-brand-700: #2a4173;
-  --color-brand-800: #21335c;
+  /* Brand — navy. Primary surfaces and text. */
+  --color-brand-50: #eef2fb;
+  --color-brand-100: #dae4f7;
+  --color-brand-200: #bccbef;
+  --color-brand-300: #93abe2;
+  --color-brand-400: #6584cf;
+  --color-brand-500: #4263b8;
+  --color-brand-600: #34509c;
+  --color-brand-700: #2a407d;
+  --color-brand-800: #1f3061;
   --color-brand-900: #182646;
   --color-brand-950: #0f192f;
 
-  /* Accent — brand yellow. Highlights and callout panels; pair with dark
-     text (brand-950) below 500, white text only at 700+. #fff389 is exact. */
-  --color-accent-50: #fffce8;
-  --color-accent-100: #fff9c2;
-  --color-accent-200: #fff6a3;
-  --color-accent-300: #fff389;
-  --color-accent-400: #f9e14e;
-  --color-accent-500: #eec921;
-  --color-accent-600: #d1a30d;
-  --color-accent-700: #a47808;
-  --color-accent-800: #875e10;
-  --color-accent-900: #734d14;
-  --color-accent-950: #432a07;
+  /* Accent — brand gold/yellow. CTAs at 400, soft highlight panels at 100–200.
+     Dark text (brand-950) up to 500; white text only at 700+. */
+  --color-accent-50: #fffbe8;
+  --color-accent-100: #fff7c4;
+  --color-accent-200: #fff389;
+  --color-accent-300: #ffe45c;
+  --color-accent-400: #ffd42e;
+  --color-accent-500: #f4bd0a;
+  --color-accent-600: #d49d05;
+  --color-accent-700: #a87a06;
+  --color-accent-800: #8a5f0e;
+  --color-accent-900: #744e13;
+  --color-accent-950: #432a06;
 
-  /* Typography — the quote email uses Arial; the web brand font is still
-     unconfirmed (TODO.md), so we ship a clean system stack. To adopt a
-     webfont later: load it via next/font in the app layout and point these
-     tokens at the resulting CSS variable. */
+  /* Typography — the site uses a heavy grotesque, but we're approved to
+     modernise rather than copy it. System stack for now; when a webfont is
+     chosen, load it via next/font in the app layout and point these tokens
+     at the resulting CSS variable. Headlines: use font-extrabold/black. */
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
   --font-display: var(--font-sans);
 
-  /* Shape */
-  --radius-card: 0.75rem;
+  /* Shape — the brand rounds generously (pill buttons, soft cards). */
+  --radius-card: 1rem;
 }

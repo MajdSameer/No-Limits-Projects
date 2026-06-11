@@ -14,6 +14,9 @@ export const company = {
   legalName: "No Limits Removalists Pty Ltd",
   /** The company's own line, from their quote emails. */
   tagline: "It takes a family to move a family.",
+  /** Hero line from the company's website. */
+  heroLine:
+    "From Coast to Coast, we take your move from tiring and stressful, to effortlessly easy.",
   /**
    * The company's public website — managed externally; we don't own or
    * control this domain or its DNS. Our tools deploy to Vercel URLs
@@ -67,10 +70,13 @@ export const company = {
     "Country relocations",
     "Interstate moves",
   ],
-  /** Add-on services offered in every quote email. */
+  /** Add-on services, from the quote email + the website's quote form. */
   addOnServices: [
     "Packing",
+    "Unpacking",
     "Cleaning",
+    "Storage",
+    "Free site visits",
     "Virtual site inspections",
     "Utility connections",
     "Car relocation",
@@ -91,8 +97,8 @@ export const company = {
 export const brandColors = {
   /** --color-brand-900 — exact navy from the company's quote email. */
   navy: "#182646",
-  /** --color-accent-300 — exact highlight yellow from the quote email. */
-  yellow: "#fff389",
+  /** --color-accent-400 — CTA gold from the company's website. */
+  yellow: "#ffd42e",
 } as const;
 
 const currencyFormatter = new Intl.NumberFormat(company.locale, {

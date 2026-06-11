@@ -40,9 +40,10 @@ export default async function HomePage() {
       <Header nav={NAV} />
 
       <main id="main" className="flex-1">
-        <div className="bg-brand-950 text-white">
+        {/* brand-900 hero with white text + gold accents, like the website. */}
+        <div className="bg-brand-900 text-white">
           <Container className="py-16 sm:py-24">
-            <p className="mb-3 text-sm font-semibold tracking-widest text-accent-300 uppercase">
+            <p className="mb-3 text-sm font-semibold tracking-widest text-accent-400 uppercase">
               {company.name} · App template
             </p>
             <h1 className="max-w-2xl text-4xl font-extrabold tracking-tight sm:text-5xl">
@@ -61,7 +62,7 @@ export default async function HomePage() {
                 href="https://github.com/MajdSameer/No-Limits-Projects"
                 variant="outline"
                 size="lg"
-                className="border-white text-white hover:bg-brand-900 active:bg-brand-900"
+                className="border-white text-white hover:bg-brand-800 active:bg-brand-800"
               >
                 Read the docs
               </ButtonLink>

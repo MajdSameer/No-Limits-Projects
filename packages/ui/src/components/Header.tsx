@@ -27,8 +27,9 @@ export interface HeaderProps {
 export function Header({ nav = [], showPhone = true }: HeaderProps) {
   const [open, setOpen] = useState(false);
 
+  // Gold pill, like the website's "Request a Quote" header button.
   const phoneCta = showPhone && (
-    <ButtonLink href={`tel:${company.phone}`} size="sm">
+    <ButtonLink href={`tel:${company.phone}`} variant="secondary" size="sm">
       <PhoneIcon />
       Call {company.phoneDisplay}
     </ButtonLink>

@@ -7,21 +7,28 @@ company's real quote email + Google Business listing.)
 
 ## Branding
 
-Palette is now REAL — navy `#182646` + highlight yellow `#fff389`, extracted
-from the company's quote email (the live website blocks automated access).
+Palette is REAL — sources: the company's quote email + a website screenshot
+(both Jun 2026). Anchors: navy `#182646` (email), hero navy `#1f3061`
+(website, estimated from screenshot), CTA gold `#ffd42e` (website, estimated),
+pale highlight `#fff389` (email). Buttons are pill-shaped, per the brand.
 Tokens: `packages/config/tailwind/theme.css`; synced inline copies:
 `brandColors` in `packages/config/src/brand.ts`,
 `apps/_template/src/app/global-error.tsx`, `apps/_template/src/app/icon.svg`.
 
-- [x] ~~Brand colours~~ — done from quote email (navy/yellow). Optional
-      refinement: a screenshot of the website to confirm web usage.
+- [x] ~~Brand colours~~ — done (quote email + website screenshot). The two
+      website hexes are careful eyeball estimates; if pixel-exact values ever
+      matter, sample them from the original screenshot/site
 - [x] ~~Tagline~~ — "It takes a family to move a family." (their own email copy)
-- [ ] **Logo files** (SVG/PNG) — the email's logo is on a Mailchimp CDN that
-      403s us. Get the file from whoever runs the Mailchimp account, then
-      replace the text lockup in `packages/ui/src/components/Logo.tsx` and the
-      favicon at `apps/_template/src/app/icon.svg`
-- [ ] **Brand web font** — email uses Arial; the website's font is unknown.
-      Until confirmed we ship a system stack (`--font-sans` in `theme.css`)
+- [ ] **Logo files** (SVG/PNG) — it's a navy truck illustration over a stacked
+      "NO LIMITS / REMOVALISTS" wordmark (seen in the website screenshot); the
+      email copy sits on a Mailchimp CDN that 403s us. Get the file from
+      whoever runs the website/Mailchimp, then replace the text lockup in
+      `packages/ui/src/components/Logo.tsx` and the favicon at
+      `apps/_template/src/app/icon.svg`
+- [ ] **Web font (optional)** — the site uses a heavy grotesque but we're
+      approved to modernise rather than copy it. System stack ships today;
+      if we want a distinctive headline font later, pick one and load it via
+      `next/font` (then point `--font-display` at it in `theme.css`)
 
 ## Company facts (`packages/config/src/brand.ts`)
 

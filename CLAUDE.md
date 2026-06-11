@@ -41,9 +41,10 @@ pnpm --filter @nlr/<app> dev  # run one app
 
 `TODO.md` tracks every remaining placeholder (ABN, logo file, web font,
 Movepro access). When you resolve one, update `TODO.md` in the same change.
-Brand palette is REAL (from the company's quote email, Jun 2026): navy
-`#182646` + highlight yellow `#fff389` — navy surfaces carry white text,
-yellow always carries dark text. Tokens live in
+Brand palette is REAL (quote email + website screenshot, Jun 2026): navy
+`#182646` (brand-900) + CTA gold `#ffd42e` (accent-400) + pale highlight
+`#fff389` (accent-200) — navy surfaces carry white text, yellow/gold always
+carries dark text, buttons are pill-shaped. Tokens live in
 `packages/config/tailwind/theme.css`; the synced inline copies are listed in
 TODO.md. Company contact details in `brand.ts` are real — don't invent new
 ones. Never commit the company's bank details (they appear in quote emails).

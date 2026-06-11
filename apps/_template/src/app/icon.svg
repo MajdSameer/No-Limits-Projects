@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <!-- Placeholder favicon in real brand colours — swap for the actual logo mark (see TODO.md). -->
   <rect width="64" height="64" rx="14" fill="#182646"/>
-  <path d="M14 44 L32 20 L38 28" stroke="#fff389" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M14 44 L32 20 L38 28" stroke="#ffd42e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   <text x="44" y="48" font-family="system-ui, sans-serif" font-size="26" font-weight="800" fill="#ffffff" text-anchor="middle">NL</text>
 </svg>
