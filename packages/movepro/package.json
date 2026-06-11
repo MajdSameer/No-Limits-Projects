@@ -1,0 +1,20 @@
+{
+  "name": "@nlr/movepro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed adapter for the Movepro CRM. Mock implementation until API access is confirmed — see TODO.md.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@nlr/config": "workspace:*",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "typescript": "^5.9.3"
+  }
+}

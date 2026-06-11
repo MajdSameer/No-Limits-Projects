@@ -1,0 +1,4 @@
+{
+  "extends": "@nlr/config/typescript/library",
+  "include": ["src"]
+}

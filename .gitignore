@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment files — secrets live in Vercel env vars, never in git.
+# .env.example files ARE committed (they document required vars with safe values).
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel
+
+# Misc
+.DS_Store
+npm-debug.log*
+.pnpm-debug.log*
+coverage/

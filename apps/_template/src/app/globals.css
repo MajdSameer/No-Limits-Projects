@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+/* Brand design tokens — colours/fonts shared by every app. */
+@import "@nlr/config/tailwind/theme.css";
+
+/* Tailwind auto-detects this app's files, but the shared UI package lives
+   outside the app root, so point Tailwind at its source explicitly. */
+@source "../../../../packages/ui/src";

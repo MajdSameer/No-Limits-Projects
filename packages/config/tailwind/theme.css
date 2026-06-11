@@ -1,0 +1,58 @@
+/*
+ * No Limits Removalists — brand design tokens (Tailwind CSS v4).
+ *
+ * Import in every app's globals.css, after Tailwind itself:
+ *
+ *   @import "tailwindcss";
+ *   @import "@nlr/config/tailwind/theme.css";
+ *
+ * Every token becomes a Tailwind utility automatically:
+ *   --color-brand-700  ->  bg-brand-700, text-brand-700, border-brand-700, ...
+ *   --color-accent-500 ->  bg-accent-500, ...
+ *
+ * ⚠️ PLACEHOLDER PALETTE — see TODO.md.
+ * The real site (nolimitsremovalists.com.au) blocks automated access, so these
+ * are professional placeholders: deep navy ("brand") + energetic orange
+ * ("accent"). Swapping in the real brand colours means editing THIS FILE ONLY —
+ * components reference token names, never raw hex values.
+ * Keep the two hex values in src/brand.ts (brandColors) in sync when you do.
+ */
+
+@theme {
+  /* Brand — primary colour. Headers, footers, headings, secondary buttons. */
+  --color-brand-50: #eef4fb;
+  --color-brand-100: #d9e6f6;
+  --color-brand-200: #b3cdee;
+  --color-brand-300: #84abe0;
+  --color-brand-400: #4f82cd;
+  --color-brand-500: #2b5fb4;
+  --color-brand-600: #1d4994;
+  --color-brand-700: #173a77;
+  --color-brand-800: #142f60;
+  --color-brand-900: #11264c;
+  --color-brand-950: #0a1830;
+
+  /* Accent — call-to-action colour. Primary buttons, highlights, links. */
+  --color-accent-50: #fff4ec;
+  --color-accent-100: #ffe6d5;
+  --color-accent-200: #fec9a8;
+  --color-accent-300: #fda571;
+  --color-accent-400: #fb7d3a;
+  --color-accent-500: #f9621a;
+  --color-accent-600: #ea480d;
+  --color-accent-700: #c2360d;
+  --color-accent-800: #9a2c12;
+  --color-accent-900: #7c2712;
+  --color-accent-950: #431107;
+
+  /* Typography — system stack until the real brand font is confirmed (TODO.md).
+     To adopt a webfont later: load it via next/font in the app layout and point
+     these tokens at the resulting CSS variable. */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-display: var(--font-sans);
+
+  /* Shape */
+  --radius-card: 0.75rem;
+}
