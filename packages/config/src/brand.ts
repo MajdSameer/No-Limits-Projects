@@ -53,8 +53,8 @@ export const company = {
     /** Their Facebook page (found Jun 2026). */
     facebook: "https://www.facebook.com/nolimitsremovalists.booknow/",
   },
-  /** TODO: real ABN. */
-  abn: "00 000 000 000",
+  /** From the company's own ops records (Jun 2026). */
+  abn: "69 657 017 822",
   /** Depot, from the Google Business listing. */
   address: {
     line1: "Unit 6/76 Hume Hwy",

@@ -47,7 +47,8 @@ Tokens: `packages/config/tailwind/theme.css`; synced inline copies:
 - [x] ~~Legal entity name~~ — No Limits Removalists Pty Ltd (from their
       quote email's payment section)
 - [x] ~~Depot address~~ — Unit 6/76 Hume Hwy, Lansvale NSW 2166 (Google listing)
-- [ ] **ABN** (placeholder `00 000 000 000` — shows in footer)
+- [x] ~~ABN~~ — 69 657 017 822 (from the company's ops sheet, Jun 2026;
+      shows in footer)
 - [ ] **Verify listing-sourced facts** before customer-facing use: founded
       2016, ~60 team members. (Fleet of 70 trucks and 5,000+ five-star
       reviews are the company's own email claims; Google shows 4.9★/5,130
