@@ -1,7 +1,20 @@
-export default function BoardPage() {
+import { Board } from "../../components/Board";
+import { dailyBoard, monthlyBoard, pipelineBoard, yesterdayBoard } from "../../db/queries/boards";
+
+export const dynamic = "force-dynamic";
+
+export default async function BoardPage() {
+  const now = new Date();
+  const [daily, yesterday, monthly, pipeline] = await Promise.all([
+    dailyBoard(now),
+    yesterdayBoard(now),
+    monthlyBoard(now),
+    pipelineBoard(now),
+  ]);
+
   return (
-    <p className="font-mono text-sm tracking-widest text-brand-300 uppercase">
-      Board coming in Phase 4.
-    </p>
+    <Board
+      initial={{ daily, yesterday, monthly, pipeline, generatedAtISO: now.toISOString() }}
+    />
   );
 }
