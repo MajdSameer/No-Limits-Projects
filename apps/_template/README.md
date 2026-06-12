@@ -11,12 +11,17 @@ Then follow [docs/NEW_PROJECT.md](../../docs/NEW_PROJECT.md).
 
 ## What's wired up
 
-- Branded `Header`/`Footer`, skip link, design tokens, system font stack
+- Branded `Header`/`Footer`, skip link, design tokens, self-hosted brand fonts
+  (Big Shoulders display + Work Sans body, OFL licences in `src/app/fonts/`)
+- Demo homepage at landing-page quality: hero with a **working instant-quote
+  card** (server actions → Movepro adapter: `requestQuote` + `createLead`),
+  stats band, services, steps, guarantees, CTA. Replace it with your app's
+  pages — it exists to show the patterns (`page.tsx`, `QuoteCard.tsx`,
+  `actions.ts`, `quote-options.ts`)
 - Error boundary (`error.tsx`), root-layout error fallback (`global-error.tsx`),
   branded 404 (`not-found.tsx`)
 - SEO metadata + `robots.ts` + placeholder favicon (`icon.svg`)
 - Mobile-first responsive layout, `lang="en-AU"`
-- Movepro adapter demo on the homepage (delete it in real apps)
 - `.env.example` documenting every env var the app reads
 
 ## Run it

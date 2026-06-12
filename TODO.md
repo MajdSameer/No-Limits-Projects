@@ -26,9 +26,15 @@ Tokens: `packages/config/tailwind/theme.css`; synced inline copies:
       `packages/ui/src/components/Logo.tsx` and the favicon at
       `apps/_template/src/app/icon.svg`
 - [ ] **Web font (optional)** — the site uses a heavy grotesque but we're
-      approved to modernise rather than copy it. System stack ships today;
-      if we want a distinctive headline font later, pick one and load it via
-      `next/font` (then point `--font-display` at it in `theme.css`)
+      approved to modernise rather than copy it. The template now self-hosts
+      Big Shoulders (display) + Work Sans (body), both OFL-licensed; swap in
+      `apps/_template/src/app/layout.tsx` + `globals.css` if the company picks
+      something else
+- [ ] **CTA-band illustration** — a brand-matched truck illustration was
+      generated with Higgsfield (job `c6e40106-bd3a-44b4-927a-050a70cd1a02`,
+      visible in the Higgsfield account) but its CDN blocks this environment.
+      If wanted: download it from Higgsfield and drop it into the CTA section
+      of `apps/_template/src/app/page.tsx`
 
 ## Company facts (`packages/config/src/brand.ts`)
 

@@ -1,128 +1,245 @@
-import { company, formatCurrency, formatDate } from "@nlr/config/brand";
-import { createMoveproClient } from "@nlr/movepro";
-import { ButtonLink, Card, Container, Footer, Header, Section } from "@nlr/ui";
+import { company } from "@nlr/config/brand";
+import { ButtonLink, Container, Footer, Header } from "@nlr/ui";
+
+import { QuoteCard } from "./QuoteCard";
 
 const NAV = [
-  { label: "What's included", href: "#included" },
-  { label: "Movepro demo", href: "#movepro" },
+  { label: "Services", href: "#services" },
+  { label: "How it works", href: "#how" },
+  { label: "Why us", href: "#why" },
 ];
 
-const INCLUDED = [
+// Tags encode real coverage, not decoration.
+const SERVICES = [
   {
-    title: "Brand design tokens",
-    body: "Colours, fonts and spacing come from @nlr/config — restyle every app by editing one file.",
+    tag: "Homes",
+    title: "Home removals",
+    body: "Full-house moves with trained crews who pad, wrap and load like it's their nan's china.",
   },
   {
-    title: "Shared UI library",
-    body: "Header, footer, forms and buttons from @nlr/ui. Mobile-first with accessibility built in.",
+    tag: "Offices",
+    title: "Office removals",
+    body: "Desks out Friday night, working Monday morning. Minimal downtime, no surprises.",
   },
   {
-    title: "Movepro adapter",
-    body: "Typed CRM client with a working mock today and a drop-in slot for the real API later.",
+    tag: "Sydney-wide",
+    title: "Local Sydney moves",
+    body: "Based in Lansvale with slots across the metro — the whole city counts as local.",
   },
   {
-    title: "Quality gates",
-    body: "Strict TypeScript, ESLint and a repo-wide `pnpm check` keep main always deployable.",
+    tag: "NSW-wide",
+    title: "Country relocations",
+    body: "Sydney to the regions and back, with door-to-door timelines you can plan around.",
+  },
+  {
+    tag: "Australia-wide",
+    title: "Interstate moves",
+    body: "Melbourne, Brisbane and beyond — one crew, one truck, one point of contact.",
+  },
+  {
+    tag: "Add-ons",
+    title: "Packing & extras",
+    body: "Packing, unpacking, cleaning, storage, utility connections — bolt on what you need.",
   },
 ];
 
-export default async function HomePage() {
-  // Demo of the Movepro adapter — delete this (and the section below) in real apps.
-  const movepro = createMoveproClient();
-  const estimate = await movepro.requestQuote({
-    from: { suburb: "Parramatta", state: "NSW", postcode: "2150" },
-    to: { suburb: "Newcastle", state: "NSW", postcode: "2300" },
-    size: "3-bedroom",
-  });
+const STEPS = [
+  {
+    title: "Tell us about your move",
+    body: `Size, suburbs and date — two minutes online, or call ${company.phoneDisplay}.`,
+  },
+  {
+    title: "Get your price",
+    body: "Truck size, crew and hourly rate upfront. A $200 refundable deposit locks in your date.",
+  },
+  {
+    title: "We do the heavy lifting",
+    body: "Trained crews with heavy blankets, shrink wrap, straps and dollies — all included.",
+  },
+];
 
+export default function HomePage() {
   return (
     <>
       <Header nav={NAV} />
 
       <main id="main" className="flex-1">
-        {/* brand-900 hero with white text + gold accents, like the website. */}
-        <div className="bg-brand-900 text-white">
-          <Container className="py-16 sm:py-24">
-            <p className="mb-3 text-sm font-semibold tracking-widest text-accent-400 uppercase">
-              {company.name} · App template
-            </p>
-            <h1 className="max-w-2xl text-4xl font-extrabold tracking-tight sm:text-5xl">
-              Your next project starts here.
-            </h1>
-            <p className="mt-4 max-w-xl text-lg text-brand-100">
-              Branded, responsive and accessible out of the box. Copy this
-              template, swap in your pages, and you&apos;re production-ready.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              {/* On navy, the yellow "secondary" variant is the high-contrast CTA. */}
-              <ButtonLink href="#movepro" variant="secondary" size="lg">
-                See the Movepro demo
-              </ButtonLink>
-              <ButtonLink
-                href="https://github.com/MajdSameer/No-Limits-Projects"
-                variant="outline"
-                size="lg"
-                className="border-white text-white hover:bg-brand-800 active:bg-brand-800"
-              >
-                Read the docs
-              </ButtonLink>
+        {/* ── Hero: the thesis is the price. Headline left, live quote right. */}
+        <div className="relative isolate overflow-hidden bg-brand-900 text-white">
+          <div aria-hidden className="absolute inset-x-0 top-0 h-1 bg-accent-400" />
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 bg-[radial-gradient(85%_75%_at_75%_0%,var(--color-brand-800)_0%,transparent_65%)]"
+          />
+          <Container className="grid items-center gap-10 py-14 sm:py-18 lg:grid-cols-[1.1fr_minmax(380px,0.9fr)] lg:gap-14 lg:py-20">
+            <div>
+              <p className="text-sm font-bold tracking-[0.2em] text-accent-400 uppercase">
+                Sydney · Country · Interstate
+              </p>
+              <h1 className="font-display mt-4 text-[clamp(3.5rem,10vw,6.5rem)] leading-[0.9] font-bold tracking-wide uppercase">
+                Big move?
+                <br />
+                <span className="text-accent-400">No limits.</span>
+              </h1>
+              <p className="mt-5 max-w-md text-lg leading-relaxed text-brand-100">
+                {company.heroLine}
+              </p>
+              <ul className="mt-7 flex flex-wrap gap-2" aria-label="Why people choose us">
+                {[
+                  `★ ${company.facts.googleRating} on Google (${company.facts.googleReviewCount.toLocaleString(company.locale)} reviews)`,
+                  `${company.facts.fleetSize}-truck fleet`,
+                  "Family owned & operated",
+                ].map((chip) => (
+                  <li
+                    key={chip}
+                    className="rounded-full border border-brand-700 px-3.5 py-1.5 text-sm font-medium text-brand-100"
+                  >
+                    {chip}
+                  </li>
+                ))}
+              </ul>
             </div>
+
+            <QuoteCard />
           </Container>
         </div>
 
-        <Section
-          id="included"
-          eyebrow="Foundation"
-          title="What every app gets for free"
-          lead="These come from the shared packages — improve them once, every project benefits."
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            {INCLUDED.map((item) => (
-              <Card key={item.title}>
-                <h3 className="font-bold text-brand-900">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.body}</p>
-              </Card>
+        {/* ── Numbers band: the facts, oversized. */}
+        <section aria-label="Company facts" className="border-b border-slate-200 bg-white">
+          <Container className="grid grid-cols-2 gap-x-6 gap-y-8 py-10 sm:grid-cols-4 sm:py-12">
+            {[
+              { value: String(company.facts.fleetSize), label: "Trucks in the fleet" },
+              {
+                value: `${company.facts.fiveStarReviews.toLocaleString(company.locale)}+`,
+                label: "Five-star reviews",
+              },
+              { value: `${company.facts.googleRating}★`, label: "Rating on Google" },
+              { value: String(company.facts.foundedYear), label: "Moving families since" },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center">
+                <p className="font-display text-5xl font-bold tracking-wide text-brand-900 sm:text-6xl">
+                  {stat.value}
+                </p>
+                <p className="mt-2 text-xs font-bold tracking-widest text-slate-500 uppercase">
+                  {stat.label}
+                </p>
+              </div>
             ))}
-          </div>
-        </Section>
+          </Container>
+        </section>
 
-        <Section
-          id="movepro"
-          eyebrow="Adapter demo"
-          title="A quote estimate from the Movepro adapter"
-          lead="Rendered server-side via createMoveproClient(). Today it's mock data; when API access is confirmed the same call hits the real CRM."
-          className="bg-slate-50"
-        >
-          <Card className="max-w-md">
-            <div className="flex items-center justify-between gap-4">
-              <h3 className="font-bold text-brand-900">
-                Parramatta → Newcastle, 3-bedroom
-              </h3>
-              <span className="rounded-full bg-accent-100 px-2.5 py-1 text-xs font-bold tracking-wide text-accent-800 uppercase">
-                {estimate.priceRange.currency} · {movepro.mode} mode
-              </span>
+        {/* ── Services */}
+        <section id="services" className="py-14 sm:py-20">
+          <Container>
+            <div className="max-w-2xl">
+              <p className="text-sm font-bold tracking-[0.2em] text-accent-700 uppercase">
+                What we move
+              </p>
+              <h2 className="font-display mt-2 text-4xl font-bold tracking-wide text-brand-900 uppercase sm:text-5xl">
+                Every move, covered
+              </h2>
             </div>
-            <p className="mt-4 text-3xl font-extrabold text-brand-900">
-              {formatCurrency(estimate.priceRange.min)} –{" "}
-              {formatCurrency(estimate.priceRange.max)}
-              {estimate.gst === "exclusive" && (
-                <span className="ml-1.5 text-sm font-semibold text-slate-500">+ GST</span>
-              )}
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {SERVICES.map((service) => (
+                <div
+                  key={service.title}
+                  className="rounded-card border border-slate-200 bg-white p-6 transition-shadow hover:shadow-lg hover:shadow-brand-900/5"
+                >
+                  <span className="inline-block rounded-full bg-brand-50 px-3 py-1 text-[0.65rem] font-bold tracking-widest text-brand-700 uppercase">
+                    {service.tag}
+                  </span>
+                  <h3 className="mt-4 text-lg font-bold text-brand-900">{service.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{service.body}</p>
+                </div>
+              ))}
+            </div>
+          </Container>
+        </section>
+
+        {/* ── How it works: a real sequence, so numbers carry meaning. */}
+        <section id="how" className="bg-slate-50 py-14 sm:py-20">
+          <Container>
+            <div className="max-w-2xl">
+              <p className="text-sm font-bold tracking-[0.2em] text-accent-700 uppercase">
+                How it works
+              </p>
+              <h2 className="font-display mt-2 text-4xl font-bold tracking-wide text-brand-900 uppercase sm:text-5xl">
+                Three steps to moving day
+              </h2>
+            </div>
+            <ol className="mt-10 grid gap-8 sm:grid-cols-3">
+              {STEPS.map((step, i) => (
+                <li key={step.title}>
+                  <p className="font-display text-5xl font-bold text-brand-200" aria-hidden>
+                    {i + 1}
+                  </p>
+                  <div className="mt-2 h-1 w-9 bg-accent-400" aria-hidden />
+                  <h3 className="mt-4 text-lg font-bold text-brand-900">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{step.body}</p>
+                </li>
+              ))}
+            </ol>
+          </Container>
+        </section>
+
+        {/* ── The promise: their own guarantees on their own email yellow. */}
+        <section id="why" className="bg-accent-200 py-14 sm:py-20">
+          <Container>
+            <div className="max-w-2xl">
+              <p className="text-sm font-bold tracking-[0.2em] text-brand-800 uppercase">
+                Why us
+              </p>
+              <h2 className="font-display mt-2 text-4xl font-bold tracking-wide text-brand-950 uppercase sm:text-5xl">
+                The No Limits promise
+              </h2>
+              <p className="mt-3 font-medium text-brand-900">
+                Straight out of every quote we send — hold us to it.
+              </p>
+            </div>
+            <ul className="mt-10 grid gap-x-8 gap-y-5 sm:grid-cols-2">
+              {company.guarantees.map((guarantee) => (
+                <li key={guarantee} className="flex items-start gap-3">
+                  <span
+                    aria-hidden
+                    className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-brand-900 text-xs font-bold text-accent-300"
+                  >
+                    ✓
+                  </span>
+                  <span className="font-semibold text-brand-950">{guarantee}</span>
+                </li>
+              ))}
+            </ul>
+          </Container>
+        </section>
+
+        {/* ── Final call to action */}
+        <section className="relative isolate overflow-hidden bg-brand-950 text-white">
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 bg-[radial-gradient(70%_90%_at_50%_110%,var(--color-brand-800)_0%,transparent_70%)]"
+          />
+          <Container className="py-16 text-center sm:py-20">
+            <h2 className="font-display text-4xl font-bold tracking-wide uppercase sm:text-6xl">
+              Move date locked in?
+            </h2>
+            <p className="mx-auto mt-4 max-w-md text-brand-100">
+              Quotes take minutes, and the deposit is refundable. {company.tagline}
             </p>
-            <p className="mt-1 text-sm text-slate-600">
-              ~{estimate.estimatedHours} hours · {estimate.crewSize} movers ·{" "}
-              {estimate.truckSize} truck at {formatCurrency(estimate.hourlyRate ?? 0)}/hr
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              {estimate.minimumHours}-hour minimum + {estimate.callout} callout ·{" "}
-              {formatCurrency(estimate.depositAmount ?? 0)} refundable deposit · valid
-              until {formatDate(estimate.validUntil)}
-            </p>
-            <p className="mt-4 border-t border-slate-200 pt-3 text-xs text-slate-500">
-              {estimate.disclaimer}
-            </p>
-          </Card>
-        </Section>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <ButtonLink href={`tel:${company.phone}`} variant="secondary" size="lg">
+                Call {company.phoneDisplay}
+              </ButtonLink>
+              <ButtonLink
+                href={`mailto:${company.email}`}
+                variant="outline"
+                size="lg"
+                className="border-white text-white hover:bg-brand-900 active:bg-brand-900"
+              >
+                Email us instead
+              </ButtonLink>
+            </div>
+          </Container>
+        </section>
       </main>
 
       <Footer />

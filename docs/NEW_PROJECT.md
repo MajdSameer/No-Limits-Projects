@@ -18,8 +18,9 @@ You now have a branded, deployable app at `http://localhost:3000`.
 ## 2. Make it yours
 
 - [ ] `src/app/layout.tsx` — set the real `title` and `description`
-- [ ] `src/app/page.tsx` — delete the template demo content (including the
-      Movepro demo section)
+- [ ] `src/app/page.tsx` — delete the demo homepage (also remove
+      `QuoteCard.tsx`, `actions.ts`, `quote-options.ts` unless your app uses
+      the quote-form pattern — it's reference code for the Movepro adapter)
 - [ ] `package.json` — write a one-line `description`
 - [ ] `README.md` — what is this app, who asked for it, what does "done" mean?
 - [ ] `.env.example` — add/remove vars to match what the app actually reads
