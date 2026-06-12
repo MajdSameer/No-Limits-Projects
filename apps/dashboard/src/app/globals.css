@@ -81,3 +81,49 @@
     animation: none;
   }
 }
+
+/* ── Ops light theme motion ───────────────────────────────────── */
+
+/* Every route change fades content up gently. */
+@keyframes ops-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.page-enter {
+  animation: ops-page-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Dialogs spring in over a soft navy veil. */
+@keyframes ops-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+dialog[open] {
+  animation: ops-dialog-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+dialog::backdrop {
+  background: rgb(15 25 47 / 0.45);
+}
+
+/* Inline panels (disclosures, edit forms) fade in. */
+@keyframes ops-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.fade-in {
+  animation: ops-fade-in 0.2s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  dialog[open],
+  .fade-in {
+    animation: none;
+  }
+}

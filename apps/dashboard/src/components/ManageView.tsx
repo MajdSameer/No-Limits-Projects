@@ -34,7 +34,7 @@ interface AuditRow {
 }
 
 const btn =
-  "min-h-9 border border-brand-900 px-2 py-1 font-mono text-[0.6rem] font-bold tracking-widest uppercase hover:bg-manila-200 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600";
+  "min-h-9 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600";
 
 export function ManageView({ staff, audit }: { staff: StaffRow[]; audit: AuditRow[] }) {
   const router = useRouter();
@@ -72,31 +72,31 @@ export function ManageView({ staff, audit }: { staff: StaffRow[]; audit: AuditRo
 
   return (
     <div>
-      <p className="font-mono text-xs font-bold tracking-[0.3em] text-accent-400 uppercase">Managers only</p>
-      <h1 className="font-display mt-1 text-4xl font-bold tracking-wide text-manila-100 uppercase">Manage</h1>
+      <p className="text-xs font-bold tracking-[0.2em] text-slate-600 uppercase">Managers only</p>
+      <h1 className="font-display mt-1 text-4xl font-bold tracking-wide text-brand-900 uppercase">Manage</h1>
 
       {message && (
-        <p role="alert" className="mt-4 border border-accent-400 bg-ink-900 px-3 py-2 text-sm font-semibold text-accent-300">
+        <p role="alert" className="fade-in mt-4 rounded-xl border border-accent-500 bg-accent-50 px-3 py-2 text-sm font-semibold text-brand-900">
           {message}
         </p>
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        <a href="/manage/export?what=bookings" className={cx(btn, "border-brand-700 bg-ink-900 text-manila-200 hover:bg-ink-950")}>
+        <a href="/manage/export?what=bookings" className={cx(btn, "shadow-sm")}>
           ⬇ Bookings CSV
         </a>
-        <a href="/manage/export?what=timesheets" className={cx(btn, "border-brand-700 bg-ink-900 text-manila-200 hover:bg-ink-950")}>
+        <a href="/manage/export?what=timesheets" className={cx(btn, "shadow-sm")}>
           ⬇ Timesheets CSV
         </a>
-        <a href="/manage/export?what=audit" className={cx(btn, "border-brand-700 bg-ink-900 text-manila-200 hover:bg-ink-950")}>
+        <a href="/manage/export?what=audit" className={cx(btn, "shadow-sm")}>
           ⬇ Audit CSV
         </a>
       </div>
 
-      <div className="mt-6 overflow-x-auto">
-        <table className="w-full border-collapse bg-manila-100 text-sm text-brand-950">
+      <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <table className="w-full border-collapse text-sm text-brand-950">
           <thead>
-            <tr className="border-b-2 border-brand-950 text-left font-mono text-[0.6rem] tracking-[0.2em] text-brand-700 uppercase">
+            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-500">
               <th className="px-3 py-2">Staff</th>
               <th className="px-3 py-2">Role</th>
               <th className="px-3 py-2">Status</th>
@@ -107,11 +107,11 @@ export function ManageView({ staff, audit }: { staff: StaffRow[]; audit: AuditRo
           </thead>
           <tbody>
             {staff.map((s) => (
-              <tr key={s.id} className={cx("border-b border-manila-400", !s.active && "opacity-50")}>
+              <tr key={s.id} className={cx("border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50", !s.active && "opacity-50")}>
                 <th scope="row" className="px-3 py-2 text-left font-bold">{s.name}</th>
-                <td className="px-3 py-2 font-mono text-xs uppercase">{s.role}</td>
-                <td className="px-3 py-2 font-mono text-xs">
-                  {!s.active ? "inactive" : s.locked ? <span className="border border-brand-900 px-1.5 py-0.5 font-bold">LOCKED</span> : "active"}
+                <td className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase">{s.role}</td>
+                <td className="px-3 py-2 text-xs text-slate-600">
+                  {!s.active ? "inactive" : s.locked ? <span className="rounded-full bg-accent-100 px-2 py-0.5 font-bold text-brand-900">LOCKED</span> : "active"}
                 </td>
                 <td className="px-3 py-2">
                   <button type="button" onClick={() => promptGoal(s)} disabled={pending} className={btn}>
@@ -142,32 +142,30 @@ export function ManageView({ staff, audit }: { staff: StaffRow[]; audit: AuditRo
 
       <form action={submitAdd} className="mt-4 flex flex-wrap items-end gap-2">
         <div>
-          <label htmlFor="new-name" className="mb-1 block font-mono text-[0.6rem] font-bold tracking-[0.25em] text-brand-300 uppercase">
+          <label htmlFor="new-name" className="mb-1 block text-xs font-semibold text-slate-500">
             Add staff
           </label>
-          <input id="new-name" name="name" required placeholder="Full name" className="min-h-11 border border-brand-800 bg-ink-900 px-3 text-manila-100 placeholder:text-brand-700" />
+          <input id="new-name" name="name" required placeholder="Full name" className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-brand-950 shadow-sm placeholder:text-slate-400" />
         </div>
         <label className="sr-only" htmlFor="new-role">Role</label>
-        <select id="new-role" name="role" className="min-h-11 border border-brand-800 bg-ink-900 px-2 text-manila-100">
+        <select id="new-role" name="role" className="min-h-11 rounded-xl border border-slate-200 bg-white px-2 text-brand-950 shadow-sm">
           <option value="rep">Rep</option>
           <option value="manager">Manager</option>
         </select>
-        <button type="submit" disabled={pending} className="min-h-11 rounded-full bg-accent-400 px-5 font-mono text-xs font-bold tracking-widest text-ink-950 uppercase hover:bg-accent-300">
+        <button type="submit" disabled={pending} className="min-h-11 rounded-full bg-brand-900 px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-800 motion-safe:hover:-translate-y-0.5">
           Add
         </button>
-        <p className="basis-full font-mono text-[0.6rem] tracking-widest text-brand-300 uppercase">
+        <p className="basis-full text-xs text-slate-500">
           New reps start with PIN 1234 (managers 123456) — reset immediately.
         </p>
       </form>
 
       <section className="mt-10">
-        <h2 className="font-mono text-[0.65rem] font-bold tracking-[0.3em] text-brand-300 uppercase">
-          Audit log (latest 100)
-        </h2>
+        <h2 className="text-sm font-bold text-brand-900">Audit log (latest 100)</h2>
         <ul className="mt-3 max-h-96 space-y-1 overflow-y-auto">
           {audit.map((a) => (
-            <li key={a.id} className="border-l-2 border-brand-800 py-1 pl-3 font-mono text-xs text-brand-300">
-              <span className="text-manila-200">{a.staffId}</span> · {a.action} · {a.entity}/{a.entityId} ·{" "}
+            <li key={a.id} className="rounded-r-lg border-l-2 border-accent-400 bg-white py-1.5 pl-3 text-xs text-slate-500">
+              <span className="font-semibold text-brand-900">{a.staffId}</span> · {a.action} · {a.entity}/{a.entityId} ·{" "}
               {new Date(a.atISO).toLocaleString("en-AU", { timeZone: "Australia/Sydney" })}
             </li>
           ))}

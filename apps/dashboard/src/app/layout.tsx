@@ -51,7 +51,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en-AU" className={`${displayFont.variable} ${bodyFont.variable}`}>
-      <body className="flex min-h-dvh flex-col bg-ink-950 font-sans text-manila-100 antialiased">
+      <body className="flex min-h-dvh flex-col bg-slate-50 font-sans text-slate-900 antialiased">
         <SkipLink />
         {children}
       </body>

@@ -9,8 +9,17 @@
 const { chromium } = require("playwright");
 
 const AUDIT = `(() => {
-  const toRGBA = (s) => { const m = s.match(/rgba?\\(([^)]+)\\)/); if (!m) return null;
-    const p = m[1].split(",").map(parseFloat); return { r:p[0], g:p[1], b:p[2], a:p.length>3?p[3]:1 }; };
+  // Normalise ANY css color (rgb/lab/oklch/...) via canvas.
+  const _cv = document.createElement("canvas"); _cv.width = _cv.height = 1;
+  const _cx = _cv.getContext("2d", { willReadFrequently: true });
+  const toRGBA = (s) => {
+    if (!s || s === "transparent") return { r:0, g:0, b:0, a:0 };
+    const m = s.match(/rgba?\\(([^)]+)\\)/);
+    if (m) { const p = m[1].split(",").map(parseFloat); return { r:p[0], g:p[1], b:p[2], a:p.length>3?p[3]:1 }; }
+    _cx.clearRect(0,0,1,1); _cx.fillStyle = "#000"; _cx.fillStyle = s; _cx.fillRect(0,0,1,1);
+    const d = _cx.getImageData(0,0,1,1).data;
+    return { r:d[0], g:d[1], b:d[2], a:d[3]/255 };
+  };
   const blend = (t,b)=>({ r:t.r*t.a+b.r*(1-t.a), g:t.g*t.a+b.g*(1-t.a), b:t.b*t.a+b.b*(1-t.a), a:1 });
   const lum = (c)=>{ const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)};
     return .2126*f(c.r)+.7152*f(c.g)+.0722*f(c.b); };
@@ -29,7 +38,8 @@ const AUDIT = `(() => {
     const r0=el.getBoundingClientRect(); if(r0.width===0||r0.height===0)continue;
     let hidden=false,decor=false;
     for(let n=el;n;n=n.parentElement){ if(n.tagName==="DIALOG"&&!n.open)hidden=true;
-      if(n.getAttribute&&n.getAttribute("aria-hidden")==="true")decor=true; }
+      if(n.getAttribute&&n.getAttribute("aria-hidden")==="true")decor=true;
+      if(n.disabled)hidden=true; }
     if(hidden)continue;
     let fg=toRGBA(cs.color); if(!fg)continue;
     const bg=effBg(el); if(fg.a<1)fg=blend(fg,bg);

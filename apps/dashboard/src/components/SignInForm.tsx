@@ -34,18 +34,18 @@ export function SignInForm({ staff }: { staff: StaffOption[] }) {
                 setSelected(s);
                 setPin("");
               }}
-              className="flex min-h-18 w-full items-center gap-3 border border-brand-800 bg-ink-900 px-4 py-3 text-left transition-colors hover:border-accent-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400"
+              className="flex min-h-18 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
             >
               <span
                 aria-hidden
-                className="grid size-10 shrink-0 place-items-center bg-accent-400 font-mono text-sm font-bold text-ink-950"
+                className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-400 text-sm font-bold text-brand-950"
               >
                 {s.name.slice(0, 2).toUpperCase()}
               </span>
               <span>
-                <span className="block font-bold text-manila-100">{s.name}</span>
+                <span className="block font-bold text-brand-900">{s.name}</span>
                 {s.role === "manager" && (
-                  <span className="font-mono text-[0.6rem] tracking-widest text-accent-400 uppercase">
+                  <span className="text-[0.65rem] font-bold tracking-widest text-accent-800 uppercase">
                     Manager
                   </span>
                 )}
@@ -65,11 +65,11 @@ export function SignInForm({ staff }: { staff: StaffOption[] }) {
       <input type="hidden" name="pin" value={pin} />
 
       <div className="mb-4 flex items-center justify-between">
-        <p className="font-bold text-manila-100">{selected.name}</p>
+        <p className="font-bold text-brand-900">{selected.name}</p>
         <button
           type="button"
           onClick={() => setSelected(null)}
-          className="rounded px-2 py-1 font-mono text-xs tracking-widest text-brand-300 uppercase hover:text-accent-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400"
+          className="rounded-full px-3 py-1 text-sm font-medium text-slate-500 hover:text-brand-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
         >
           ← Not you?
         </button>
@@ -77,13 +77,13 @@ export function SignInForm({ staff }: { staff: StaffOption[] }) {
 
       <output
         aria-label="PIN entry"
-        className="mb-4 grid h-14 place-items-center border border-brand-800 bg-ink-900 font-mono text-3xl tracking-[0.5em] text-manila-100"
+        className="mb-4 grid h-14 place-items-center rounded-2xl border border-slate-200 bg-white font-mono text-3xl tracking-[0.5em] text-brand-900 shadow-sm"
       >
-        {pin ? "•".repeat(pin.length) : <span className="text-brand-400">PIN</span>}
+        {pin ? "•".repeat(pin.length) : <span className="text-slate-500">PIN</span>}
       </output>
 
       {state.error && (
-        <p role="alert" className="mb-4 border border-accent-400 bg-ink-900 px-3 py-2 text-sm font-semibold text-accent-300">
+        <p role="alert" className="fade-in mb-4 rounded-xl border border-accent-500 bg-accent-50 px-3 py-2 text-sm font-semibold text-brand-900">
           {PIN_ERRORS[state.error]}
         </p>
       )}
@@ -95,7 +95,7 @@ export function SignInForm({ staff }: { staff: StaffOption[] }) {
               key={d}
               type="button"
               onClick={() => setPin((p) => p.slice(0, -1))}
-              className="min-h-14 border border-brand-800 font-mono text-lg text-brand-300 hover:border-accent-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400"
+              className="min-h-14 rounded-2xl border border-slate-200 bg-white font-mono text-lg text-slate-500 shadow-sm transition-colors hover:border-brand-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
             >
               <span className="sr-only">Delete digit</span>⌫
             </button>
@@ -105,10 +105,10 @@ export function SignInForm({ staff }: { staff: StaffOption[] }) {
               type="submit"
               disabled={pin.length < 4 || pending}
               className={cx(
-                "min-h-14 font-mono text-lg font-bold uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400",
+                "min-h-14 rounded-2xl font-mono text-lg font-bold uppercase transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600",
                 pin.length >= 4 && !pending
-                  ? "bg-accent-400 text-ink-950 hover:bg-accent-300"
-                  : "cursor-not-allowed border border-brand-800 text-brand-400",
+                  ? "bg-brand-900 text-white shadow-sm hover:bg-brand-800"
+                  : "cursor-not-allowed border border-slate-200 bg-white text-slate-500",
               )}
             >
               {pending ? "…" : "Go"}
@@ -118,7 +118,7 @@ export function SignInForm({ staff }: { staff: StaffOption[] }) {
               key={d}
               type="button"
               onClick={() => setPin((p) => (p.length < 6 ? p + d : p))}
-              className="min-h-14 border border-brand-800 font-mono text-xl text-manila-100 hover:border-accent-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400"
+              className="min-h-14 rounded-2xl border border-slate-200 bg-white font-mono text-xl text-brand-900 shadow-sm transition-colors hover:border-brand-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
             >
               {d}
             </button>

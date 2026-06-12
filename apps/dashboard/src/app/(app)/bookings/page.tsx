@@ -39,10 +39,8 @@ export default async function BookingsPage({
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-xs font-bold tracking-[0.3em] text-accent-400 uppercase">Bookings</p>
-          <h1 className="font-display mt-1 text-4xl font-bold tracking-wide text-manila-100 uppercase">
-            The book
-          </h1>
+          <p className="text-xs font-bold tracking-[0.2em] text-slate-600 uppercase">Bookings</p>
+          <h1 className="font-display mt-1 text-4xl font-bold tracking-wide text-brand-900 uppercase">The book</h1>
         </div>
         <form className="flex gap-2" action="/bookings" method="GET">
           <input type="hidden" name="filter" value={filter} />
@@ -52,9 +50,9 @@ export default async function BookingsPage({
             name="q"
             defaultValue={params.q ?? ""}
             placeholder="Job #, customer, suburb…"
-            className="min-h-11 w-64 border border-brand-800 bg-ink-900 px-3 text-manila-100 placeholder:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-400"
+            className="min-h-11 w-64 rounded-xl border border-slate-200 bg-white px-3 text-brand-950 shadow-sm transition-colors placeholder:text-slate-400 hover:border-slate-300 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600"
           />
-          <button type="submit" className="min-h-11 rounded-full border border-brand-700 px-4 font-mono text-xs font-bold tracking-widest text-manila-200 uppercase hover:border-accent-400">
+          <button type="submit" className="min-h-11 rounded-full bg-brand-900 px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-800">
             Search
           </button>
         </form>
@@ -67,10 +65,10 @@ export default async function BookingsPage({
             href={`/bookings?filter=${f.key}${params.q ? `&q=${encodeURIComponent(params.q)}` : ""}`}
             aria-current={filter === f.key ? "page" : undefined}
             className={cx(
-              "min-h-11 rounded-full border px-4 py-2.5 font-mono text-xs font-bold tracking-widest uppercase",
+              "min-h-10 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200",
               filter === f.key
-                ? "border-accent-400 bg-accent-400 text-ink-950"
-                : "border-brand-800 text-manila-200 hover:border-accent-400",
+                ? "bg-brand-900 text-white shadow-sm"
+                : "border border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-900",
             )}
           >
             {f.label}
@@ -79,14 +77,14 @@ export default async function BookingsPage({
       </nav>
 
       {rows.length === 0 ? (
-        <p className="mt-10 font-mono text-sm tracking-widest text-brand-300 uppercase">
+        <p className="mt-10 text-sm font-medium text-slate-500">
           Nothing here yet — hit + Job to log the first one 🎉
         </p>
       ) : (
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full border-collapse bg-manila-100 text-sm text-brand-950">
+        <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full border-collapse text-sm text-brand-950">
             <thead>
-              <tr className="border-b-2 border-brand-950 text-left font-mono text-[0.6rem] tracking-[0.2em] text-brand-700 uppercase">
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-500">
                 <th className="px-3 py-2">Job #</th>
                 <th className="px-3 py-2">Customer</th>
                 <th className="px-3 py-2">Route</th>
@@ -99,9 +97,9 @@ export default async function BookingsPage({
             </thead>
             <tbody>
               {rows.map(({ booking, repName, completion }) => (
-                <tr key={booking.id} className="border-b border-manila-400 hover:bg-manila-200">
+                <tr key={booking.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50">
                   <td className="px-3 py-2.5 font-mono font-bold">
-                    <Link href={`/bookings/${booking.id}`} className="underline decoration-accent-500 decoration-2 underline-offset-2">
+                    <Link href={`/bookings/${booking.id}`} className="font-semibold text-brand-800 underline decoration-accent-400 decoration-2 underline-offset-2 transition-colors hover:text-brand-600">
                       {booking.jobNumber}
                     </Link>
                   </td>
@@ -111,7 +109,7 @@ export default async function BookingsPage({
                   </td>
                   <td className="px-3 py-2.5">{repName}</td>
                   <td className="px-3 py-2.5">
-                    <span className="border border-brand-900 px-2 py-0.5 font-mono text-[0.6rem] font-bold tracking-widest uppercase">
+                    <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[0.65rem] font-bold tracking-wide text-brand-700 uppercase">
                       {TYPE_CHIP[booking.type]}
                     </span>
                   </td>
@@ -119,10 +117,10 @@ export default async function BookingsPage({
                   <td className="px-3 py-2.5 font-mono">{booking.value ? `$${booking.value}` : "—"}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
-                      <div aria-hidden className="h-1.5 w-16 bg-manila-400">
-                        <div className="h-full bg-brand-900" style={{ width: `${completion}%` }} />
+                      <div aria-hidden className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-200">
+                        <div className="h-full rounded-full bg-accent-400" style={{ width: `${completion}%` }} />
                       </div>
-                      <span className="font-mono text-xs">{completion}%</span>
+                      <span className="text-xs text-slate-500">{completion}%</span>
                     </div>
                   </td>
                 </tr>

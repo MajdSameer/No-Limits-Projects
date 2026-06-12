@@ -73,14 +73,10 @@ export function Board({ initial }: { initial: BoardsDTO }) {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-xs font-bold tracking-[0.3em] text-accent-400 uppercase">
-            Leaderboard
-          </p>
-          <h1 className="font-display mt-1 text-4xl font-bold tracking-wide text-manila-100 uppercase">
-            The board
-          </h1>
+          <p className="text-xs font-bold tracking-[0.2em] text-slate-600 uppercase">Leaderboard</p>
+          <h1 className="font-display mt-1 text-4xl font-bold tracking-wide text-brand-900 uppercase">The board</h1>
         </div>
-        <div role="tablist" aria-label="Board period" className="flex gap-1">
+        <div role="tablist" aria-label="Board period" className="flex gap-1 rounded-full bg-slate-100 p-1">
           {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
             <button
               key={t}
@@ -88,10 +84,8 @@ export function Board({ initial }: { initial: BoardsDTO }) {
               aria-selected={tab === t}
               onClick={() => setTab(t)}
               className={cx(
-                "min-h-11 rounded-full border px-4 font-mono text-xs font-bold tracking-widest uppercase",
-                tab === t
-                  ? "border-accent-400 bg-accent-400 text-ink-950"
-                  : "border-brand-800 text-manila-200 hover:border-accent-400",
+                "min-h-9 rounded-full px-4 text-sm font-semibold transition-all duration-200",
+                tab === t ? "bg-white text-brand-900 shadow-sm" : "text-slate-600 hover:text-brand-900",
               )}
             >
               {TAB_LABEL[t]}
@@ -103,20 +97,18 @@ export function Board({ initial }: { initial: BoardsDTO }) {
       {tab === "daily" ? (
         <>
           <div className="mt-5 flex items-center justify-between gap-4">
-            <p className="font-mono text-xs tracking-widest text-brand-300 uppercase">
-              {showYesterday ? "Yesterday" : "Today"} · {total(dailyRows)} bookings
-            </p>
+            <p className="text-sm font-medium text-slate-500">{showYesterday ? "Yesterday" : "Today"} · {total(dailyRows)} bookings</p>
             <button
               type="button"
               onClick={() => setShowYesterday((v) => !v)}
-              className="min-h-11 rounded-full border border-brand-800 px-4 font-mono text-xs font-bold tracking-widest text-manila-200 uppercase hover:border-accent-400"
+              className="min-h-10 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-900"
             >
               {showYesterday ? "Show today" : "Show yesterday"}
             </button>
           </div>
 
           {total(dailyRows) === 0 && (
-            <p className="mt-8 font-mono text-sm tracking-widest text-brand-300 uppercase">
+            <p className="mt-8 text-sm font-medium text-slate-500">
               No bookings yet {showYesterday ? "yesterday" : "today"} — be the first 🎉
             </p>
           )}
@@ -129,12 +121,12 @@ export function Board({ initial }: { initial: BoardsDTO }) {
                 <li
                   key={r.staffId}
                   className={cx(
-                    "border p-4 transition-colors",
-                    done ? "border-accent-400 bg-accent-400 text-ink-950" : "border-brand-800 bg-ink-900",
+                    "rounded-2xl border p-5 shadow-sm transition-all duration-300",
+                    done ? "border-accent-400 bg-accent-400" : "border-slate-200 bg-white motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-md",
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className={cx("truncate font-bold", done ? "text-ink-950" : "text-manila-100")}>
+                    <span className={cx("truncate font-bold", done ? "text-brand-950" : "text-brand-900")}>
                       {r.name}
                     </span>
                     {done && (
@@ -143,15 +135,15 @@ export function Board({ initial }: { initial: BoardsDTO }) {
                       </span>
                     )}
                   </div>
-                  <p className={cx("font-display mt-2 text-5xl font-bold tracking-wide", done ? "text-ink-950" : "text-manila-100")}>
+                  <p className={cx("font-display mt-2 text-5xl font-bold tracking-wide", done ? "text-brand-950" : "text-brand-900")}>
                     {r.count}
-                    <span className={cx("text-2xl", done ? "text-brand-900" : "text-brand-500")}>
+                    <span className={cx("text-2xl", done ? "text-brand-800" : "text-slate-500")}>
                       {" "}/ {r.goal ?? "—"}
                     </span>
                   </p>
-                  <div aria-hidden className={cx("mt-3 h-1.5", done ? "bg-ink-950/20" : "bg-ink-950")}>
+                  <div aria-hidden className={cx("mt-3 h-1.5 overflow-hidden rounded-full", done ? "bg-brand-950/15" : "bg-slate-100")}>
                     <div
-                      className={cx("h-full transition-all duration-700", done ? "bg-ink-950" : "bg-accent-400")}
+                      className={cx("h-full rounded-full transition-all duration-700", done ? "bg-brand-950" : "bg-accent-400")}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -161,15 +153,15 @@ export function Board({ initial }: { initial: BoardsDTO }) {
           </ul>
         </>
       ) : (
-        <ol className="mt-6 max-w-2xl">
+        <ol className="mt-6 max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {(tab === "monthly" ? data.monthly : data.pipeline).map((r, i) => (
             <li
               key={r.staffId}
-              className="flex items-center gap-4 border-b border-brand-800 py-2.5"
+              className="flex items-center gap-4 border-b border-slate-100 px-5 py-3 transition-colors last:border-0 hover:bg-slate-50"
             >
-              <span className="font-display w-10 text-2xl font-bold text-accent-400">{i + 1}</span>
-              <span className="flex-1 truncate font-bold text-manila-100">{r.name}</span>
-              <span className="font-display text-3xl font-bold tracking-wide text-manila-100">
+              <span className="font-display w-10 text-2xl font-bold text-accent-700">{i + 1}</span>
+              <span className="flex-1 truncate font-bold text-brand-900">{r.name}</span>
+              <span className="font-display text-3xl font-bold tracking-wide text-brand-900">
                 {r.count}
               </span>
             </li>

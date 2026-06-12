@@ -15,13 +15,13 @@ export default async function SignInPage() {
     .orderBy(asc(schema.staff.name));
 
   return (
-    <main id="main" className="grid min-h-dvh place-items-center bg-ink-950 px-4 py-10">
-      <div className="w-full max-w-2xl">
+    <main id="main" className="grid min-h-dvh place-items-center bg-slate-50 px-4 py-10">
+      <div className="page-enter w-full max-w-2xl">
         <header className="mb-8 text-center">
-          <p className="font-mono text-xs font-bold tracking-[0.3em] text-accent-400 uppercase">
+          <p className="text-xs font-bold tracking-[0.2em] text-slate-600 uppercase">
             No Limits Removalists
           </p>
-          <h1 className="font-display mt-2 text-5xl font-bold tracking-wide text-manila-100 uppercase">
+          <h1 className="font-display mt-2 text-5xl font-bold tracking-wide text-brand-900 uppercase">
             Ops sign-in
           </h1>
         </header>
