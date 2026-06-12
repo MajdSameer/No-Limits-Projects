@@ -1,0 +1,46 @@
+/*
+ * FREIGHT MANIFEST art direction (owner-approved deviation from the
+ * corporate look, chosen by design-council review). App-local tokens —
+ * deliberately NOT in @nlr/config: ink + manila belong to this experiment,
+ * not the brand. Gold/navy still come from the shared brand tokens.
+ */
+
+@theme {
+  --color-ink-950: #0e1320;
+  --color-ink-900: #141a2c;
+  --color-manila-100: #f4f1e8;
+  --color-manila-200: #e9e4d3;
+  --color-manila-400: #cfc7a9;
+
+  --animate-stamp: stamp 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  --animate-flare: flare 6s ease-in-out infinite;
+
+  @keyframes stamp {
+    from {
+      opacity: 0;
+      transform: scale(1.6) rotate(-9deg);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(0.96) rotate(-3deg);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) rotate(-3deg);
+    }
+  }
+
+  @keyframes flare {
+    0%,
+    88%,
+    100% {
+      background-color: transparent;
+      color: var(--color-brand-400);
+    }
+    92%,
+    96% {
+      background-color: var(--color-accent-400);
+      color: var(--color-ink-950);
+    }
+  }
+}
