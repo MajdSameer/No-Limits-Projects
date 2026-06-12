@@ -34,10 +34,10 @@ interface TodayRow {
 }
 
 const STATUS_BADGE: Record<TodayRow["status"], { label: string; cls: string }> = {
-  off: { label: "Off", cls: "border-brand-700 text-brand-300" },
+  off: { label: "Off", cls: "border-brand-700 text-brand-800" },
   on: { label: "On", cls: "border-accent-400 bg-accent-400 text-ink-950" },
-  break: { label: "Break", cls: "border-brand-300 text-manila-100" },
-  done: { label: "Done", cls: "border-brand-500 text-brand-300" },
+  break: { label: "Break", cls: "border-brand-700 text-brand-900" },
+  done: { label: "Done", cls: "border-brand-700 text-brand-800" },
 };
 
 function hours(ms: number): string {

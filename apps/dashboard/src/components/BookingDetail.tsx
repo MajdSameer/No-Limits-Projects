@@ -204,7 +204,7 @@ export function BookingDetail({
               <span className="text-manila-200">{a.staffId}</span> · {a.action} ·{" "}
               {new Date(a.atISO).toLocaleString("en-AU", { timeZone: "Australia/Sydney" })}
               {a.diff && Object.keys(a.diff).length > 0 && (
-                <span className="block text-brand-500">
+                <span className="block text-brand-300">
                   {Object.entries(a.diff)
                     .map(([k, v]) => `${k}: ${String(v.from ?? "—")} → ${String(v.to ?? "—")}`)
                     .join(" · ")}

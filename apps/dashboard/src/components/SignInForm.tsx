@@ -79,7 +79,7 @@ export function SignInForm({ staff }: { staff: StaffOption[] }) {
         aria-label="PIN entry"
         className="mb-4 grid h-14 place-items-center border border-brand-800 bg-ink-900 font-mono text-3xl tracking-[0.5em] text-manila-100"
       >
-        {pin ? "•".repeat(pin.length) : <span className="text-brand-700">PIN</span>}
+        {pin ? "•".repeat(pin.length) : <span className="text-brand-400">PIN</span>}
       </output>
 
       {state.error && (
@@ -108,7 +108,7 @@ export function SignInForm({ staff }: { staff: StaffOption[] }) {
                 "min-h-14 font-mono text-lg font-bold uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400",
                 pin.length >= 4 && !pending
                   ? "bg-accent-400 text-ink-950 hover:bg-accent-300"
-                  : "cursor-not-allowed border border-brand-800 text-brand-700",
+                  : "cursor-not-allowed border border-brand-800 text-brand-400",
               )}
             >
               {pending ? "…" : "Go"}

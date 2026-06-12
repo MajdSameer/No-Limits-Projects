@@ -97,6 +97,20 @@ When answered: implement `packages/movepro/src/live.ts`, then set
       once decided
 - [ ] **Error reporting** (Sentry? none yet) — `error.tsx` has the hook point
 
+## Staff dashboard (apps/dashboard — "No Limits Ops")
+
+Built Jun 2026 (spec + plan in docs/superpowers/). Owner to-dos to go live:
+
+- [ ] Vercel: new project, root `apps/dashboard`, env vars per the app
+      README (`DATABASE_URL` pooler+password, `SESSION_SECRET`,
+      `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+      `CRON_SECRET`)
+- [ ] Supabase: paste `pnpm --filter @nlr/dashboard db:sql` output into the
+      SQL Editor, then seed (README)
+- [ ] **Rotate the seeded PINs in /manage on day one** (defaults 1234/123456)
+- [ ] Put `/tv` on the wall display (kiosk full-screen)
+- [ ] v2 backlog lives in the spec (payroll, messages, lead queue, Game Day)
+
 ## First project
 
 - [ ] The company hasn't picked the first project yet. When they do: follow
