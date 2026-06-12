@@ -16,6 +16,19 @@
   --font-display: var(--font-display-local), var(--font-sans);
 }
 
+/* Smooth anchor scrolling — unless the visitor prefers reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Brand-coloured text selection. */
+::selection {
+  background: var(--color-accent-300);
+  color: var(--color-brand-950);
+}
+
 /* One orchestrated moment: the estimate reveal. */
 @keyframes rise-in {
   from {

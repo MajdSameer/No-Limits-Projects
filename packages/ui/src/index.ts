@@ -10,6 +10,7 @@ export {
 } from "./components/Button";
 export { Card } from "./components/Card";
 export { Container } from "./components/Container";
+export { CountUp, type CountUpProps } from "./components/CountUp";
 export {
   TextField,
   TextAreaField,
@@ -21,5 +22,7 @@ export {
 export { Footer } from "./components/Footer";
 export { Header, type HeaderProps, type NavItem } from "./components/Header";
 export { Logo } from "./components/Logo";
+export { Marquee, type MarqueeProps } from "./components/Marquee";
+export { Reveal, type RevealProps } from "./components/Reveal";
 export { Section, type SectionProps } from "./components/Section";
 export { SkipLink } from "./components/SkipLink";

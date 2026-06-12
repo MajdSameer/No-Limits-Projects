@@ -30,7 +30,8 @@ export function buttonClasses(
 ): string {
   return cx(
     // rounded-full: the brand uses pill-shaped buttons (website + email).
-    "inline-flex items-center justify-center gap-2 rounded-full font-semibold no-underline transition-colors",
+    "inline-flex items-center justify-center gap-2 rounded-full font-semibold no-underline",
+    "transition-all duration-200 motion-safe:hover:-translate-y-0.5 motion-safe:active:translate-y-0",
     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600",
     "disabled:pointer-events-none disabled:opacity-50",
     variantClasses[variant],

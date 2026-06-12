@@ -79,7 +79,10 @@ export function Header({ nav = [], showPhone = true }: HeaderProps) {
 
       <div
         id="mobile-nav"
-        className={cx("border-t border-slate-200 md:hidden", !open && "hidden")}
+        className={cx(
+          "border-t border-slate-200 [animation-duration:250ms] md:hidden motion-safe:animate-fade-up",
+          !open && "hidden",
+        )}
       >
         <Container>
           <nav aria-label="Main menu" className="flex flex-col gap-1 py-3">
