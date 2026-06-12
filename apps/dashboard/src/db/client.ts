@@ -4,6 +4,10 @@
  *  - otherwise         -> PGlite (./.pglite dir; ":memory:" in tests),
  *                         auto-migrated on first use.
  * Both run the exact same Drizzle schema and SQL migrations.
+ *
+ * Initialisation is LAZY (first getDb() call), never at module import —
+ * `next build` evaluates module graphs in parallel workers and must not
+ * trigger PGlite migrations. All db-touching routes are dynamic.
  */
 import path from "node:path";
 
@@ -17,16 +21,13 @@ import * as schema from "./schema";
 
 export type Db = PostgresJsDatabase<typeof schema> | PgliteDatabase<typeof schema>;
 
-const globalForDb = globalThis as unknown as {
-  __nlDb?: Db;
-  __nlDbReady?: Promise<unknown>;
-};
+const globalForDb = globalThis as unknown as { __nlDbPromise?: Promise<Db> };
 
-function create(): { db: Db; ready: Promise<unknown> } {
+async function create(): Promise<Db> {
   if (process.env.DATABASE_URL) {
     // prepare:false — required behind Supabase's transaction pooler.
     const client = postgres(process.env.DATABASE_URL, { prepare: false });
-    return { db: drizzlePg(client, { schema }), ready: Promise.resolve() };
+    return drizzlePg(client, { schema });
   }
   const dataDir =
     process.env.PGLITE_DIR === ":memory:"
@@ -34,19 +35,14 @@ function create(): { db: Db; ready: Promise<unknown> } {
       : (process.env.PGLITE_DIR ?? path.join(process.cwd(), ".pglite"));
   const pglite = new PGlite(dataDir);
   const db = drizzlePglite(pglite, { schema });
-  const ready = migratePglite(db, {
-    migrationsFolder: path.join(process.cwd(), "src/db/migrations"),
-  });
-  return { db, ready };
+  await migratePglite(db, { migrationsFolder: path.join(process.cwd(), "src/db/migrations") });
+  return db;
 }
 
-const inst = globalForDb.__nlDb
-  ? { db: globalForDb.__nlDb, ready: globalForDb.__nlDbReady ?? Promise.resolve() }
-  : create();
-globalForDb.__nlDb = inst.db;
-globalForDb.__nlDbReady = inst.ready;
+/** The app-wide database handle (created + migrated on first call). */
+export function getDb(): Promise<Db> {
+  globalForDb.__nlDbPromise ??= create();
+  return globalForDb.__nlDbPromise;
+}
 
-export const db = inst.db;
-/** Await before querying — resolves instantly on Postgres, after migration on PGlite. */
-export const dbReady = inst.ready;
 export { schema };

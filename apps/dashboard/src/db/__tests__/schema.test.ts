@@ -1,11 +1,10 @@
 import { beforeAll, expect, test } from "vitest";
 
 process.env.PGLITE_DIR = ":memory:";
-const { db, dbReady, schema } = await import("../client");
+const { getDb, schema } = await import("../client");
+const db = await getDb();
 
-beforeAll(async () => {
-  await dbReady;
-});
+beforeAll(async () => {});
 
 test("schema round-trip + unique job number", async () => {
   await db.insert(schema.staff).values({ id: "andy", name: "Andy", pinHash: "x" });

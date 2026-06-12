@@ -16,8 +16,15 @@ if (!url) {
 }
 
 const client = postgres(url, { prepare: false, max: 1 });
-await migrate(drizzle(client), {
+migrate(drizzle(client), {
   migrationsFolder: path.join(process.cwd(), "src/db/migrations"),
-});
-await client.end();
-console.log("Migrations applied.");
+})
+  .then(async () => {
+    await client.end();
+    console.warn("Migrations applied.");
+  })
+  .catch(async (err) => {
+    console.error(err);
+    await client.end();
+    process.exit(1);
+  });
