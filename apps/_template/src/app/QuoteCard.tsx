@@ -69,6 +69,9 @@ export function QuoteCard() {
         <SubmitButton size="lg" className="w-full" pendingLabel="Calculating…">
           Show my estimate
         </SubmitButton>
+        <p className="text-center text-xs font-semibold text-brand-900/75">
+          Instant range · no account needed · obligation-free
+        </p>
       </form>
 
       {state.error && (

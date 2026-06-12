@@ -21,8 +21,9 @@ export {
 } from "./components/Field";
 export { Footer } from "./components/Footer";
 export { Header, type HeaderProps, type NavItem } from "./components/Header";
-export { Logo } from "./components/Logo";
+export { Logo, type LogoProps } from "./components/Logo";
 export { Marquee, type MarqueeProps } from "./components/Marquee";
+export { MobileActionBar, type MobileActionBarProps } from "./components/MobileActionBar";
 export { Reveal, type RevealProps } from "./components/Reveal";
 export { Section, type SectionProps } from "./components/Section";
 export { SkipLink } from "./components/SkipLink";

@@ -20,11 +20,13 @@ Tokens: `packages/config/tailwind/theme.css`; synced inline copies:
       matter, sample them from the original screenshot/site
 - [x] ~~Tagline~~ — "It takes a family to move a family." (their own email copy)
 - [ ] **Logo files** (SVG/PNG) — it's a navy truck illustration over a stacked
-      "NO LIMITS / REMOVALISTS" wordmark (seen in the website screenshot); the
-      email copy sits on a Mailchimp CDN that 403s us. Get the file from
-      whoever runs the website/Mailchimp, then replace the text lockup in
-      `packages/ui/src/components/Logo.tsx` and the favicon at
-      `apps/_template/src/app/icon.svg`
+      "NO LIMITS / REMOVALISTS" wordmark. The template header now uses the
+      site's own animated GIF, HOTLINKED from their WordPress uploads
+      (`company.logoAnimatedUrl` in brand.ts; `Logo` falls back to the text
+      lockup if it 404s). Still to do: vendor the file into each app's
+      `public/` (this dev environment's egress can't download it — grab it
+      from a normal browser), and get a static SVG/PNG for the favicon at
+      `apps/_template/src/app/icon.svg` and for dark/navy surfaces
 - [ ] **Web font (optional)** — the site uses a heavy grotesque but we're
       approved to modernise rather than copy it. The template now self-hosts
       Big Shoulders (display) + Work Sans (body), both OFL-licensed; swap in

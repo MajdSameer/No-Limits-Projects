@@ -18,13 +18,15 @@ export interface HeaderProps {
   nav?: NavItem[];
   /** Set false to hide the call-now button. */
   showPhone?: boolean;
+  /** Image logo for the white header bar (see Logo's src prop). */
+  logoSrc?: string;
 }
 
 /**
  * Sticky branded header with mobile menu. Uses plain anchors so it works in
  * any app; for high-traffic internal navigation, prefer next/link in app code.
  */
-export function Header({ nav = [], showPhone = true }: HeaderProps) {
+export function Header({ nav = [], showPhone = true, logoSrc }: HeaderProps) {
   const [open, setOpen] = useState(false);
 
   // Gold pill, like the website's "Request a Quote" header button.
@@ -44,7 +46,7 @@ export function Header({ nav = [], showPhone = true }: HeaderProps) {
             aria-label={`${company.name} — home`}
             className="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
           >
-            <Logo />
+            <Logo src={logoSrc} />
           </a>
 
           <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
@@ -52,7 +54,7 @@ export function Header({ nav = [], showPhone = true }: HeaderProps) {
               <a
                 key={item.href}
                 href={item.href}
-                className="rounded-lg px-3 py-2 font-medium text-brand-900 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                className="relative rounded-lg px-3 py-2 font-medium text-brand-900 transition-colors after:absolute after:inset-x-3 after:bottom-0.5 after:h-0.5 after:origin-left after:scale-x-0 after:rounded-full after:bg-accent-400 after:transition-transform after:duration-300 hover:text-brand-700 hover:after:scale-x-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
               >
                 {item.label}
               </a>

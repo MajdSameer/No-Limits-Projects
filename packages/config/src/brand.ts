@@ -24,6 +24,17 @@ export const company = {
    */
   domain: "nolimitsremovalists.com.au",
   url: "https://nolimitsremovalists.com.au",
+  /**
+   * The animated logo GIF the company's own site header uses, hotlinked from
+   * their WordPress uploads (we can't vendor the file yet — see TODO.md →
+   * Logo files). Anything rendering it must keep a text fallback in case the
+   * URL ever breaks; we don't control that server.
+   */
+  logoAnimatedUrl:
+    "https://nolimitsremovalists.com.au/wp-content/uploads/2024/07/logo-no-limits-animated.gif",
+  /** Their public Google reviews — a search link until a Place ID is recorded. */
+  googleReviewsUrl:
+    "https://www.google.com/search?q=No+Limits+Removalists+reviews",
   /** From quote emails + Google listing. E.164-ish form for tel: links. */
   phone: "+611300609117",
   phoneDisplay: "1300 609 117",
