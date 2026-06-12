@@ -31,7 +31,8 @@ export function Footer() {
               <li>
                 <a className="hover:text-white hover:underline" href={`tel:${company.phone}`}>
                   {company.phoneDisplay}
-                </a>
+                </a>{" "}
+                · {company.hoursDisplay}
               </li>
               <li>
                 <a className="hover:text-white hover:underline" href={`mailto:${company.email}`}>
@@ -39,8 +40,27 @@ export function Footer() {
                 </a>
               </li>
               <li>
+                <a
+                  className="hover:text-white hover:underline"
+                  href={`mailto:${company.emailGeneral}`}
+                >
+                  {company.emailGeneral}
+                </a>
+              </li>
+              <li>
                 {company.address.line1}, {company.address.suburb}{" "}
                 {company.address.state} {company.address.postcode}
+              </li>
+              <li>Offices: {company.offices.join(" · ")}</li>
+              <li>
+                <a
+                  className="hover:text-white hover:underline"
+                  href={company.social.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Facebook
+                </a>
               </li>
               <li>
                 <a

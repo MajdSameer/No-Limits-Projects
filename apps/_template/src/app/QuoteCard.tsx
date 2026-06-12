@@ -28,7 +28,7 @@ export function QuoteCard() {
       <div className="relative p-6 sm:p-7">
         <div
           aria-hidden
-          className="pointer-events-none absolute top-5 -right-3 grid size-23 rotate-12 place-items-center rounded-full border-4 border-double border-accent-500/80 text-center font-mono text-[0.5rem] leading-snug font-bold tracking-[0.18em] text-accent-600 uppercase"
+          className="pointer-events-none absolute top-5 -right-3 grid size-23 rotate-12 place-items-center rounded-full border-4 border-double border-accent-600 text-center font-mono text-[0.5rem] leading-snug font-bold tracking-[0.18em] text-accent-700 uppercase"
         >
           No Limits
           <br />

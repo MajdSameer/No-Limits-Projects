@@ -41,17 +41,22 @@ Tokens: `packages/config/tailwind/theme.css`; synced inline copies:
 ## Company facts (`packages/config/src/brand.ts`)
 
 - [x] ~~Phone~~ — 1300 609 117
-- [x] ~~Email~~ — quote@nolimitsremovalists.com.au (their quotes inbox).
-      Still: confirm preferred address for general enquiries.
+- [x] ~~Email~~ — quote@nolimitsremovalists.com.au (quotes) +
+      info@nolimitsremovalists.com.au (general, from the website's contact
+      page, Jun 2026)
 - [x] ~~Legal entity name~~ — No Limits Removalists Pty Ltd (from their
       quote email's payment section)
 - [x] ~~Depot address~~ — Unit 6/76 Hume Hwy, Lansvale NSW 2166 (Google listing)
 - [ ] **ABN** (placeholder `00 000 000 000` — shows in footer)
 - [ ] **Verify listing-sourced facts** before customer-facing use: founded
-      2016, AFRA accredited, ~60 team members. (Fleet of 70 trucks and 5,000+
-      five-star reviews are the company's own email claims; Google shows
-      4.9★/5,130 reviews as of Jun 2026 — refresh counts before quoting.)
-- [ ] **Social media links** (none recorded yet)
+      2016, ~60 team members. (Fleet of 70 trucks and 5,000+ five-star
+      reviews are the company's own email claims; Google shows 4.9★/5,130
+      reviews as of Jun 2026 — refresh counts before quoting. AFRA
+      accreditation is corroborated by the company's site + third-party
+      listings, Jun 2026 — sighting the membership certificate would fully
+      close it.)
+- [x] ~~Social media links~~ — Facebook recorded in `company.social`
+      (Jun 2026); add others if they exist
 
 Deliberately NOT stored in this repo: the bank transfer details (BSB/account)
 that appear in quote emails — payment-operations data doesn't belong in

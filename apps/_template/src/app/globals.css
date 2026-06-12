@@ -40,10 +40,11 @@
   );
 }
 
-/* Ghost stencil titles behind each panel. */
+/* Ghost stencil titles behind each panel — visible outline, never a smudge
+   (contrast-audited ≥2.5:1 on ink). */
 .stencil-ghost {
   color: transparent;
-  -webkit-text-stroke: 1px rgb(255 212 46 / 0.16);
+  -webkit-text-stroke: 1px rgb(255 212 46 / 0.42);
 }
 
 /* Smooth anchor scrolling — unless the visitor prefers reduced motion. */

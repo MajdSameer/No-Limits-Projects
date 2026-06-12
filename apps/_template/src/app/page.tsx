@@ -30,39 +30,39 @@ const SERVICES = [
   {
     tag: "Homes",
     title: "Home removals",
-    body: "Full-house moves with trained crews who pad, wrap and load like it's their nan's china.",
+    body: "Houses, units and apartments — trained crews who pad, wrap and load like it's their nan's china. Every truck carries blankets, shrink wrap, straps and dollies as standard.",
   },
   {
     tag: "Offices",
     title: "Office removals",
-    body: "Desks out Friday night, working Monday morning. Minimal downtime, no surprises.",
+    body: "Desks out Friday night, working Monday morning. We plan the move around your downtime, stay in charge of the whole job, and never hand it to subcontractors.",
   },
   {
     tag: "Sydney-wide",
     title: "Local Sydney moves",
-    body: "Based in Lansvale with slots across the metro — the whole city counts as local.",
+    body: "Based in Lansvale with crews across the metro — the whole city counts as local. Honest quotes up-front, and you only ever deal with us.",
   },
   {
     tag: "NSW-wide",
     title: "Country relocations",
-    body: "Sydney to the regions and back, with door-to-door timelines you can plan around.",
+    body: "Sydney to the regions and back, door to door, with timelines you can plan around. No matter where you're moving from or to, we've got it covered.",
   },
   {
     tag: "Australia-wide",
     title: "Interstate moves",
-    body: "Melbourne, Brisbane and beyond — one crew, one truck, one point of contact.",
+    body: "Melbourne, Brisbane, Canberra and beyond — one crew, one truck, one point of contact. Offices in Parramatta and Melbourne mean both ends are covered.",
   },
   {
     tag: "Add-ons",
     title: "Packing & extras",
-    body: "Packing, unpacking, cleaning, storage, utility connections — bolt on what you need.",
+    body: "Packing materials and protective coverings, unpacking, cleaning, flexible storage, utility connections, even car relocation — bolt on exactly what you need.",
   },
 ];
 
 const STEPS = [
   {
     title: "Tell us about your move",
-    body: `Size, suburbs and date — two minutes online, or call ${company.phoneDisplay}.`,
+    body: `Size, suburbs and date — two minutes online, or call ${company.phoneDisplay}. Lines open ${company.hoursDisplay}.`,
   },
   {
     title: "Get your price",
@@ -97,7 +97,19 @@ const FAQS = [
   },
   {
     q: "Can you pack for me?",
-    a: "Yes — add packing, unpacking, cleaning, storage, utility connections or car relocation to any move. Free site visits and virtual inspections help us scope it.",
+    a: "Yes — add packing, unpacking, cleaning, storage, utility connections or car relocation to any move. We supply packing materials and protective coverings, and free site visits and virtual inspections help us scope it.",
+  },
+  {
+    q: "Do you use subcontractors?",
+    a: "Never. Unlike many movers, it's our own crews and our own trucks on every single job — we stay in charge of your move from the first box to the last.",
+  },
+  {
+    q: "Are you accredited and insured?",
+    a: "We're AFRA accredited (Australian Furniture Removers Association), which holds us to industry standards for training, safety and insurance, and we carry removals insurance for transit, loading and unloading. Ask us about the cover that applies to your move when you book.",
+  },
+  {
+    q: "When can I reach you?",
+    a: `Every day — lines are open ${company.hoursDisplay} on ${company.phoneDisplay}. Quotes go to ${company.email}, everything else to ${company.emailGeneral}.`,
   },
 ];
 
@@ -170,6 +182,13 @@ export default function HomePage() {
               >
                 {company.heroLine}
               </p>
+              <p
+                className="mt-3 max-w-md text-sm leading-relaxed text-brand-300 motion-safe:animate-fade-up"
+                style={stagger(3)}
+              >
+                Honest quotes up-front — no surprises, no hidden charges. And it's our own crews
+                and trucks on every job: we never use subcontractors.
+              </p>
               <ul
                 className="mt-8 flex flex-wrap gap-2 motion-safe:animate-fade-up"
                 style={stagger(4)}
@@ -178,7 +197,8 @@ export default function HomePage() {
                 {[
                   `★ ${company.facts.googleRating} · ${company.facts.googleReviewCount.toLocaleString(company.locale)} reviews`,
                   `${company.facts.fleetSize}-truck fleet`,
-                  "Family owned",
+                  "AFRA accredited",
+                  `Open ${company.hoursDisplay}`,
                 ].map((chip) => (
                   <li
                     key={chip}
@@ -233,7 +253,7 @@ export default function HomePage() {
                   <li
                     key={n}
                     style={n % 9 === 0 ? { animationDelay: `${(n * 137) % 6000}ms` } : undefined}
-                    className={`grid aspect-square place-items-center border border-brand-800/70 font-mono text-[0.6rem] font-bold text-brand-700 sm:text-xs ${
+                    className={`grid aspect-square place-items-center border border-brand-800/70 font-mono text-[0.6rem] font-bold text-brand-400 sm:text-xs ${
                       n % 9 === 0 ? "motion-safe:animate-flare" : ""
                     }`}
                   >
@@ -305,6 +325,33 @@ export default function HomePage() {
           </Container>
         </section>
 
+        {/* ── ON EVERY TRUCK: what comes standard (their own claims). */}
+        <section
+          aria-label="Included as standard"
+          className="border-t-2 border-accent-400/60 bg-ink-900/60 py-10 sm:py-12"
+        >
+          <Container>
+            <Reveal>
+              <PanelLabel>On every truck, as standard</PanelLabel>
+            </Reveal>
+            <ul className="mt-6 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+              {company.inclusions.map((item, i) => (
+                <li key={item}>
+                  <Reveal delay={i * 80} className="flex items-start gap-3">
+                    <span
+                      aria-hidden
+                      className="mt-1 h-[3px] w-5 shrink-0 bg-accent-400"
+                    />
+                    <span className="text-sm leading-relaxed font-medium text-manila-200">
+                      {item}
+                    </span>
+                  </Reveal>
+                </li>
+              ))}
+            </ul>
+          </Container>
+        </section>
+
         {/* ── DISPATCH: the three-step sequence. */}
         <section
           id="how"
@@ -322,10 +369,7 @@ export default function HomePage() {
               {STEPS.map((step, i) => (
                 <li key={step.title}>
                   <Reveal delay={i * 130}>
-                    <p
-                      aria-hidden
-                      className="stencil-ghost font-display text-6xl font-bold [-webkit-text-stroke-color:rgb(255_212_46/0.5)]"
-                    >
+                    <p aria-hidden className="stencil-ghost font-display text-6xl font-bold">
                       {String(i + 1).padStart(2, "0")}
                     </p>
                   </Reveal>
@@ -462,7 +506,8 @@ export default function HomePage() {
                   ★★★★★
                 </span>{" "}
                 {company.facts.googleRating} from{" "}
-                {company.facts.googleReviewCount.toLocaleString(company.locale)} Google reviews
+                {company.facts.googleReviewCount.toLocaleString(company.locale)} Google reviews ·
+                lines open {company.hoursDisplay}
               </p>
             </Reveal>
           </Container>

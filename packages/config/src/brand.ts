@@ -39,10 +39,20 @@ export const company = {
   phone: "+611300609117",
   phoneDisplay: "1300 609 117",
   /**
-   * The quotes inbox used in their emails.
-   * TODO: confirm the preferred address for general enquiries.
+   * The quotes inbox used in their emails. General enquiries go to
+   * emailGeneral (from the website's contact page).
    */
   email: "quote@nolimitsremovalists.com.au",
+  /** General enquiries inbox, listed on the website. */
+  emailGeneral: "info@nolimitsremovalists.com.au",
+  /** Phone hours from the website's contact page: Monday–Sunday. */
+  hoursDisplay: "6am–9pm, 7 days",
+  /** Office locations the website lists besides the Lansvale depot. */
+  offices: ["Parramatta NSW", "Melbourne VIC"],
+  social: {
+    /** Their Facebook page (found Jun 2026). */
+    facebook: "https://www.facebook.com/nolimitsremovalists.booknow/",
+  },
   /** TODO: real ABN. */
   abn: "00 000 000 000",
   /** Depot, from the Google Business listing. */
@@ -92,12 +102,21 @@ export const company = {
     "Utility connections",
     "Car relocation",
   ],
-  /** Standing offers the company makes in every quote email. */
+  /** Standing offers the company makes in every quote email + website. */
   guarantees: [
     "Refundable reservation fee and deposit",
     "Flexible rescheduling with no cancellation fees",
     "Price matching — we'll beat any comparable written quote where possible",
     "No hidden costs",
+    "Our own crews and trucks on every job — we never use subcontractors",
+    "Honest quotes up-front — no surprises",
+  ],
+  /** What comes standard, from the quote email + website. */
+  inclusions: [
+    "Heavy blankets, shrink wrap, straps and dollies on every truck",
+    "Packing materials and protective coverings available",
+    "Flexible storage solutions",
+    "Free site visits and virtual inspections",
   ],
 } as const;
 
