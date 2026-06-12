@@ -3,6 +3,9 @@
 /* Brand design tokens — colours/fonts shared by every app. */
 @import "@nlr/config/tailwind/theme.css";
 
+/* FREIGHT MANIFEST art-direction tokens (app-local experiment). */
+@import "./manifest-theme.css";
+
 /* Tailwind auto-detects this app's files, but the shared UI package lives
    outside the app root, so point Tailwind at its source explicitly. */
 @source "../../../../packages/ui/src";
@@ -14,6 +17,33 @@
     var(--font-body-local), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, Arial, sans-serif;
   --font-display: var(--font-display-local), var(--font-sans);
+}
+
+/* Punched tear-off holes: ink circles on manila read as perforation. */
+.docket-perforation {
+  height: 10px;
+  background-image: radial-gradient(
+    circle at center,
+    var(--color-ink-950) 4px,
+    var(--color-manila-100) 4.5px
+  );
+  background-size: 22px 10px;
+  background-position: center;
+}
+
+/* Faint vertical scan-lines: corrugated container wall, almost subliminal. */
+.ink-grain {
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 6px,
+    rgb(255 255 255 / 0.015) 6px 7px
+  );
+}
+
+/* Ghost stencil titles behind each panel. */
+.stencil-ghost {
+  color: transparent;
+  -webkit-text-stroke: 1px rgb(255 212 46 / 0.16);
 }
 
 /* Smooth anchor scrolling — unless the visitor prefers reduced motion. */

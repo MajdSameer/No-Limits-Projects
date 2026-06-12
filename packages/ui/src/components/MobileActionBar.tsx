@@ -14,6 +14,8 @@ export interface MobileActionBarProps {
    */
   watch?: string;
   quoteHref?: string;
+  /** Extra classes for the bar surface (e.g. app-specific theming). */
+  className?: string;
 }
 
 /**
@@ -22,7 +24,11 @@ export interface MobileActionBarProps {
  * using it should add bottom padding (e.g. a h-24 md:hidden spacer) so the
  * footer is never obscured.
  */
-export function MobileActionBar({ watch = "#quote", quoteHref = "#quote" }: MobileActionBarProps) {
+export function MobileActionBar({
+  watch = "#quote",
+  quoteHref = "#quote",
+  className,
+}: MobileActionBarProps) {
   const [suppressed, setSuppressed] = useState(false);
 
   useEffect(() => {
@@ -42,6 +48,7 @@ export function MobileActionBar({ watch = "#quote", quoteHref = "#quote" }: Mobi
       className={cx(
         "fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-[0_-4px_16px_rgba(15,25,47,0.08)] backdrop-blur transition-transform duration-300 md:hidden",
         suppressed && "translate-y-full",
+        className,
       )}
     >
       <div className="mx-auto grid max-w-md grid-cols-2 gap-3">

@@ -21,13 +21,30 @@ export function QuoteCard() {
   const estimate = state.estimate;
 
   return (
-    <div className="rounded-3xl bg-accent-400 p-6 shadow-2xl shadow-brand-950/40 sm:p-7">
-      <h2 className="font-display text-3xl font-bold tracking-wide text-brand-950 uppercase">
-        What would my move cost?
-      </h2>
-      <p className="mt-1 text-sm font-medium text-brand-900">
-        A real ballpark in seconds — no phone number needed to see it.
-      </p>
+    // The conversion centerpiece as a manila consignment docket (council
+    // pick): perforated tear-off top, mono field language, stamped result.
+    <div className="relative overflow-hidden rounded-md bg-manila-100 shadow-2xl shadow-black/60">
+      <div className="docket-perforation" aria-hidden />
+      <div className="relative p-6 sm:p-7">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-5 -right-3 grid size-23 rotate-12 place-items-center rounded-full border-4 border-double border-accent-500/80 text-center font-mono text-[0.5rem] leading-snug font-bold tracking-[0.18em] text-accent-600 uppercase"
+        >
+          No Limits
+          <br />
+          Lansvale NSW
+          <br />
+          Est. 2016
+        </div>
+        <p className="font-mono text-[0.65rem] font-bold tracking-[0.3em] text-brand-700 uppercase">
+          Consignment note
+        </p>
+        <h2 className="font-display mt-2 pr-16 text-3xl font-bold tracking-wide text-brand-950 uppercase">
+          What would my move cost?
+        </h2>
+        <p className="mt-1 text-sm font-medium text-brand-900">
+          A real ballpark in seconds — no phone number needed to see it.
+        </p>
 
       {/* React 19 resets uncontrolled fields after the action runs, so feed
           the latest inputs back in as defaults to keep the form populated. */}
@@ -81,9 +98,9 @@ export function QuoteCard() {
       )}
 
       {estimate && state.input && (
-        <div className="reveal mt-5 rounded-2xl bg-white p-5">
+        <div className="reveal mt-5 rounded-lg border border-manila-400 bg-white p-5">
           <div className="flex items-baseline justify-between gap-3">
-            <p className="text-sm font-semibold text-slate-600">
+            <p className="font-mono text-sm font-semibold text-slate-600">
               {state.input.from} → {state.input.to} · {state.input.sizeLabel}
             </p>
             {estimate.mock && (
@@ -105,6 +122,12 @@ export function QuoteCard() {
           <p className="mt-1 text-xs text-slate-500">
             {estimate.minimumHours}-hour minimum plus {estimate.callout} callout.{" "}
             {formatCurrency(estimate.deposit ?? 0)} refundable deposit holds your date.
+          </p>
+          <p
+            aria-hidden
+            className="mt-3 inline-block rounded border-2 border-accent-600 px-2.5 py-1 font-mono text-[0.6rem] font-bold tracking-[0.25em] text-accent-700 uppercase motion-safe:animate-stamp"
+          >
+            ✓ Estimate issued
           </p>
 
           {state.step !== "requested" ? (
@@ -140,6 +163,7 @@ export function QuoteCard() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
