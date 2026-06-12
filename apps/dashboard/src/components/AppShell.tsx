@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { signOut } from "../app/actions/auth";
 import type { Session } from "../lib/session";
+import { QuickAdd } from "./QuickAdd";
 
 const NAV = [
   { label: "Board", href: "/" },
@@ -42,6 +43,7 @@ export function AppShell({ session, children }: { session: Session; children: Re
           </nav>
 
           <div className="flex items-center gap-3">
+            <QuickAdd />
             <span className="hidden font-mono text-xs text-brand-300 sm:block">{session.name}</span>
             <form action={signOut}>
               <button
