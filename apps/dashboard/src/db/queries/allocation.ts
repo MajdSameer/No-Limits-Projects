@@ -31,16 +31,20 @@ export async function liveAllocation(now: Date = new Date()): Promise<Allocation
   const leadsByStaff = new Map<string, number>();
   for (const l of leadRows) leadsByStaff.set(l.staffId, (leadsByStaff.get(l.staffId) ?? 0) + 1);
 
-  const candidates: AllocCandidate[] = reps.map((r) => ({
-    staffId: r.id,
-    name: r.name,
-    weight: Number(r.intakeWeight),
-    status: deriveClock(
+  const candidates: AllocCandidate[] = reps.map((r) => {
+    const clock = deriveClock(
       clockRows.filter((e) => e.staffId === r.id),
       now,
-    ).status,
-    leadsToday: leadsByStaff.get(r.id) ?? 0,
-  }));
+    );
+    return {
+      staffId: r.id,
+      name: r.name,
+      weight: Number(r.intakeWeight),
+      status: clock.status,
+      workedHours: clock.workedMs / 36e5,
+      leadsToday: leadsByStaff.get(r.id) ?? 0,
+    };
+  });
 
   return allocate(candidates);
 }

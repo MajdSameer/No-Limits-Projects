@@ -43,7 +43,8 @@ describe("allocate", () => {
     weight: number,
     status: AllocCandidate["status"],
     leadsToday = 0,
-  ): AllocCandidate => ({ staffId, name: staffId, weight, status, leadsToday });
+    workedHours = 3,
+  ): AllocCandidate => ({ staffId, name: staffId, weight, status, leadsToday, workedHours });
 
   test("only clocked-in, not-on-break reps are eligible", () => {
     const a = allocate([
@@ -56,17 +57,35 @@ describe("allocate", () => {
     expect(a.nextUp).toBe("andy");
   });
 
-  test("shares are weight-proportional among eligible", () => {
-    const a = allocate([c("andy", 1.0, "on"), c("ann", 3.0, "on")]);
-    const andy = a.eligible.find((e) => e.staffId === "andy")!;
-    const ann = a.eligible.find((e) => e.staffId === "ann")!;
-    expect(Math.round(andy.sharePct)).toBe(25);
-    expect(Math.round(ann.sharePct)).toBe(75);
+  test("at equal hours, shares are weight-proportional", () => {
+    const a = allocate([c("andy", 1.0, "on", 0, 4), c("ann", 3.0, "on", 0, 4)]);
+    expect(Math.round(a.eligible.find((e) => e.staffId === "andy")!.sharePct)).toBe(25);
+    expect(Math.round(a.eligible.find((e) => e.staffId === "ann")!.sharePct)).toBe(75);
+  });
+
+  test("hours-weighting: equal weight, more hours → bigger share", () => {
+    // Same weight, but Andy has worked 6h vs Ann's 2h → 75/25 by capacity.
+    const a = allocate([c("andy", 1.0, "on", 0, 6), c("ann", 1.0, "on", 0, 2)]);
+    expect(Math.round(a.eligible.find((e) => e.staffId === "andy")!.sharePct)).toBe(75);
+    expect(Math.round(a.eligible.find((e) => e.staffId === "ann")!.sharePct)).toBe(25);
+    expect(a.nextUp).toBe("andy"); // owed more of the next lead
+  });
+
+  test("capacity blends weight AND hours", () => {
+    // Andy: weight 1 × 6h = 6 ; Ann: weight 2 × 4h = 8 → Ann leads.
+    const a = allocate([c("andy", 1.0, "on", 0, 6), c("ann", 2.0, "on", 0, 4)]);
+    expect(a.nextUp).toBe("ann");
+    expect(Math.round(a.eligible.find((e) => e.staffId === "ann")!.sharePct)).toBe(57);
+  });
+
+  test("shift start (no hours yet) falls back to weight-only", () => {
+    const a = allocate([c("andy", 1.0, "on", 0, 0), c("ann", 3.0, "on", 0, 0)]);
+    expect(a.eligible).toHaveLength(2);
+    expect(Math.round(a.eligible.find((e) => e.staffId === "ann")!.sharePct)).toBe(75);
   });
 
   test("next-up is whoever is most behind their fair share", () => {
-    // Equal weights, andy already took 2 today, ann 0 → ann is owed the next.
-    const a = allocate([c("andy", 1.0, "on", 2), c("ann", 1.0, "on", 0)]);
+    const a = allocate([c("andy", 1.0, "on", 2, 4), c("ann", 1.0, "on", 0, 4)]);
     expect(a.nextUp).toBe("ann");
     expect(a.totalLeadsToday).toBe(2);
   });
