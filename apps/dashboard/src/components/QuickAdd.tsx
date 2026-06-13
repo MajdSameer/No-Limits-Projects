@@ -64,7 +64,7 @@ export function QuickAdd() {
       <button
         type="button"
         onClick={open}
-        className="min-h-11 rounded-full bg-accent-400 px-5 font-mono text-xs font-bold tracking-widest text-ink-950 uppercase transition-all hover:bg-accent-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400 motion-safe:hover:-translate-y-0.5"
+        className="min-h-11 rounded-full bg-accent-400 px-5 text-sm font-semibold text-brand-950 transition-all hover:bg-accent-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400 motion-safe:hover:-translate-y-0.5"
       >
         + Job
       </button>
@@ -77,8 +77,8 @@ export function QuickAdd() {
         <div className="p-6">
           {result?.ok ? (
             <div className="text-center">
-              <p className="text-xs font-bold tracking-[0.2em] text-accent-600 uppercase">On the board</p>
-              <p className="font-display fade-in mt-2 text-4xl font-bold tracking-wide text-brand-950 uppercase">
+              <p className="text-xs font-semibold tracking-wider text-accent-700 uppercase">On the board</p>
+              <p className="fade-in mt-2 text-4xl font-bold tracking-tight text-brand-950">
                 {result.jobNumber} 🎉
               </p>
               <p className="mt-2 text-sm text-slate-600">

@@ -94,8 +94,8 @@ export function RosterView({
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold tracking-[0.2em] text-slate-600 uppercase">This week</p>
-          <h1 className="font-display mt-1 text-4xl font-bold tracking-wide text-brand-900 uppercase">Roster</h1>
+          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">This week</p>
+          <h1 className="mt-1 text-4xl font-bold tracking-tight text-brand-900">Roster</h1>
         </div>
         <div role="tablist" aria-label="Roster view" className="flex gap-1 rounded-full bg-slate-100 p-1">
           {(["roster", "timesheet"] as const).map((t) => (

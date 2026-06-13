@@ -187,10 +187,10 @@ export function BookingDetail({
     <div className="max-w-3xl">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold tracking-[0.2em] text-slate-600 uppercase">
+          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
             Booking · entered by {repName}
           </p>
-          <h1 className="font-display mt-1 text-5xl font-bold tracking-wide text-brand-900 uppercase">
+          <h1 className="mt-1 text-5xl font-bold tracking-tight text-brand-900">
             {booking.jobNumber}
           </h1>
         </div>

@@ -73,8 +73,8 @@ export function Board({ initial }: { initial: BoardsDTO }) {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold tracking-[0.2em] text-slate-600 uppercase">Leaderboard</p>
-          <h1 className="font-display mt-1 text-4xl font-bold tracking-wide text-brand-900 uppercase">The board</h1>
+          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Leaderboard</p>
+          <h1 className="mt-1 text-4xl font-bold tracking-tight text-brand-900">The board</h1>
         </div>
         <div role="tablist" aria-label="Board period" className="flex gap-1 rounded-full bg-slate-100 p-1">
           {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (

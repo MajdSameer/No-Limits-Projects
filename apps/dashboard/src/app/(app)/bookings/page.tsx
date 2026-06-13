@@ -39,8 +39,8 @@ export default async function BookingsPage({
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold tracking-[0.2em] text-slate-600 uppercase">Bookings</p>
-          <h1 className="font-display mt-1 text-4xl font-bold tracking-wide text-brand-900 uppercase">The book</h1>
+          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Bookings</p>
+          <h1 className="mt-1 text-4xl font-bold tracking-tight text-brand-900">The book</h1>
         </div>
         <form className="flex gap-2" action="/bookings" method="GET">
           <input type="hidden" name="filter" value={filter} />

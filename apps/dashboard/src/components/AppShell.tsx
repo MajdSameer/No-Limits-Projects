@@ -15,10 +15,10 @@ export function AppShell({ session, children }: { session: Session; children: Re
             href="/"
             className="flex items-baseline gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
           >
-            <span className="font-display text-xl font-bold tracking-wide text-brand-900 uppercase">
+            <span className="text-xl font-extrabold tracking-tight text-brand-900">
               No Limits
             </span>
-            <span className="rounded-full bg-accent-400 px-2 py-0.5 text-[0.6rem] font-bold tracking-widest text-brand-950 uppercase">
+            <span className="rounded-full bg-accent-400 px-2 py-0.5 text-[0.6rem] font-bold tracking-wide text-brand-950 uppercase">
               Ops
             </span>
           </Link>

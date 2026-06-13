@@ -72,8 +72,8 @@ export function ManageView({ staff, audit }: { staff: StaffRow[]; audit: AuditRo
 
   return (
     <div>
-      <p className="text-xs font-bold tracking-[0.2em] text-slate-600 uppercase">Managers only</p>
-      <h1 className="font-display mt-1 text-4xl font-bold tracking-wide text-brand-900 uppercase">Manage</h1>
+      <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Managers only</p>
+      <h1 className="mt-1 text-4xl font-bold tracking-tight text-brand-900">Manage</h1>
 
       {message && (
         <p role="alert" className="fade-in mt-4 rounded-xl border border-accent-500 bg-accent-50 px-3 py-2 text-sm font-semibold text-brand-900">
