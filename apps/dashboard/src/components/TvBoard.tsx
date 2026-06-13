@@ -122,7 +122,7 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
                   done ? "border-accent-400 bg-accent-400/10" : "border-brand-800",
                 )}
               >
-                <span className="font-display w-14 text-4xl font-bold text-brand-500">{i + 1}</span>
+                <span className="font-display w-14 text-4xl font-bold text-brand-300">{i + 1}</span>
                 <span className="flex-1 truncate font-display text-[clamp(1.8rem,3.2vw,3rem)] font-bold tracking-wide uppercase">
                   {r.name}
                 </span>
@@ -130,7 +130,7 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
                 <span className={cx("font-display text-[clamp(2.2rem,4vw,3.8rem)] font-bold tracking-wide", done ? "text-accent-400" : "text-manila-100")}>
                   {r.count}
                   {tab === "daily" && r.goal !== null && (
-                    <span className="ml-2 text-2xl text-brand-500">/ {r.goal}</span>
+                    <span className="ml-2 text-2xl text-brand-300">/ {r.goal}</span>
                   )}
                 </span>
               </li>

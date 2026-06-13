@@ -30,18 +30,42 @@ export const bookingStatus = pgEnum("booking_status", [
   "refunded",
 ]);
 export const clockKind = pgEnum("clock_kind", ["in", "break_start", "break_end", "out"]);
+/** Drives the board's pink/blue cell colours; "x" = unspecified/neutral. */
+export const gender = pgEnum("gender", ["f", "m", "x"]);
+/** Game Day team. Null until assigned. */
+export const team = pgEnum("team", ["orange", "blue"]);
 
 export const staff = pgTable("staff", {
   id: text("id").primaryKey(), // slug, e.g. "andy"
   name: text("name").notNull(),
   role: role("role").notNull().default("rep"),
   pinHash: text("pin_hash").notNull(),
-  /** Fair-share lead weighting from the sheet (v2 lead queue uses it). */
+  /** Fair-share lead weighting from the sheet — drives live allocation. */
   intakeWeight: numeric("intake_weight").notNull().default("1.0"),
+  gender: gender("gender").notNull().default("x"),
+  team: team("team"),
   active: boolean("active").notNull().default(true),
   failedAttempts: integer("failed_attempts").notNull().default(0),
   lockedAt: timestamp("locked_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Small key/value store for app-wide flags (e.g. game_day = "on"). */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Allocated leads — feeds the live "who's up next" allocator. */
+export const leads = pgTable("leads", {
+  id: text("id").primaryKey(),
+  staffId: text("staff_id")
+    .notNull()
+    .references(() => staff.id),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  assignedBy: text("assigned_by"),
+  source: text("source"),
 });
 
 export const bookings = pgTable(

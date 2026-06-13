@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 
 import { logAudit } from "../../db/audit";
 import { getDb, schema } from "../../db/client";
+import { setSetting } from "../../db/settings";
 import { hashPin, validPinFormat } from "../../lib/auth-core";
 import { newId } from "../../lib/id";
 import { notify } from "../../lib/notify";
@@ -122,6 +123,41 @@ export async function setIntakeWeight(staffId: string, weight: number): Promise<
     entityId: staffId,
     diff: { weight },
   });
+  revalidatePath("/manage");
+  notify("bookings");
+  return {};
+}
+
+export async function setGender(staffId: string, gender: "f" | "m" | "x"): Promise<ActionState> {
+  const manager = await requireManager();
+  if (!["f", "m", "x"].includes(gender)) return { error: "Bad value." };
+  const db = await getDb();
+  await db.update(schema.staff).set({ gender }).where(eq(schema.staff.id, staffId));
+  await logAudit({ staffId: manager.staffId, action: "staff.set_gender", entity: "staff", entityId: staffId, diff: { gender } });
+  revalidatePath("/manage");
+  notify("bookings");
+  return {};
+}
+
+export async function setTeam(staffId: string, team: "orange" | "blue" | null): Promise<ActionState> {
+  const manager = await requireManager();
+  if (team !== null && !["orange", "blue"].includes(team)) return { error: "Bad value." };
+  const db = await getDb();
+  await db.update(schema.staff).set({ team }).where(eq(schema.staff.id, staffId));
+  await logAudit({ staffId: manager.staffId, action: "staff.set_team", entity: "staff", entityId: staffId, diff: { team } });
+  revalidatePath("/manage");
+  notify("bookings");
+  return {};
+}
+
+/** Flip Game Day mode for the whole floor. Manager-only. */
+export async function setGameDay(on: boolean): Promise<ActionState> {
+  const manager = await requireManager();
+  await setSetting("game_day", on ? "on" : "off");
+  await logAudit({ staffId: manager.staffId, action: "settings.game_day", entity: "app_settings", entityId: "game_day", diff: { on } });
+  notify("bookings");
+  notify("clock");
+  revalidatePath("/");
   revalidatePath("/manage");
   return {};
 }

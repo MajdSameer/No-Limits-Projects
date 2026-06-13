@@ -15,12 +15,19 @@ export interface BoardRow {
   count: number;
   /** Daily target where one applies (daily/yesterday boards). */
   goal: number | null;
+  gender: "f" | "m" | "x";
+  team: "orange" | "blue" | null;
 }
 
 async function activeReps() {
   const db = await getDb();
   return db
-    .select({ id: schema.staff.id, name: schema.staff.name })
+    .select({
+      id: schema.staff.id,
+      name: schema.staff.name,
+      gender: schema.staff.gender,
+      team: schema.staff.team,
+    })
     .from(schema.staff)
     .where(and(eq(schema.staff.active, true), eq(schema.staff.role, "rep")))
     .orderBy(asc(schema.staff.name));
@@ -56,7 +63,7 @@ async function countsByEnteredAt(start: Date, end: Date): Promise<Map<string, nu
 }
 
 function compose(
-  reps: Array<{ id: string; name: string }>,
+  reps: Array<{ id: string; name: string; gender: "f" | "m" | "x"; team: "orange" | "blue" | null }>,
   counts: Map<string, number>,
   goals: Map<string, number> | null,
 ): BoardRow[] {
@@ -66,6 +73,8 @@ function compose(
       name: r.name,
       count: counts.get(r.id) ?? 0,
       goal: goals?.get(r.id) ?? null,
+      gender: r.gender,
+      team: r.team,
     }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }

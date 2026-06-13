@@ -8,9 +8,11 @@ import { cx } from "@nlr/ui";
 import {
   addStaff,
   setActive,
+  setGender,
   setGoal,
   setIntakeWeight,
   setPin,
+  setTeam,
   unlockStaff,
 } from "../app/actions/manage";
 
@@ -22,6 +24,8 @@ interface StaffRow {
   locked: boolean;
   intakeWeight: number;
   goal: number | null;
+  gender: "f" | "m" | "x";
+  team: "orange" | "blue" | null;
 }
 
 interface AuditRow {
@@ -101,7 +105,9 @@ export function ManageView({ staff, audit }: { staff: StaffRow[]; audit: AuditRo
               <th className="px-3 py-2">Role</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Daily goal</th>
-              <th className="px-3 py-2">Intake weight</th>
+              <th className="px-3 py-2">Weight</th>
+              <th className="px-3 py-2">Cell</th>
+              <th className="px-3 py-2">Team</th>
               <th className="px-3 py-2">Actions</th>
             </tr>
           </thead>
@@ -122,6 +128,36 @@ export function ManageView({ staff, audit }: { staff: StaffRow[]; audit: AuditRo
                   <button type="button" onClick={() => promptWeight(s)} disabled={pending} className={btn}>
                     {s.intakeWeight.toFixed(1)} ✎
                   </button>
+                </td>
+                <td className="px-3 py-2">
+                  <label className="sr-only" htmlFor={`gender-${s.id}`}>{s.name} cell colour</label>
+                  <select
+                    id={`gender-${s.id}`}
+                    value={s.gender}
+                    disabled={pending}
+                    onChange={(e) => run(() => setGender(s.id, e.target.value as "f" | "m" | "x"))}
+                    className="min-h-9 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                  >
+                    <option value="f">Pink ♀</option>
+                    <option value="m">Blue ♂</option>
+                    <option value="x">Neutral</option>
+                  </select>
+                </td>
+                <td className="px-3 py-2">
+                  <label className="sr-only" htmlFor={`team-${s.id}`}>{s.name} game-day team</label>
+                  <select
+                    id={`team-${s.id}`}
+                    value={s.team ?? ""}
+                    disabled={pending}
+                    onChange={(e) =>
+                      run(() => setTeam(s.id, (e.target.value || null) as "orange" | "blue" | null))
+                    }
+                    className="min-h-9 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                  >
+                    <option value="">—</option>
+                    <option value="orange">🟠 Orange</option>
+                    <option value="blue">🔵 Blue</option>
+                  </select>
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-1">

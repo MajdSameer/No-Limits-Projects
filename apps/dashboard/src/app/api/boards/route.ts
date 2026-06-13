@@ -1,23 +1,28 @@
 import { NextResponse } from "next/server";
 
 import { dailyBoard, monthlyBoard, pipelineBoard, yesterdayBoard } from "../../../db/queries/boards";
+import { liveAllocation } from "../../../db/queries/allocation";
+import { isGameDay } from "../../../db/settings";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Public by design (the wall TV has no session): first names, counts and
- * goals ONLY — never customer or money data.
+ * Public by design (the wall TV has no session): first names, counts, goals,
+ * gender/team tint and live allocation shares ONLY — never customer or money
+ * data.
  */
 export async function GET() {
   const now = new Date();
-  const [daily, yesterday, monthly, pipeline] = await Promise.all([
+  const [daily, yesterday, monthly, pipeline, allocation, gameDay] = await Promise.all([
     dailyBoard(now),
     yesterdayBoard(now),
     monthlyBoard(now),
     pipelineBoard(now),
+    liveAllocation(now),
+    isGameDay(),
   ]);
   return NextResponse.json(
-    { daily, yesterday, monthly, pipeline, generatedAtISO: now.toISOString() },
+    { daily, yesterday, monthly, pipeline, allocation, gameDay, generatedAtISO: now.toISOString() },
     { headers: { "cache-control": "no-store" } },
   );
 }

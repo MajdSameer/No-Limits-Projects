@@ -30,7 +30,8 @@ export async function signIn(_prev: SignInState, formData: FormData): Promise<Si
     entity: "staff",
     entityId: result.staff.id,
   });
-  redirect("/");
+  // Greeting flag — the board reads it then strips the param client-side.
+  redirect("/?welcome=1");
 }
 
 export async function signOut(): Promise<void> {

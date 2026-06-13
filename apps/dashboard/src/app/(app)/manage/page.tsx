@@ -37,6 +37,8 @@ export default async function ManagePage() {
         locked: Boolean(s.lockedAt),
         intakeWeight: Number(s.intakeWeight),
         goal: goalMap.get(s.id) ?? null,
+        gender: s.gender,
+        team: s.team,
       }))}
       audit={auditRows.map((a) => ({
         id: a.id,
