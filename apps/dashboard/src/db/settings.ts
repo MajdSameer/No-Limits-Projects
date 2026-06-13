@@ -20,3 +20,9 @@ export async function setSetting(key: string, value: string): Promise<void> {
 export async function isGameDay(): Promise<boolean> {
   return (await getSetting("game_day", "off")) === "on";
 }
+
+/** Combined team monthly booking goal (default 1500). */
+export async function getMonthlyGoal(): Promise<number> {
+  const n = Number(await getSetting("monthly_goal", "1500"));
+  return Number.isFinite(n) && n > 0 ? n : 1500;
+}

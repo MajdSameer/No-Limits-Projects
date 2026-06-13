@@ -1,12 +1,11 @@
 "use client";
 
 import confetti from "canvas-confetti";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
-import { assignNextLead } from "../app/actions/leads";
-import { setGameDay } from "../app/actions/manage";
 import { cellMessage, cellTier } from "../lib/leaderboard-messages";
 import { useLiveRefresh } from "../lib/live";
 import { sydneyToday } from "../lib/sydney";
@@ -34,25 +33,32 @@ export interface BoardsDTO {
   pipeline: BoardRowDTO[];
   allocation: { eligible: AllocSlotDTO[]; nextUp: string | null; totalLeadsToday: number };
   gameDay: boolean;
+  monthlyGoal: number;
+  monthlyTotal: number;
   generatedAtISO: string;
 }
 
-type Tab = "daily" | "monthly" | "pipeline";
-const TAB_LABEL: Record<Tab, string> = { daily: "Daily", monthly: "Monthly", pipeline: "Next 3 months" };
-
-/** Card skin: Game Day team colours win; otherwise gender pink/blue. */
-function cellSkin(row: BoardRowDTO, gameDay: boolean): string {
-  if (gameDay && row.team) {
-    return row.team === "orange"
-      ? "border-orange-300 bg-orange-100"
-      : "border-sky-300 bg-sky-100";
-  }
+/** Gender pink/blue cell tint (Game Day colours live on their own page). */
+function genderSkin(row: BoardRowDTO): string {
   if (row.gender === "f") return "border-pink-300 bg-pink-100";
   if (row.gender === "m") return "border-sky-300 bg-sky-100";
   return "border-slate-200 bg-white";
 }
 
-function fireGoalConfetti(rows: BoardRowDTO[], gameDay: boolean) {
+function genderDot(g: "f" | "m" | "x"): string {
+  return g === "f" ? "bg-pink-400" : g === "m" ? "bg-sky-400" : "bg-slate-300";
+}
+
+function monthlyMessage(pct: number): string {
+  if (pct >= 100) return "GOAL SMASHED — what a month 🎉🎉";
+  if (pct >= 90) return "Final stretch — bring it home 🏁";
+  if (pct >= 75) return "So close to target — keep firing 🔥";
+  if (pct >= 50) return "Over halfway there — push on 💪";
+  if (pct >= 25) return "Building nicely — keep the leads coming 🚚";
+  return "Fresh month, big target — let's chase it 🚀";
+}
+
+function fireGoalConfetti(rows: BoardRowDTO[]) {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const key = `nl-goalhits-${sydneyToday()}`;
   const seen = new Set<string>(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);
@@ -69,7 +75,7 @@ function fireGoalConfetti(rows: BoardRowDTO[], gameDay: boolean) {
       particleCount: 150,
       spread: 95,
       origin: { y: 0.35 },
-      colors: gameDay ? ["#fb923c", "#38bdf8", "#ffd42e"] : ["#ffd42e", "#fff389", "#f472b6", "#38bdf8"],
+      colors: ["#ffd42e", "#fff389", "#f472b6", "#38bdf8"],
     });
   }
 }
@@ -84,11 +90,7 @@ export function Board({
   isManager?: boolean;
 }) {
   const [data, setData] = useState<BoardsDTO>(initial);
-  const [tab, setTab] = useState<Tab>("daily");
-  const [showYesterday, setShowYesterday] = useState(false);
   const [greet, setGreet] = useState<string | null>(welcome ?? null);
-  const [toast, setToast] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
   const greetFired = useRef(false);
 
   const refetch = useCallback(() => {
@@ -99,16 +101,12 @@ export function Board({
   }, []);
   useLiveRefresh(["bookings", "clock"], refetch);
 
-  useEffect(() => fireGoalConfetti(data.daily, data.gameDay), [data]);
+  useEffect(() => fireGoalConfetti(data.daily), [data]);
 
-  // Greeting: confetti pop + auto-dismiss.
   useEffect(() => {
     if (!greet || greetFired.current) return;
     greetFired.current = true;
-    // Drop ?welcome=1 so a refresh doesn't re-greet.
-    if (window.location.search.includes("welcome")) {
-      window.history.replaceState({}, "", "/");
-    }
+    if (window.location.search.includes("welcome")) window.history.replaceState({}, "", "/");
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.2 }, colors: ["#ffd42e", "#fff389"] });
     }
@@ -116,29 +114,11 @@ export function Board({
     return () => clearTimeout(t);
   }, [greet]);
 
-  const flashToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 4000);
-  };
-
-  const dailyRows = showYesterday ? data.yesterday : data.daily;
-  const total = (rows: BoardRowDTO[]) => rows.reduce((s, r) => s + r.count, 0);
-
-  const orange = data.daily.filter((r) => r.team === "orange").reduce((s, r) => s + r.count, 0);
-  const blue = data.daily.filter((r) => r.team === "blue").reduce((s, r) => s + r.count, 0);
-
-  const doAssign = () =>
-    startTransition(async () => {
-      const r = await assignNextLead();
-      flashToast(r.assignedTo ? `Lead → ${r.assignedTo} 🎯` : (r.error ?? "Couldn't assign"));
-      refetch();
-    });
-
-  const toggleGameDay = () =>
-    startTransition(async () => {
-      await setGameDay(!data.gameDay);
-      refetch();
-    });
+  const monthly = [...data.monthly].sort((a, b) => b.count - a.count);
+  const pipeline = [...data.pipeline].sort((a, b) => b.count - a.count);
+  const dailyTotal = data.daily.reduce((s, r) => s + r.count, 0);
+  const pct = data.monthlyGoal > 0 ? Math.round((data.monthlyTotal / data.monthlyGoal) * 100) : 0;
+  const monthlyMax = Math.max(1, ...monthly.map((r) => r.count));
 
   return (
     <div>
@@ -158,108 +138,81 @@ export function Board({
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
-            {data.gameDay ? "🏆 Game Day" : "Leaderboard"}
-          </p>
+          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Leaderboard</p>
           <h1 className="mt-1 text-4xl font-bold tracking-tight text-brand-900">The board</h1>
         </div>
-        <div className="flex items-center gap-2">
-          {isManager && (
-            <button
-              type="button"
-              onClick={toggleGameDay}
-              disabled={pending}
-              className={cx(
-                "min-h-9 rounded-full px-4 text-sm font-semibold transition-all",
-                data.gameDay
-                  ? "bg-gradient-to-r from-orange-500 to-sky-500 text-white shadow-sm"
-                  : "border border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-900",
-              )}
-            >
-              {data.gameDay ? "Game Day: ON" : "Start Game Day"}
-            </button>
-          )}
-          <div role="tablist" aria-label="Board period" className="flex gap-1 rounded-full bg-slate-100 p-1">
-            {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
-              <button
-                key={t}
-                role="tab"
-                aria-selected={tab === t}
-                onClick={() => setTab(t)}
-                className={cx(
-                  "min-h-9 rounded-full px-4 text-sm font-semibold transition-all duration-200",
-                  tab === t ? "bg-white text-brand-900 shadow-sm" : "text-slate-600 hover:text-brand-900",
-                )}
-              >
-                {TAB_LABEL[t]}
-              </button>
-            ))}
-          </div>
-        </div>
+        {isManager && (
+          <Link
+            href="/game-day"
+            className="min-h-10 rounded-full bg-gradient-to-r from-orange-700 to-sky-700 px-5 text-sm font-semibold text-white shadow-sm transition-transform motion-safe:hover:-translate-y-0.5"
+          >
+            🏆 Game Day
+          </Link>
+        )}
       </div>
 
-      {/* Game Day scoreboard */}
-      {data.gameDay && tab === "daily" && !showYesterday && (
-        <div className="fade-in mt-5 grid grid-cols-2 gap-3 sm:gap-4">
-          <div className="rounded-2xl border-2 border-orange-300 bg-orange-50 p-4 text-center">
-            <p className="text-xs font-bold tracking-widest text-orange-700 uppercase">🟠 Orange</p>
-            <p className="mt-1 text-5xl font-bold tracking-tight text-orange-600">{orange}</p>
-          </div>
-          <div className="rounded-2xl border-2 border-sky-300 bg-sky-50 p-4 text-center">
-            <p className="text-xs font-bold tracking-widest text-sky-700 uppercase">🔵 Blue</p>
-            <p className="mt-1 text-5xl font-bold tracking-tight text-sky-600">{blue}</p>
-          </div>
-          <p className="col-span-2 text-center text-sm font-semibold text-slate-500">
-            {orange === blue
-              ? "Dead heat — pick it up! 🤝"
-              : `${orange > blue ? "Orange" : "Blue"} leads by ${Math.abs(orange - blue)} 🚚💨`}
-          </p>
-        </div>
-      )}
-
-      {/* Live lead allocation */}
-      {tab === "daily" && !showYesterday && (
-        <AllocationPanel
-          allocation={data.allocation}
-          gameDay={data.gameDay}
-          board={data.daily}
-          pending={pending}
-          onAssign={doAssign}
+      {/* ── TEAM MONTHLY GOAL — the digital display ─────────────────── */}
+      <section className="relative mt-5 overflow-hidden rounded-3xl bg-brand-900 p-6 text-white shadow-lg sm:p-8">
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-0 opacity-40 [background:radial-gradient(80%_120%_at_100%_0%,var(--color-brand-700),transparent_60%)]"
         />
-      )}
-
-      {tab === "daily" ? (
-        <>
-          <div className="mt-6 flex items-center justify-between gap-4">
-            <p className="text-sm font-medium text-slate-500">
-              {showYesterday ? "Yesterday" : "Today"} · {total(dailyRows)} bookings
+        <div className="relative flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+          <div>
+            <p className="text-xs font-semibold tracking-wider text-brand-200 uppercase">
+              This month · team goal
             </p>
-            <button
-              type="button"
-              onClick={() => setShowYesterday((v) => !v)}
-              className="min-h-10 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-900"
-            >
-              {showYesterday ? "Show today" : "Show yesterday"}
-            </button>
+            <p className="mt-2 flex items-baseline gap-2">
+              <span className="text-6xl font-bold tracking-tight text-white tabular-nums sm:text-7xl">
+                {data.monthlyTotal.toLocaleString()}
+              </span>
+              <span className="text-2xl font-semibold text-brand-300">
+                / {data.monthlyGoal.toLocaleString()}
+              </span>
+            </p>
           </div>
-
-          {total(dailyRows) === 0 && (
-            <p className="mt-8 text-sm font-medium text-slate-500">
-              No bookings yet {showYesterday ? "yesterday" : "today"} — be the first 🎉
+          <div className="text-right">
+            <span className="text-6xl font-bold tracking-tight text-accent-400 tabular-nums sm:text-7xl">
+              {pct}%
+            </span>
+            <p className="mt-1 text-sm font-medium text-brand-200">
+              {(data.monthlyGoal - data.monthlyTotal).toLocaleString()} to go
             </p>
-          )}
+          </div>
+        </div>
+        <div aria-hidden className="relative mt-5 h-3 overflow-hidden rounded-full bg-white/15">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-accent-400 to-accent-300 transition-all duration-1000"
+            style={{ width: `${Math.min(100, pct)}%` }}
+          />
+        </div>
+        <p className="relative mt-3 text-center text-sm font-semibold text-accent-200">
+          {monthlyMessage(pct)}
+        </p>
+      </section>
 
-          <ul className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {dailyRows.map((r) => {
+      {/* ── DAILY (left)  +  MONTHLY RANKING (right) ────────────────── */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        {/* Today */}
+        <section>
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-lg font-bold text-brand-900">Today</h2>
+            <span className="text-sm font-medium text-slate-500">{dailyTotal} bookings</span>
+          </div>
+          {dailyTotal === 0 && (
+            <p className="mt-4 text-sm font-medium text-slate-500">No bookings yet today — be the first 🎉</p>
+          )}
+          <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {data.daily.map((r) => {
               const tier = cellTier(r.count, r.goal);
               const celebrating = tier === "hit" || tier === "over" || tier === "wild";
-              const pct = r.goal ? Math.min(100, (r.count / r.goal) * 100) : 0;
+              const w = r.goal ? Math.min(100, (r.count / r.goal) * 100) : 0;
               return (
                 <li
                   key={r.staffId}
                   className={cx(
-                    "rounded-2xl border p-5 shadow-sm transition-all duration-300 motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-md",
-                    cellSkin(r, data.gameDay),
+                    "rounded-2xl border p-4 shadow-sm transition-all duration-300 motion-safe:hover:-translate-y-0.5",
+                    genderSkin(r),
                     celebrating && "ring-2 ring-accent-400",
                     tier === "wild" && "ring-accent-500",
                   )}
@@ -270,17 +223,17 @@ export function Board({
                     {tier === "over" && <span className="text-sm">🔥</span>}
                     {tier === "wild" && <span className="text-sm">🐐</span>}
                   </div>
-                  <p className="mt-2 text-5xl font-bold tracking-tight text-brand-900">
+                  <p className="mt-1 text-4xl font-bold tracking-tight text-brand-900">
                     {r.count}
-                    <span className="text-2xl text-slate-500"> / {r.goal ?? "—"}</span>
+                    <span className="text-xl text-slate-500"> / {r.goal ?? "—"}</span>
                   </p>
-                  <div aria-hidden className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5">
+                  <div aria-hidden className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/5">
                     <div
                       className={cx(
                         "h-full rounded-full transition-all duration-700",
                         celebrating ? "bg-accent-500" : "bg-brand-400",
                       )}
-                      style={{ width: `${pct}%` }}
+                      style={{ width: `${w}%` }}
                     />
                   </div>
                   <p
@@ -295,111 +248,60 @@ export function Board({
               );
             })}
           </ul>
-        </>
-      ) : (
-        <ol className="mt-6 max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {(tab === "monthly" ? data.monthly : data.pipeline).map((r, i) => (
-            <li
-              key={r.staffId}
-              className="flex items-center gap-4 border-b border-slate-100 px-5 py-3 transition-colors last:border-0 hover:bg-slate-50"
-            >
-              <span className="w-10 text-2xl font-bold text-accent-700">{i + 1}</span>
-              <span
-                aria-hidden
-                className={cx(
-                  "size-2.5 rounded-full",
-                  r.gender === "f" ? "bg-pink-400" : r.gender === "m" ? "bg-sky-400" : "bg-slate-300",
-                )}
-              />
-              <span className="flex-1 truncate font-bold text-brand-900">{r.name}</span>
-              <span className="text-3xl font-bold tracking-tight text-brand-900">{r.count}</span>
+        </section>
+
+        {/* This month ranking */}
+        <section>
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-lg font-bold text-brand-900">This month</h2>
+            <span className="text-sm font-medium text-slate-500">{data.monthlyTotal} total</span>
+          </div>
+          <ol className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            {monthly.map((r, i) => (
+              <li
+                key={r.staffId}
+                className="flex items-center gap-3 border-b border-slate-100 px-4 py-2.5 transition-colors last:border-0 hover:bg-slate-50"
+              >
+                <span
+                  className={cx(
+                    "w-6 text-center text-sm font-bold",
+                    i === 0 ? "text-accent-800" : i < 3 ? "text-brand-700" : "text-slate-500",
+                  )}
+                >
+                  {i + 1}
+                </span>
+                <span aria-hidden className={cx("size-2.5 rounded-full", genderDot(r.gender))} />
+                <span className="flex-1 truncate font-semibold text-brand-900">{r.name}</span>
+                <div aria-hidden className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-slate-100 sm:block">
+                  <div
+                    className="h-full rounded-full bg-brand-400"
+                    style={{ width: `${Math.round((r.count / monthlyMax) * 100)}%` }}
+                  />
+                </div>
+                <span className="w-10 text-right text-xl font-bold tabular-nums text-brand-900">
+                  {r.count}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      </div>
+
+      {/* ── NEXT 3 MONTHS (full width) ──────────────────────────────── */}
+      <section className="mt-6">
+        <h2 className="text-lg font-bold text-brand-900">Next 3 months</h2>
+        <p className="text-sm font-medium text-slate-500">Booked moves landing in the next quarter</p>
+        <ol className="mt-4 grid gap-x-6 gap-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-2 lg:grid-cols-3">
+          {pipeline.map((r, i) => (
+            <li key={r.staffId} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-slate-50">
+              <span className="w-5 text-center text-sm font-bold text-slate-500">{i + 1}</span>
+              <span aria-hidden className={cx("size-2.5 rounded-full", genderDot(r.gender))} />
+              <span className="flex-1 truncate font-semibold text-brand-900">{r.name}</span>
+              <span className="text-lg font-bold tabular-nums text-brand-900">{r.count}</span>
             </li>
           ))}
         </ol>
-      )}
-
-      {toast && (
-        <div className="fade-in fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-brand-900 px-5 py-2.5 text-sm font-semibold text-white shadow-lg">
-          {toast}
-        </div>
-      )}
+      </section>
     </div>
-  );
-}
-
-function AllocationPanel({
-  allocation,
-  gameDay,
-  board,
-  pending,
-  onAssign,
-}: {
-  allocation: BoardsDTO["allocation"];
-  gameDay: boolean;
-  board: BoardRowDTO[];
-  pending: boolean;
-  onAssign: () => void;
-}) {
-  const genderOf = (id: string) => board.find((b) => b.staffId === id)?.gender ?? "x";
-  const next = allocation.eligible.find((e) => e.staffId === allocation.nextUp);
-
-  return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Live lead allocation</p>
-          <p className="mt-0.5 text-sm font-medium text-slate-600">
-            {allocation.eligible.length === 0
-              ? "Nobody clocked in & off-break right now"
-              : next
-                ? `Next lead is ${next.name}'s 🎯`
-                : "Ready"}
-            {" · "}
-            {allocation.totalLeadsToday} leads today
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onAssign}
-          disabled={pending || allocation.eligible.length === 0}
-          className="min-h-10 rounded-full bg-brand-900 px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-800 disabled:opacity-50 motion-safe:hover:-translate-y-0.5"
-        >
-          Assign next lead
-        </button>
-      </div>
-
-      {allocation.eligible.length > 0 && (
-        <ul className="mt-4 flex flex-wrap gap-2">
-          {allocation.eligible.map((e) => {
-            const g = genderOf(e.staffId);
-            const isNext = e.staffId === allocation.nextUp;
-            return (
-              <li
-                key={e.staffId}
-                className={cx(
-                  "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
-                  isNext
-                    ? "border-accent-500 bg-accent-50 font-bold text-brand-900"
-                    : "border-slate-200 bg-slate-50 text-slate-600",
-                )}
-              >
-                <span
-                  aria-hidden
-                  className={cx(
-                    "size-2 rounded-full",
-                    gameDay ? "bg-slate-400" : g === "f" ? "bg-pink-400" : g === "m" ? "bg-sky-400" : "bg-slate-400",
-                  )}
-                />
-                {e.name}
-                <span className="text-xs text-slate-500">{Math.round(e.sharePct)}%</span>
-                <span className="rounded-full bg-white px-1.5 text-xs font-semibold text-slate-500">
-                  {e.leadsToday}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
   );
 }

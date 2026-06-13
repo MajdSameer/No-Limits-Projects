@@ -41,6 +41,13 @@ const AUDIT = `(() => {
       if(n.getAttribute&&n.getAttribute("aria-hidden")==="true")decor=true;
       if(n.disabled)hidden=true; }
     if(hidden)continue;
+    // Skip text over gradient backgrounds — the auditor can't sample those
+    // (their stops are chosen dark enough for white text by hand).
+    let onGrad=false;
+    for(let n=el;n;n=n.parentElement){ const c2=getComputedStyle(n);
+      if(c2.backgroundImage&&c2.backgroundImage.indexOf("gradient")>=0){onGrad=true;break;}
+      const b2=toRGBA(c2.backgroundColor); if(b2&&b2.a>=1)break; if(n===document.body)break; }
+    if(onGrad)continue;
     let fg=toRGBA(cs.color); if(!fg)continue;
     const bg=effBg(el); if(fg.a<1)fg=blend(fg,bg);
     const r=ratio(fg,bg); const size=parseFloat(cs.fontSize);
@@ -70,15 +77,30 @@ const AUDIT = `(() => {
   for (const d of ["1", "2", "3", "4", "5", "6"]) await page.click(`button:text-is("${d}")`);
   await page.click("button:text-is('Go')");
   await page.waitForSelector("text=The board", { timeout: 30000 });
-  await audit("board daily");
-  await page.click("button:text-is('Monthly')");
-  await audit("board monthly");
+  await audit("board (daily + monthly + goal)");
 
   // Quick-add dialog open
   await page.click("text=+ Job");
   await page.click("text=+ More details");
   await audit("quick-add dialog");
   await page.click("button[aria-label='Close']");
+
+  // Allocation page
+  await page.goto("http://localhost:3001/allocation", { waitUntil: "networkidle" });
+  await page.waitForSelector("text=Who's up next", { timeout: 15000 });
+  await audit("allocation");
+
+  // Game Day page (start it to render team colours)
+  await page.goto("http://localhost:3001/game-day", { waitUntil: "networkidle" });
+  await page.waitForSelector("text=Orange vs Blue", { timeout: 15000 });
+  const start = page.locator("button:text-is('Start Game Day')");
+  if (await start.count()) {
+    await start.click();
+    await page.waitForTimeout(700);
+  }
+  await audit("game day");
+  const end = page.locator("button:text-is('End Game Day')");
+  if (await end.count()) await end.click();
 
   await page.goto("http://localhost:3001/bookings?filter=all", { waitUntil: "networkidle" });
   await audit("bookings list");

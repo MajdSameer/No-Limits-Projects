@@ -150,6 +150,18 @@ export async function setTeam(staffId: string, team: "orange" | "blue" | null): 
   return {};
 }
 
+/** Set the combined team monthly goal. Manager-only. */
+export async function setMonthlyGoal(goal: number): Promise<ActionState> {
+  const manager = await requireManager();
+  if (!Number.isInteger(goal) || goal < 1 || goal > 100000) return { error: "Goal must be 1–100000." };
+  await setSetting("monthly_goal", String(goal));
+  await logAudit({ staffId: manager.staffId, action: "settings.monthly_goal", entity: "app_settings", entityId: "monthly_goal", diff: { goal } });
+  notify("bookings");
+  revalidatePath("/");
+  revalidatePath("/manage");
+  return {};
+}
+
 /** Flip Game Day mode for the whole floor. Manager-only. */
 export async function setGameDay(on: boolean): Promise<ActionState> {
   const manager = await requireManager();

@@ -67,10 +67,12 @@ test("yesterday window", async () => {
   expect(rows.find((r) => r.staffId === "andy")?.count).toBe(0);
 });
 
-test("monthly counts the calendar month", async () => {
-  const rows = await monthlyBoard(NOW);
-  expect(rows.find((r) => r.staffId === "hanna")?.count).toBe(3);
-  expect(rows.find((r) => r.staffId === "andy")?.count).toBe(2);
+test("monthly counts the calendar month, plus the carried-over baseline", async () => {
+  const { MONTHLY_BASELINE } = await import("../boards");
+  const base = MONTHLY_BASELINE.counts;
+  const rows = await monthlyBoard(NOW); // NOW is 2026-06, so baseline applies
+  expect(rows.find((r) => r.staffId === "hanna")?.count).toBe(3 + (base.hanna ?? 0));
+  expect(rows.find((r) => r.staffId === "andy")?.count).toBe(2 + (base.andy ?? 0));
 });
 
 test("pipeline counts move dates within 3 months regardless of entry time", async () => {

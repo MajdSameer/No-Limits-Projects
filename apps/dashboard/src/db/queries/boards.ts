@@ -101,11 +101,60 @@ export async function yesterdayBoard(now: Date = new Date()): Promise<BoardRow[]
   return compose(reps, counts, goals);
 }
 
-/** Bookings ENTERED this Sydney calendar month per rep. */
+/**
+ * Real monthly tally carried over from the team's existing tracking, used as
+ * a starting baseline for the month it applies to. App-entered bookings are
+ * added on top. (Manager's snapshot, 13 Jun 2026 — total 961.)
+ */
+export const MONTHLY_BASELINE: { month: string; counts: Record<string, number> } = {
+  month: "2026-06",
+  counts: {
+    nisreen: 104,
+    francis: 100,
+    jenifer: 98,
+    randee: 91,
+    harry: 87,
+    hadeel: 71,
+    ann: 63,
+    issac: 60,
+    andy: 58,
+    max: 56,
+    mariam: 49,
+    hanna: 46,
+    emilia: 37,
+    jessica: 31,
+    hermez: 10,
+  },
+};
+
+function baselineFor(now: Date): Record<string, number> {
+  return MONTHLY_BASELINE.month === sydneyToday(now).slice(0, 7)
+    ? MONTHLY_BASELINE.counts
+    : {};
+}
+
+/** Bookings ENTERED this Sydney calendar month per rep, plus the baseline. */
 export async function monthlyBoard(now: Date = new Date()): Promise<BoardRow[]> {
   const { start, end } = sydneyMonthRange(now);
   const [reps, counts] = await Promise.all([activeReps(), countsByEnteredAt(start, end)]);
-  return compose(reps, counts, null);
+  const base = baselineFor(now);
+  const withBase = new Map(counts);
+  for (const [id, n] of Object.entries(base)) withBase.set(id, (withBase.get(id) ?? 0) + n);
+  return compose(reps, withBase, null);
+}
+
+export interface TeamMonthly {
+  total: number;
+  goal: number;
+  pct: number;
+  rows: BoardRow[];
+}
+
+/** Team progress toward the combined monthly goal. */
+export async function teamMonthly(now: Date, goal: number): Promise<TeamMonthly> {
+  const rows = await monthlyBoard(now);
+  const total = rows.reduce((s, r) => s + r.count, 0);
+  return { total, goal, pct: goal > 0 ? Math.round((total / goal) * 100) : 0, rows };
 }
 
 /** Pipeline: bookings whose MOVE DATE is within the next 3 months. */

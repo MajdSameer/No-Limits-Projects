@@ -11,6 +11,7 @@ import {
   setGender,
   setGoal,
   setIntakeWeight,
+  setMonthlyGoal,
   setPin,
   setTeam,
   unlockStaff,
@@ -40,7 +41,15 @@ interface AuditRow {
 const btn =
   "min-h-9 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600";
 
-export function ManageView({ staff, audit }: { staff: StaffRow[]; audit: AuditRow[] }) {
+export function ManageView({
+  staff,
+  audit,
+  monthlyGoal,
+}: {
+  staff: StaffRow[];
+  audit: AuditRow[];
+  monthlyGoal: number;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -86,6 +95,17 @@ export function ManageView({ staff, audit }: { staff: StaffRow[]; audit: AuditRo
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            const raw = window.prompt("Team monthly booking goal:", String(monthlyGoal));
+            if (raw !== null) run(() => setMonthlyGoal(Number(raw)));
+          }}
+          disabled={pending}
+          className={cx(btn, "shadow-sm")}
+        >
+          Monthly goal: {monthlyGoal.toLocaleString()} ✎
+        </button>
         <a href="/manage/export?what=bookings" className={cx(btn, "shadow-sm")}>
           ⬇ Bookings CSV
         </a>

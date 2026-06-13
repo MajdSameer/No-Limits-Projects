@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { asc, desc, lte } from "drizzle-orm";
 
 import { getDb, schema } from "../../../db/client";
+import { getMonthlyGoal } from "../../../db/settings";
 import { getSession } from "../../../lib/session";
 import { sydneyToday } from "../../../lib/sydney";
 import { ManageView } from "../../../components/ManageView";
@@ -14,7 +15,7 @@ export default async function ManagePage() {
   if (!session || session.role !== "manager") redirect("/");
 
   const db = await getDb();
-  const [staffRows, goalRows, auditRows] = await Promise.all([
+  const [staffRows, goalRows, auditRows, monthlyGoal] = await Promise.all([
     db.select().from(schema.staff).orderBy(asc(schema.staff.name)),
     db
       .select()
@@ -22,6 +23,7 @@ export default async function ManagePage() {
       .where(lte(schema.goals.effectiveFrom, sydneyToday()))
       .orderBy(asc(schema.goals.effectiveFrom)),
     db.select().from(schema.auditLog).orderBy(desc(schema.auditLog.at)).limit(100),
+    getMonthlyGoal(),
   ]);
 
   const goalMap = new Map<string, number>();
@@ -29,6 +31,7 @@ export default async function ManagePage() {
 
   return (
     <ManageView
+      monthlyGoal={monthlyGoal}
       staff={staffRows.map((s) => ({
         id: s.id,
         name: s.name,
