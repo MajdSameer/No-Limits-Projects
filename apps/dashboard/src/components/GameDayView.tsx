@@ -11,71 +11,52 @@ import { useLiveRefresh } from "../lib/live";
 
 const TEAM = {
   orange: {
-    label: "Orange",
+    label: "Orange team",
     emoji: "🟠",
-    panel: "border-orange-300 bg-orange-50",
-    lead: "ring-4 ring-orange-300",
-    big: "text-orange-600",
-    chip: "text-orange-700",
-    row: "border-orange-200",
+    heading: "text-orange-400",
+    box: "border-orange-500/70 bg-orange-500/10",
+    name: "text-orange-300",
+    num: "text-orange-400",
+    total: "text-orange-400",
+    glow: "shadow-[0_0_40px_-8px_rgba(249,115,22,0.8)]",
   },
   blue: {
-    label: "Blue",
+    label: "Blue team",
     emoji: "🔵",
-    panel: "border-sky-300 bg-sky-50",
-    lead: "ring-4 ring-sky-300",
-    big: "text-sky-600",
-    chip: "text-sky-700",
-    row: "border-sky-200",
+    heading: "text-cyan-300",
+    box: "border-cyan-400/70 bg-cyan-400/10",
+    name: "text-cyan-200",
+    num: "text-cyan-300",
+    total: "text-cyan-300",
+    glow: "shadow-[0_0_40px_-8px_rgba(34,211,238,0.8)]",
   },
 } as const;
 
-function TeamPanel({
-  side,
-  total,
-  reps,
-  leading,
-}: {
-  side: "orange" | "blue";
-  total: number;
-  reps: BoardRowDTO[];
-  leading: boolean;
-}) {
+function PlayerBox({ side, name, count }: { side: "orange" | "blue"; name: string; count: number }) {
   const t = TEAM[side];
   return (
-    <section
-      className={cx(
-        "rounded-3xl border-2 p-5 shadow-sm transition-all sm:p-6",
-        t.panel,
-        leading && t.lead,
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <p className={cx("text-sm font-bold tracking-widest uppercase", t.chip)}>
-          {t.emoji} {t.label}
-        </p>
-        {leading && (
-          <span className={cx("rounded-full bg-white px-2.5 py-1 text-xs font-bold uppercase", t.chip)}>
-            Leading
-          </span>
-        )}
-      </div>
-      <p className={cx("mt-1 text-7xl font-bold tracking-tight tabular-nums", t.big)}>{total}</p>
-      <ul className="mt-4 space-y-1">
-        {reps
-          .slice()
-          .sort((a, b) => b.count - a.count)
+    <div className={cx("rounded-xl border-2 px-2 py-2 text-center", t.box)}>
+      <p className={cx("truncate text-sm font-bold", t.name)}>{name}</p>
+      <p className={cx("font-display text-4xl font-bold tabular-nums", t.num)}>{count}</p>
+    </div>
+  );
+}
+
+function TeamGrid({ side, reps }: { side: "orange" | "blue"; reps: BoardRowDTO[] }) {
+  const t = TEAM[side];
+  return (
+    <div>
+      <h2 className={cx("text-center text-lg font-bold tracking-wide uppercase", t.heading)}>
+        {t.emoji} {t.label}
+      </h2>
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {[...reps]
+          .sort((a, b) => a.name.localeCompare(b.name))
           .map((r) => (
-            <li
-              key={r.staffId}
-              className={cx("flex items-center justify-between border-b py-1.5 last:border-0", t.row)}
-            >
-              <span className="truncate font-semibold text-brand-900">{r.name}</span>
-              <span className="text-lg font-bold tabular-nums text-brand-900">{r.count}</span>
-            </li>
+            <PlayerBox key={r.staffId} side={side} name={r.name} count={r.count} />
           ))}
-      </ul>
-    </section>
+      </div>
+    </div>
   );
 }
 
@@ -110,7 +91,6 @@ export function GameDayView({
   const blueTotal = blue.reduce((s, r) => s + r.count, 0);
   const leader = orangeTotal === blueTotal ? null : orangeTotal > blueTotal ? "orange" : "blue";
 
-  // Celebrate when the lead changes hands.
   useEffect(() => {
     if (!on || !leader) {
       prevLeader.current = leader;
@@ -119,10 +99,10 @@ export function GameDayView({
     if (prevLeader.current && prevLeader.current !== leader) {
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         confetti({
-          particleCount: 120,
+          particleCount: 140,
           spread: 90,
           origin: { y: 0.4 },
-          colors: leader === "orange" ? ["#fb923c", "#fdba74"] : ["#38bdf8", "#7dd3fc"],
+          colors: leader === "orange" ? ["#fb923c", "#fdba74"] : ["#22d3ee", "#67e8f9"],
         });
       }
     }
@@ -137,7 +117,7 @@ export function GameDayView({
     });
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">🏆 Game Day</p>
@@ -166,27 +146,56 @@ export function GameDayView({
           <p className="mt-3 text-lg font-bold text-brand-900">Game Day is off</p>
           <p className="mt-1 text-sm text-slate-500">
             {isManager
-              ? "Hit Start Game Day to light up the board in team colours and kick off Orange vs Blue."
+              ? "Hit Start Game Day to light up the scoreboard and kick off Orange vs Blue."
               : "A manager hasn't started Game Day yet. Check back when the battle's on."}
           </p>
         </div>
       ) : (
-        <>
-          {/* Comparative scoreboard */}
-          <div className="mt-6 grid items-stretch gap-4 sm:grid-cols-[1fr_auto_1fr] sm:gap-2">
-            <TeamPanel side="orange" total={orangeTotal} reps={orange} leading={leader === "orange"} />
-            <div className="flex flex-row items-center justify-center gap-3 sm:flex-col">
-              <span className="font-display text-3xl font-bold text-slate-500">VS</span>
+        // The stadium scoreboard — dark, neon, and symmetric.
+        <section className="ink-grain mt-6 overflow-hidden rounded-3xl bg-ink-950 p-6 shadow-2xl shadow-brand-950/40 sm:p-10">
+          <p className="font-display text-center text-4xl font-bold tracking-wide text-accent-400 uppercase sm:text-5xl">
+            Game Day
+          </p>
+
+          <div className="mt-8 grid items-center gap-8 lg:grid-cols-[1fr_auto_1fr] lg:gap-6">
+            {/* Left team */}
+            <TeamGrid side="orange" reps={orange} />
+
+            {/* Centre scoreboard — totals stacked with VS between */}
+            <div className="flex flex-row items-center justify-center gap-6 lg:flex-col lg:gap-3">
+              <div
+                className={cx(
+                  "grid size-28 place-items-center rounded-2xl border-2 border-orange-500/70 bg-orange-500/10 sm:size-32",
+                  leader === "orange" && TEAM.orange.glow,
+                )}
+              >
+                <span className="font-display text-6xl font-bold tabular-nums text-orange-400 sm:text-7xl">
+                  {orangeTotal}
+                </span>
+              </div>
+              <span className="font-display text-3xl font-bold text-slate-400">VS</span>
+              <div
+                className={cx(
+                  "grid size-28 place-items-center rounded-2xl border-2 border-cyan-400/70 bg-cyan-400/10 sm:size-32",
+                  leader === "blue" && TEAM.blue.glow,
+                )}
+              >
+                <span className="font-display text-6xl font-bold tabular-nums text-cyan-300 sm:text-7xl">
+                  {blueTotal}
+                </span>
+              </div>
             </div>
-            <TeamPanel side="blue" total={blueTotal} reps={blue} leading={leader === "blue"} />
+
+            {/* Right team */}
+            <TeamGrid side="blue" reps={blue} />
           </div>
 
-          <p className="mt-4 text-center text-base font-semibold text-brand-900">
+          <p className="mt-8 text-center text-lg font-bold text-white">
             {leader === null
               ? "Dead heat — it's all to play for 🤝"
               : `${leader === "orange" ? "🟠 Orange" : "🔵 Blue"} leads by ${Math.abs(orangeTotal - blueTotal)} 🚚💨`}
           </p>
-        </>
+        </section>
       )}
     </div>
   );
