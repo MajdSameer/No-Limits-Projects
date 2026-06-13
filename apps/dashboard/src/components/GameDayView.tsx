@@ -32,17 +32,53 @@ const TEAM = {
   },
 } as const;
 
-function PlayerBox({ side, name, count }: { side: "orange" | "blue"; name: string; count: number }) {
+const MEDAL: Record<1 | 2 | 3, { icon: string; label: string }> = {
+  1: { icon: "👑", label: "Top scorer today" },
+  2: { icon: "🥈", label: "2nd today" },
+  3: { icon: "🥉", label: "3rd today" },
+};
+
+function PlayerBox({
+  side,
+  name,
+  count,
+  rank,
+}: {
+  side: "orange" | "blue";
+  name: string;
+  count: number;
+  rank?: 1 | 2 | 3;
+}) {
   const t = TEAM[side];
   return (
-    <div className={cx("rounded-xl border-2 px-2 py-2 text-center", t.box)}>
+    <div
+      className={cx(
+        "relative rounded-xl border-2 px-2 py-2 text-center",
+        t.box,
+        rank === 1 && "ring-2 ring-accent-400",
+      )}
+    >
+      {rank && (
+        <span className="absolute -top-3.5 -right-2 text-2xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]">
+          <span aria-hidden>{MEDAL[rank].icon}</span>
+          <span className="sr-only">{MEDAL[rank].label}</span>
+        </span>
+      )}
       <p className={cx("truncate text-sm font-bold", t.name)}>{name}</p>
       <p className={cx("font-display text-4xl font-bold tabular-nums", t.num)}>{count}</p>
     </div>
   );
 }
 
-function TeamGrid({ side, reps }: { side: "orange" | "blue"; reps: BoardRowDTO[] }) {
+function TeamGrid({
+  side,
+  reps,
+  rankOf,
+}: {
+  side: "orange" | "blue";
+  reps: BoardRowDTO[];
+  rankOf: (staffId: string) => 1 | 2 | 3 | undefined;
+}) {
   const t = TEAM[side];
   return (
     <div>
@@ -53,7 +89,7 @@ function TeamGrid({ side, reps }: { side: "orange" | "blue"; reps: BoardRowDTO[]
         {[...reps]
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((r) => (
-            <PlayerBox key={r.staffId} side={side} name={r.name} count={r.count} />
+            <PlayerBox key={r.staffId} side={side} name={r.name} count={r.count} rank={rankOf(r.staffId)} />
           ))}
       </div>
     </div>
@@ -90,6 +126,16 @@ export function GameDayView({
   const orangeTotal = orange.reduce((s, r) => s + r.count, 0);
   const blueTotal = blue.reduce((s, r) => s + r.count, 0);
   const leader = orangeTotal === blueTotal ? null : orangeTotal > blueTotal ? "orange" : "blue";
+
+  // Day's top 3 across both teams (only count > 0 earns a medal).
+  const podium = [...orange, ...blue]
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, 3);
+  const rankOf = (staffId: string): 1 | 2 | 3 | undefined => {
+    const i = podium.findIndex((r) => r.staffId === staffId);
+    return i === 0 ? 1 : i === 1 ? 2 : i === 2 ? 3 : undefined;
+  };
 
   useEffect(() => {
     if (!on || !leader) {
@@ -159,7 +205,7 @@ export function GameDayView({
 
           <div className="mt-8 grid items-center gap-8 lg:grid-cols-[1fr_auto_1fr] lg:gap-6">
             {/* Left team */}
-            <TeamGrid side="orange" reps={orange} />
+            <TeamGrid side="orange" reps={orange} rankOf={rankOf} />
 
             {/* Centre scoreboard — totals stacked with VS between */}
             <div className="flex flex-row items-center justify-center gap-6 lg:flex-col lg:gap-3">
@@ -187,7 +233,7 @@ export function GameDayView({
             </div>
 
             {/* Right team */}
-            <TeamGrid side="blue" reps={blue} />
+            <TeamGrid side="blue" reps={blue} rankOf={rankOf} />
           </div>
 
           <p className="mt-8 text-center text-lg font-bold text-white">
