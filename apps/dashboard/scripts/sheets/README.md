@@ -24,6 +24,24 @@ Leaderboard tab ──(onEdit + 5-min timer)──▶ POST /api/ingest/leaderboa
 5. Test now: select **`pushLeaderboard`** → **Run**. Check the execution log for
    the JSON response, then open `/live` on the dashboard.
 
+## Roster push (`roster.gs`)
+
+`roster.gs` goes in the **same** Apps Script project (same spreadsheet, same
+`DASHBOARD_URL` / `INGEST_SECRET`). It reads the **Live Roster** tab's weekly
+grid (who works which day) and POSTs to `/api/ingest/roster`, which writes the
+`shifts` table behind the dashboard's `/roster` and `/manage` views.
+
+1. In the Apps Script editor, **add a file** (`roster.gs`) and paste it in.
+2. Select **`installRosterTriggers`** → **Run** (this is in addition to the
+   leaderboard's `installTriggers`). It adds an edit trigger on the Live Roster
+   tab + a 15-minute timer.
+3. Test: select **`pushRoster`** → **Run**, then open `/roster`.
+
+The grid only says who works which day, not the times, so every worked day is
+written as a **08:00–17:00** shift. Managers can fine-tune individual shift
+times in `/manage` (those edits hold until the day-set changes in the sheet).
+The "Afternoon / 8-to-7" sub-block and lunch-break columns are not synced yet.
+
 ## Notes
 
 - The endpoint is idempotent and secret-protected; re-pushing is harmless.
