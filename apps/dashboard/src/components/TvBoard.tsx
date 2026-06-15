@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "@nlr/ui";
 
 import type { BoardsDTO } from "./Board";
+import { armAudio, celebrateGong, crossedThreshold, GONG_THRESHOLD } from "../lib/celebrate";
 import { useLiveRefresh } from "../lib/live";
 import { SYDNEY_TZ, sydneyToday } from "../lib/sydney";
 
@@ -25,6 +26,31 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
   const [stale, setStale] = useState(false);
   const [clock, setClock] = useState("");
   const lastSuccess = useRef(Date.now());
+  const gongSeeded = useRef(false);
+
+  // Enable the gong after any interaction (TV may need one click to unmute).
+  useEffect(() => {
+    const arm = () => armAudio();
+    window.addEventListener("pointerdown", arm, { once: true });
+    window.addEventListener("keydown", arm, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", arm);
+      window.removeEventListener("keydown", arm);
+    };
+  }, []);
+
+  // Gong + confetti when a rep reaches 3 bookings today (once per rep/day).
+  useEffect(() => {
+    const key = `nl-gong3-${sydneyToday()}`;
+    const seen = new Set<string>(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);
+    const fresh = crossedThreshold(data.daily, seen, GONG_THRESHOLD);
+    localStorage.setItem(key, JSON.stringify([...seen]));
+    if (!gongSeeded.current) {
+      gongSeeded.current = true;
+      return;
+    }
+    if (fresh.length > 0) celebrateGong();
+  }, [data]);
 
   const refetch = useCallback(() => {
     fetch("/api/boards", { cache: "no-store" })
