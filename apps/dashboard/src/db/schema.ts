@@ -186,3 +186,27 @@ export const repLive = pgTable("rep_live", {
   asOfDate: date("as_of_date").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Incoming quote leads mirrored from the "Quote Leads" sheet (api/ingest/leads).
+ * Deduped on the sheet's own row id. New leads are auto-allocated to the rep
+ * who's next up (recorded in `leads`), with allocatedTo set here for display.
+ */
+export const leadInbox = pgTable(
+  "lead_inbox",
+  {
+    id: text("id").primaryKey(),
+    /** Stable id from the sheet (Quote Leads "Auto" col N) — dedup key. */
+    sheetId: text("sheet_id").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    source: text("source"),
+    contactName: text("contact_name"),
+    phone: text("phone"),
+    email: text("email"),
+    details: text("details"),
+    /** Rep this lead was auto-allocated to (null = awaiting an eligible rep). */
+    allocatedTo: text("allocated_to").references(() => staff.id),
+    allocatedAt: timestamp("allocated_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("lead_inbox_sheet_id_unique").on(t.sheetId)],
+);

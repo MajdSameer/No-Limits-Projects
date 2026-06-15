@@ -8,6 +8,7 @@ import { cx } from "@nlr/ui";
 const NAV = [
   { label: "Board", href: "/" },
   { label: "Allocation", href: "/allocation" },
+  { label: "Leads", href: "/leads" },
   { label: "Bookings", href: "/bookings" },
   { label: "Subcontractor", href: "/subcontractor" },
   { label: "Roster", href: "/roster" },
