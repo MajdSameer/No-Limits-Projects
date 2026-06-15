@@ -60,6 +60,22 @@ or the subcontractor **Domanic** (his are flagged and shown on `/subcontractor`,
 split into **Daily** / **This month** tabs). Everything else is skipped. Upsert
 is keyed on job number, so re-pushing is idempotent.
 
+## Leads push (`leads.gs`)
+
+`leads.gs` is bound to the **Quote Leads Auto Process** spreadsheet (its own
+Apps Script project + script properties). It reads recent rows of the **Auto**
+tab and POSTs them to `/api/ingest/leads`, which **dedupes** on the lead id and
+**auto-allocates** each new lead to whoever's next up by the sheet clock
+(recorded in `leads`, so the allocator and boards see it). Leads that arrive
+while no one is clocked in are parked as "awaiting" on `/leads`.
+
+1. Open the **Quote Leads Auto Process** sheet → **Extensions → Apps Script**.
+2. Paste `leads.gs`, set the two script properties, run **`installLeadTriggers`**.
+3. Test: run **`pushLeads`**, then open `/leads`.
+
+Auto-allocation depends on the Leaderboard push (rep_live) being live, since
+that's where the clock comes from — install `leaderboard.gs` first.
+
 ## Notes
 
 - The endpoint is idempotent and secret-protected; re-pushing is harmless.

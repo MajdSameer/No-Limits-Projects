@@ -29,6 +29,13 @@
       "when": 1781503063705,
       "tag": "0003_absent_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781503893383,
+      "tag": "0004_lucky_chameleon",
+      "breakpoints": true
     }
   ]
 }
