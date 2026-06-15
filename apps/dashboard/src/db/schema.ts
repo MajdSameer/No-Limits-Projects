@@ -158,3 +158,29 @@ export const auditLog = pgTable("audit_log", {
   diff: jsonb("diff"),
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Near-real-time mirror of the company "Leaderboard" tab, pushed by the
+ * spreadsheet's Apps Script (api/ingest/leaderboard). One row per rep,
+ * overwritten on every push. The SHEET stays the source of truth for these
+ * volatile floor numbers — this table just reflects them so the board can
+ * show them live without the app having to own bookings/clock entry.
+ */
+export const repLive = pgTable("rep_live", {
+  staffId: text("staff_id")
+    .primaryKey()
+    .references(() => staff.id),
+  /** Bookings entered today (Leaderboard "Number of Bookings"). */
+  bookingsToday: integer("bookings_today").notNull().default(0),
+  /** The individual MovePro job codes behind today's count, in sheet order. */
+  jobCodes: jsonb("job_codes").$type<string[]>(),
+  /** Clock fields, kept as the sheet's display strings (e.g. "08:00", "06:41"). */
+  timeIn: text("time_in"),
+  breakStart: text("break_start"),
+  breakEnd: text("break_end"),
+  timeOut: text("time_out"),
+  workingHours: text("working_hours"),
+  /** Sydney date this snapshot is for ("yyyy-MM-dd"). */
+  asOfDate: date("as_of_date").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
