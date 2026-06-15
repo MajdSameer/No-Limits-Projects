@@ -10,6 +10,8 @@
  */
 import { OAuth2Client } from "google-auth-library";
 
+import { slug } from "./slug";
+
 /** A rep decoded from the "Leaderboard" tab. */
 export interface SheetRep {
   /** slug id, e.g. "andy" — matches `staff.id`. */
@@ -71,14 +73,6 @@ async function readRange(spreadsheetId: string, range: string): Promise<unknown[
   }
   const body = (await res.json()) as { values?: unknown[][] };
   return body.values ?? [];
-}
-
-function slug(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 /**
