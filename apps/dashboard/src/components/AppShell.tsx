@@ -42,8 +42,8 @@ export function AppShell({ session, children }: { session: Session; children: Re
         </div>
       </header>
 
-      {/* pb-24 reserves space for the fixed clock bar. */}
-      <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 pt-8 pb-28">
+      {/* pb-20 clears the fixed clock bar; tighter top so the board fits one screen. */}
+      <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 pt-6 pb-20">
         {children}
       </main>
     </div>

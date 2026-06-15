@@ -38,7 +38,6 @@ export interface BoardsDTO {
   generatedAtISO: string;
 }
 
-/** Gender pink/blue cell tint (Game Day colours live on their own page). */
 function genderSkin(row: BoardRowDTO): string {
   if (row.gender === "f") return "border-pink-300 bg-pink-100";
   if (row.gender === "m") return "border-sky-300 bg-sky-100";
@@ -78,6 +77,44 @@ function fireGoalConfetti(rows: BoardRowDTO[]) {
       colors: ["#ffd42e", "#fff389", "#f472b6", "#38bdf8"],
     });
   }
+}
+
+const EMOJI: Record<string, string> = { hit: "🎉", over: "🔥", wild: "🐐" };
+
+/** Compact daily cell — fits a 4-wide grid on a landscape wall display. */
+function DailyCell({ r }: { r: BoardRowDTO }) {
+  const tier = cellTier(r.count, r.goal);
+  const celebrating = tier === "hit" || tier === "over" || tier === "wild";
+  const w = r.goal ? Math.min(100, (r.count / r.goal) * 100) : 0;
+  return (
+    <li
+      title={cellMessage(r.staffId, sydneyToday(), tier)}
+      className={cx(
+        "flex min-h-[4.5rem] flex-col justify-between rounded-xl border p-2.5 lg:min-h-0",
+        genderSkin(r),
+        celebrating && "ring-2 ring-accent-400",
+        tier === "wild" && "ring-accent-500",
+      )}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <span className="truncate text-sm font-bold text-brand-900">{r.name}</span>
+        {EMOJI[tier] && <span className="text-sm leading-none">{EMOJI[tier]}</span>}
+      </div>
+      <p className="mt-1 text-3xl leading-none font-bold tracking-tight text-brand-900">
+        {r.count}
+        <span className="text-base text-slate-600"> / {r.goal ?? "—"}</span>
+      </p>
+      <div aria-hidden className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/5">
+        <div
+          className={cx(
+            "h-full rounded-full transition-all duration-700",
+            celebrating ? "bg-accent-500" : "bg-brand-400",
+          )}
+          style={{ width: `${w}%` }}
+        />
+      </div>
+    </li>
+  );
 }
 
 export function Board({
@@ -121,187 +158,145 @@ export function Board({
   const monthlyMax = Math.max(1, ...monthly.map((r) => r.count));
 
   return (
-    <div>
+    // lg+: lock to one landscape screen, no scroll. Smaller screens flow normally.
+    <div className="relative flex flex-col gap-3 lg:h-[calc(100dvh-10.5rem)] lg:overflow-hidden">
       {greet && (
-        <div className="fade-in mb-5 flex items-center justify-between gap-4 rounded-2xl bg-brand-900 px-5 py-4 text-white shadow-lg">
-          <p className="text-lg font-bold">{greet}</p>
+        <div className="fade-in fixed top-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-brand-900 px-5 py-3 text-white shadow-xl">
+          <p className="font-bold">{greet}</p>
           <button
             type="button"
             onClick={() => setGreet(null)}
             aria-label="Dismiss"
-            className="grid size-9 place-items-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            className="grid size-8 place-items-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           >
             ✕
           </button>
         </div>
       )}
 
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Leaderboard</p>
-          <h1 className="mt-1 text-4xl font-bold tracking-tight text-brand-900">The board</h1>
+      {/* Slim header */}
+      <div className="flex shrink-0 items-center justify-between gap-4">
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-brand-900">The board</h1>
+          <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+            Live leaderboard
+          </span>
         </div>
         {isManager && (
           <Link
             href="/game-day"
-            className="min-h-10 rounded-full bg-gradient-to-r from-orange-700 to-sky-700 px-5 text-sm font-semibold text-white shadow-sm transition-transform motion-safe:hover:-translate-y-0.5"
+            className="min-h-9 rounded-full bg-gradient-to-r from-orange-700 to-sky-700 px-4 text-sm font-semibold text-white shadow-sm transition-transform motion-safe:hover:-translate-y-0.5"
           >
             🏆 Game Day
           </Link>
         )}
       </div>
 
-      {/* ── TEAM MONTHLY GOAL — the digital display ─────────────────── */}
-      <section className="relative mt-5 overflow-hidden rounded-3xl bg-brand-900 p-6 text-white shadow-lg sm:p-8">
+      {/* Team monthly goal — compact horizontal band */}
+      <section className="relative shrink-0 overflow-hidden rounded-2xl bg-brand-900 px-5 py-3 text-white shadow-lg">
         <div
           aria-hidden
-          className="absolute inset-0 -z-0 opacity-40 [background:radial-gradient(80%_120%_at_100%_0%,var(--color-brand-700),transparent_60%)]"
+          className="absolute inset-0 -z-0 opacity-40 [background:radial-gradient(80%_140%_at_100%_0%,var(--color-brand-700),transparent_60%)]"
         />
-        <div className="relative flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-          <div>
-            <p className="text-xs font-semibold tracking-wider text-brand-200 uppercase">
+        <div className="relative flex items-center gap-5">
+          <div className="shrink-0">
+            <p className="text-[0.65rem] font-semibold tracking-wider text-brand-200 uppercase">
               This month · team goal
             </p>
-            <p className="mt-2 flex items-baseline gap-2">
-              <span className="text-6xl font-bold tracking-tight text-white tabular-nums sm:text-7xl">
+            <p className="flex items-baseline gap-1.5">
+              <span className="text-4xl font-bold tracking-tight tabular-nums">
                 {data.monthlyTotal.toLocaleString()}
               </span>
-              <span className="text-2xl font-semibold text-brand-300">
+              <span className="text-lg font-semibold text-brand-300">
                 / {data.monthlyGoal.toLocaleString()}
               </span>
             </p>
           </div>
-          <div className="text-right">
-            <span className="text-6xl font-bold tracking-tight text-accent-400 tabular-nums sm:text-7xl">
+          <div className="min-w-0 flex-1">
+            <div aria-hidden className="h-2.5 overflow-hidden rounded-full bg-white/15">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-accent-400 to-accent-300 transition-all duration-1000"
+                style={{ width: `${Math.min(100, pct)}%` }}
+              />
+            </div>
+            <p className="mt-1.5 truncate text-sm font-semibold text-accent-200">
+              {monthlyMessage(pct)}
+            </p>
+          </div>
+          <div className="shrink-0 text-right">
+            <span className="text-5xl font-bold tracking-tight text-accent-400 tabular-nums">
               {pct}%
             </span>
-            <p className="mt-1 text-sm font-medium text-brand-200">
-              {(data.monthlyGoal - data.monthlyTotal).toLocaleString()} to go
+            <p className="text-[0.65rem] font-medium text-brand-200">
+              {Math.max(0, data.monthlyGoal - data.monthlyTotal).toLocaleString()} to go
             </p>
           </div>
         </div>
-        <div aria-hidden className="relative mt-5 h-3 overflow-hidden rounded-full bg-white/15">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-accent-400 to-accent-300 transition-all duration-1000"
-            style={{ width: `${Math.min(100, pct)}%` }}
-          />
-        </div>
-        <p className="relative mt-3 text-center text-sm font-semibold text-accent-200">
-          {monthlyMessage(pct)}
-        </p>
       </section>
 
-      {/* ── DAILY (left)  +  MONTHLY RANKING (right) ────────────────── */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        {/* Today */}
-        <section>
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-lg font-bold text-brand-900">Today</h2>
-            <span className="text-sm font-medium text-slate-500">{dailyTotal} bookings</span>
+      {/* Three zones fill the rest of the screen */}
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-12">
+        {/* TODAY — compact grid */}
+        <section className="flex min-h-0 flex-col lg:col-span-7">
+          <div className="flex shrink-0 items-baseline justify-between">
+            <h2 className="font-bold text-brand-900">Today</h2>
+            <span className="text-xs font-medium text-slate-500">{dailyTotal} bookings</span>
           </div>
-          {dailyTotal === 0 && (
-            <p className="mt-4 text-sm font-medium text-slate-500">No bookings yet today — be the first 🎉</p>
-          )}
-          <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {data.daily.map((r) => {
-              const tier = cellTier(r.count, r.goal);
-              const celebrating = tier === "hit" || tier === "over" || tier === "wild";
-              const w = r.goal ? Math.min(100, (r.count / r.goal) * 100) : 0;
-              return (
-                <li
-                  key={r.staffId}
-                  className={cx(
-                    "rounded-2xl border p-4 shadow-sm transition-all duration-300 motion-safe:hover:-translate-y-0.5",
-                    genderSkin(r),
-                    celebrating && "ring-2 ring-accent-400",
-                    tier === "wild" && "ring-accent-500",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-bold text-brand-900">{r.name}</span>
-                    {tier === "hit" && <span className="text-sm">🎉</span>}
-                    {tier === "over" && <span className="text-sm">🔥</span>}
-                    {tier === "wild" && <span className="text-sm">🐐</span>}
-                  </div>
-                  <p className="mt-1 text-4xl font-bold tracking-tight text-brand-900">
-                    {r.count}
-                    <span className="text-xl text-slate-500"> / {r.goal ?? "—"}</span>
-                  </p>
-                  <div aria-hidden className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/5">
-                    <div
-                      className={cx(
-                        "h-full rounded-full transition-all duration-700",
-                        celebrating ? "bg-accent-500" : "bg-brand-400",
-                      )}
-                      style={{ width: `${w}%` }}
-                    />
-                  </div>
-                  <p
-                    className={cx(
-                      "mt-2 text-xs font-semibold",
-                      tier === "wild" ? "text-accent-800" : celebrating ? "text-brand-700" : "text-slate-600",
-                    )}
-                  >
-                    {cellMessage(r.staffId, sydneyToday(), tier)}
-                  </p>
-                </li>
-              );
-            })}
+          <ul className="mt-2 grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-hidden sm:grid-cols-3 xl:grid-cols-4 lg:[grid-auto-rows:1fr]">
+            {data.daily.map((r) => (
+              <DailyCell key={r.staffId} r={r} />
+            ))}
           </ul>
         </section>
 
-        {/* This month ranking */}
-        <section>
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-lg font-bold text-brand-900">This month</h2>
-            <span className="text-sm font-medium text-slate-500">{data.monthlyTotal} total</span>
+        {/* THIS MONTH — dense ranking */}
+        <section className="flex min-h-0 flex-col lg:col-span-3">
+          <div className="flex shrink-0 items-baseline justify-between">
+            <h2 className="font-bold text-brand-900">This month</h2>
+            <span className="text-xs font-medium text-slate-500">{data.monthlyTotal}</span>
           </div>
-          <ol className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <ol className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {monthly.map((r, i) => (
-              <li
-                key={r.staffId}
-                className="flex items-center gap-3 border-b border-slate-100 px-4 py-2.5 transition-colors last:border-0 hover:bg-slate-50"
-              >
+              <li key={r.staffId} className="flex min-h-7 flex-1 items-center gap-2 px-3 lg:min-h-0">
                 <span
                   className={cx(
-                    "w-6 text-center text-sm font-bold",
+                    "w-4 text-center text-xs font-bold",
                     i === 0 ? "text-accent-800" : i < 3 ? "text-brand-700" : "text-slate-500",
                   )}
                 >
                   {i + 1}
                 </span>
-                <span aria-hidden className={cx("size-2.5 rounded-full", genderDot(r.gender))} />
-                <span className="flex-1 truncate font-semibold text-brand-900">{r.name}</span>
-                <div aria-hidden className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-slate-100 sm:block">
+                <span aria-hidden className={cx("size-2 shrink-0 rounded-full", genderDot(r.gender))} />
+                <span className="flex-1 truncate text-sm font-semibold text-brand-900">{r.name}</span>
+                <div aria-hidden className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-slate-100 xl:block">
                   <div
                     className="h-full rounded-full bg-brand-400"
                     style={{ width: `${Math.round((r.count / monthlyMax) * 100)}%` }}
                   />
                 </div>
-                <span className="w-10 text-right text-xl font-bold tabular-nums text-brand-900">
+                <span className="w-8 text-right text-base font-bold tabular-nums text-brand-900">
                   {r.count}
                 </span>
               </li>
             ))}
           </ol>
         </section>
-      </div>
 
-      {/* ── NEXT 3 MONTHS (full width) ──────────────────────────────── */}
-      <section className="mt-6">
-        <h2 className="text-lg font-bold text-brand-900">Next 3 months</h2>
-        <p className="text-sm font-medium text-slate-500">Booked moves landing in the next quarter</p>
-        <ol className="mt-4 grid gap-x-6 gap-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-2 lg:grid-cols-3">
-          {pipeline.map((r, i) => (
-            <li key={r.staffId} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-slate-50">
-              <span className="w-5 text-center text-sm font-bold text-slate-500">{i + 1}</span>
-              <span aria-hidden className={cx("size-2.5 rounded-full", genderDot(r.gender))} />
-              <span className="flex-1 truncate font-semibold text-brand-900">{r.name}</span>
-              <span className="text-lg font-bold tabular-nums text-brand-900">{r.count}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
+        {/* NEXT 3 MONTHS — dense ranking */}
+        <section className="flex min-h-0 flex-col lg:col-span-2">
+          <h2 className="shrink-0 font-bold text-brand-900">Next 3 months</h2>
+          <ol className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            {pipeline.map((r, i) => (
+              <li key={r.staffId} className="flex min-h-7 flex-1 items-center gap-2 px-3 lg:min-h-0">
+                <span className="w-4 text-center text-xs font-bold text-slate-500">{i + 1}</span>
+                <span aria-hidden className={cx("size-2 shrink-0 rounded-full", genderDot(r.gender))} />
+                <span className="flex-1 truncate text-sm font-semibold text-brand-900">{r.name}</span>
+                <span className="text-base font-bold tabular-nums text-brand-900">{r.count}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      </div>
     </div>
   );
 }
