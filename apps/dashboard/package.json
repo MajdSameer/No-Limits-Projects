@@ -13,6 +13,7 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:sql": "cat src/db/migrations/*.sql",
     "db:seed": "tsx src/db/seed.ts",
+    "db:sync-sheet": "tsx src/db/sync-from-sheet.ts",
     "test": "vitest run",
     "db:seed-demo": "tsx src/db/seed-demo.ts"
   },
@@ -27,6 +28,7 @@
     "date-fns": "^4.4.0",
     "date-fns-tz": "^3.2.0",
     "drizzle-orm": "^0.45.2",
+    "google-auth-library": "^10.7.0",
     "jose": "^6.2.3",
     "next": "^16.2.9",
     "postgres": "^3.4.9",
