@@ -111,6 +111,31 @@ Built Jun 2026 (spec + plan in docs/superpowers/). Owner to-dos to go live:
 - [ ] Put `/tv` on the wall display (kiosk full-screen)
 - [ ] v2 backlog lives in the spec (payroll, messages, lead queue, Game Day)
 
+### Google Sheets roster sync (`pnpm db:sync-sheet`)
+
+Pulls names, intake weights and daily goals from the company "Leaderboard" tab
+(the "Follow-Up" spreadsheet) into the DB, replacing the values that used to be
+hand-typed in `seed.ts`. Logic: `src/lib/sheets.ts` (read) + `src/db/sync-from-
+sheet.ts` (upsert) + `src/app/api/cron/sync-sheet/route.ts` (scheduled hook).
+Env vars documented in `.env.example` (`GOOGLE_SHEETS_TOKEN_JSON`,
+`NLR_LEADERBOARD_SPREADSHEET_ID`, optional `NLR_LEADERBOARD_RANGE`).
+
+- [ ] **Auth is a stop-gap.** It uses a USER OAuth refresh token because the
+      company Google org blocks service-account keys
+      (`iam.managed.disableServiceAccountApiKeyCreation`). While the OAuth app
+      is in **Testing** mode the refresh token expires ~7 days after it's
+      minted, so an unattended Vercel cron will break weekly. To make the sync
+      robust, either: (a) get an org admin to allow service-account keys and
+      switch to one, or (b) publish the OAuth app (Google verification, since
+      Sheets/Drive are sensitive scopes) so refresh tokens stop expiring.
+      Until then, run `pnpm db:sync-sheet` manually (or re-mint the token).
+- [ ] Once auth is durable, add the cron to `vercel.json` (e.g. a few times a
+      day) — the `api/cron/sync-sheet` route already exists and is
+      `CRON_SECRET`-protected.
+- [ ] Gender + Game-Day team are NOT in the Leaderboard tab, so the sync leaves
+      them alone (managed in /manage). Wire them up if/when the sheet exposes
+      them (the "Game Day" tab has the Orange/Blue split).
+
 ## First project
 
 - [ ] The company hasn't picked the first project yet. When they do: follow
