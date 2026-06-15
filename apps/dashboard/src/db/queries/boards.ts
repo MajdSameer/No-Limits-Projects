@@ -79,15 +79,40 @@ function compose(
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-/** Bookings ENTERED today (Sydney) per rep, with daily goals. */
+/**
+ * Today's booking count per rep straight from the live "Leaderboard" sheet
+ * (rep_live, pushed by the Apps Script). Empty until the sheet pushes a
+ * snapshot for today — callers fall back to the app's own count then.
+ */
+async function liveSheetCounts(now: Date): Promise<Map<string, number>> {
+  const db = await getDb();
+  const today = sydneyToday(now);
+  const rows = await db
+    .select({
+      staffId: schema.repLive.staffId,
+      count: schema.repLive.bookingsToday,
+      asOf: schema.repLive.asOfDate,
+    })
+    .from(schema.repLive);
+  const m = new Map<string, number>();
+  for (const r of rows) if (r.asOf === today) m.set(r.staffId, r.count);
+  return m;
+}
+
+/**
+ * Today's board per rep, with daily goals. Uses the live sheet's "bookings
+ * today" count when the Leaderboard tab is pushing (the number the floor
+ * watches); otherwise falls back to bookings entered in the app today.
+ */
 export async function dailyBoard(now: Date = new Date()): Promise<BoardRow[]> {
   const { start, end } = sydneyDayRange(now);
-  const [reps, counts, goals] = await Promise.all([
+  const [reps, sheetCounts, bookingCounts, goals] = await Promise.all([
     activeReps(),
+    liveSheetCounts(now),
     countsByEnteredAt(start, end),
     currentGoals(now),
   ]);
-  return compose(reps, counts, goals);
+  return compose(reps, sheetCounts.size > 0 ? sheetCounts : bookingCounts, goals);
 }
 
 /** Bookings ENTERED yesterday (Sydney) per rep, with goals. */
