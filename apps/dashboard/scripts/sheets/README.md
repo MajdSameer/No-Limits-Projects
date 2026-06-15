@@ -42,6 +42,24 @@ written as a **08:00–17:00** shift. Managers can fine-tune individual shift
 times in `/manage` (those edits hold until the day-set changes in the sheet).
 The "Afternoon / 8-to-7" sub-block and lunch-break columns are not synced yet.
 
+## Bookings push (`bookings.gs`)
+
+`bookings.gs` is bound to a **different** spreadsheet — **No Limits & RRR
+Removals** — so it's its **own** Apps Script project with its own copy of the
+`DASHBOARD_URL` / `INGEST_SECRET` script properties (same values). It reads the
+**Booking** tab and POSTs the last 90 days of move dates plus all future ones to
+`/api/ingest/bookings`, in batches.
+
+1. Open the **No Limits & RRR Removals** sheet → **Extensions → Apps Script**.
+2. Paste `bookings.gs`, set the two script properties, run **`installBookingTriggers`**.
+3. Test: run **`pushBookings`**, then open `/bookings` (and `/subcontractor` for
+   Domanic's jobs).
+
+The dashboard side only keeps NL/RRR/PM companies and bookings by a roster rep
+or the subcontractor **Domanic** (his are flagged and shown on `/subcontractor`,
+split into **Daily** / **This month** tabs). Everything else is skipped. Upsert
+is keyed on job number, so re-pushing is idempotent.
+
 ## Notes
 
 - The endpoint is idempotent and secret-protected; re-pushing is harmless.

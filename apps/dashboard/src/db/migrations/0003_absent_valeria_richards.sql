@@ -1,0 +1,1 @@
+ALTER TABLE "bookings" ADD COLUMN "subcontractor" boolean DEFAULT false NOT NULL;

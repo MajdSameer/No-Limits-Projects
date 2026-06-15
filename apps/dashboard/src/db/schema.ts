@@ -91,6 +91,8 @@ export const bookings = pgTable(
     men: integer("men"),
     leadSource: text("lead_source"),
     notes: text("notes"),
+    /** Job carried out by a subcontractor (e.g. Domanic), not a floor rep. */
+    subcontractor: boolean("subcontractor").notNull().default(false),
     salesRepId: text("sales_rep_id")
       .notNull()
       .references(() => staff.id),

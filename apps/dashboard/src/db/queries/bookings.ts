@@ -1,7 +1,30 @@
-import { and, desc, eq, gte, ilike, isNull, lt, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNull, lt, or, type SQL } from "drizzle-orm";
 
 import { getDb, schema } from "../client";
-import { sydneyDayRange } from "../../lib/sydney";
+import { sydneyDayRange, sydneyToday } from "../../lib/sydney";
+
+/** Subcontractor (Domanic) jobs for today or the current Sydney month. */
+export async function subcontractorBookings(period: "day" | "month", now: Date = new Date()) {
+  const db = await getDb();
+  const today = sydneyToday(now);
+  const conds: SQL[] = [eq(schema.bookings.subcontractor, true), isNull(schema.bookings.deletedAt)];
+  if (period === "day") {
+    conds.push(eq(schema.bookings.moveDate, today));
+  } else {
+    const y = Number(today.slice(0, 4));
+    const m = Number(today.slice(5, 7));
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const monthEnd = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}-01`;
+    conds.push(gte(schema.bookings.moveDate, monthStart), lt(schema.bookings.moveDate, monthEnd));
+  }
+  return db
+    .select({ booking: schema.bookings, repName: schema.staff.name })
+    .from(schema.bookings)
+    .innerJoin(schema.staff, eq(schema.bookings.salesRepId, schema.staff.id))
+    .where(and(...conds))
+    .orderBy(asc(schema.bookings.moveDate))
+    .limit(200);
+}
 
 export interface BookingFilters {
   q?: string;
