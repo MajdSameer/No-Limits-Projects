@@ -12,6 +12,8 @@
  * underlying data continuously and a few seconds of staleness on a wall board
  * is invisible.
  */
+import { after } from "next/server";
+
 import { dailyBoard, monthlyBoard, pipelineBoard, yesterdayBoard, type BoardRow } from "./boards";
 import { liveAllocation } from "./allocation";
 import { getMonthlyGoal, isGameDay } from "../settings";
@@ -35,11 +37,12 @@ export interface BoardsSnapshot {
   generatedAtISO: string;
 }
 
-// Serve a cached snapshot this long without recomputing. A request that finds
-// the cache stale/absent AWAITS a fresh compute (coalesced) — we can't refresh
-// in the background because Vercel freezes the instance after the response, so
-// the only way the cache ever updates is for a request to wait for it.
+// Serve a cached snapshot this long without recomputing.
 const FRESH_MS = 15000;
+// On a cold instance with no snapshot yet, wait at most this long for the first
+// compute before serving an empty board (the after() refresh keeps running and
+// fills the cache for the next caller).
+const COLD_WAIT_MS = 8000;
 
 let cache: { at: number; data: BoardsSnapshot } | null = null;
 let inflight: Promise<BoardsSnapshot> | null = null;
@@ -102,18 +105,28 @@ function refresh(): Promise<BoardsSnapshot> {
 }
 
 /**
- * The current board snapshot. Returns the cache instantly while it's fresh;
- * otherwise AWAITS a recompute (coalesced, so concurrent callers share one) and
- * caches it. On a DB error it falls back to the last good snapshot, or an empty
- * board if there's none yet — so a cold-DB hiccup never throws, and the client
- * (which ignores empty responses) keeps showing the last good board. The await
- * is what populates the cache; a short FRESH_MS window keeps most polls instant.
+ * The current board snapshot, never hanging and never blanking:
+ *  - Fresh cache → return instantly.
+ *  - Stale cache → return it instantly and refresh via after() (which runs past
+ *    the response, so the cache updates even though Vercel freezes the instance).
+ *  - No cache yet → wait briefly for the first (coalesced) compute, else serve
+ *    an empty board while after() keeps computing to fill the cache.
+ * The client ignores empty responses, so it keeps the last good board and picks
+ * up real data on the next poll once the cache is warm.
  */
 export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
-  if (cache && Date.now() - cache.at < FRESH_MS) return cache.data;
+  if (cache && Date.now() - cache.at < FRESH_MS) return cache.data; // fresh
+  const job = refresh(); // coalesced
   try {
-    return await refresh();
+    // Return the promise so Vercel keeps the function alive until the refresh
+    // finishes and the cache is populated (it runs after the response is sent).
+    after(() => job.catch(() => {}));
   } catch {
-    return cache?.data ?? emptySnapshot();
+    /* not in a request scope (build/test) — nothing to schedule */
   }
+  if (cache) return cache.data; // stale — served now, after() refreshes it
+  return Promise.race([
+    job.catch(() => emptySnapshot()),
+    new Promise<BoardsSnapshot>((resolve) => setTimeout(() => resolve(emptySnapshot()), COLD_WAIT_MS)),
+  ]);
 }
