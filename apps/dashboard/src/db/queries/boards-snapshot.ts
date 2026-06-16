@@ -35,7 +35,9 @@ export interface BoardsSnapshot {
   generatedAtISO: string;
 }
 
-const TTL_MS = 4000;
+// Longer cache = fewer cold recomputes against the slow free-tier DB; pushes
+// update the data every few minutes so ~10s of staleness is invisible.
+const TTL_MS = 10000;
 
 let cache: { at: number; data: BoardsSnapshot } | null = null;
 let inflight: Promise<BoardsSnapshot> | null = null;
