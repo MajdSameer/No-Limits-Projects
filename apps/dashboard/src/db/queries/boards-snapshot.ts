@@ -35,9 +35,12 @@ export interface BoardsSnapshot {
   generatedAtISO: string;
 }
 
-// Longer cache = fewer cold recomputes against the slow free-tier DB; pushes
-// update the data every few minutes so ~10s of staleness is invisible.
-const TTL_MS = 10000;
+// Serve a cached snapshot this long without any refresh.
+const FRESH_MS = 10000;
+// When stale, kick off a refresh but only wait this long for it before serving
+// the stale snapshot anyway — so a slow/cold DB never makes a caller hang once
+// we have ANY snapshot to fall back on.
+const STALE_WAIT_MS = 2500;
 
 let cache: { at: number; data: BoardsSnapshot } | null = null;
 let inflight: Promise<BoardsSnapshot> | null = null;
@@ -70,13 +73,8 @@ async function compute(): Promise<BoardsSnapshot> {
   };
 }
 
-/**
- * The current board snapshot, served from a short-lived cache. Concurrent
- * callers within a TTL window share one computation; this is the only thing
- * that should touch the board queries on a request path.
- */
-export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
-  if (cache && Date.now() - cache.at < TTL_MS) return cache.data;
+/** Compute into the cache, coalescing concurrent callers onto one run. */
+function refresh(): Promise<BoardsSnapshot> {
   if (inflight) return inflight;
   inflight = compute()
     .then((data) => {
@@ -87,4 +85,22 @@ export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
       inflight = null;
     });
   return inflight;
+}
+
+/**
+ * The current board snapshot. Stale-while-revalidate: once we have ANY
+ * snapshot, callers get it instantly (fresh) or after a short wait at most
+ * (stale → refresh races a 2.5s timeout, then the stale value is served and the
+ * refresh lands in cache for the next caller). Only the very first call per
+ * server instance, with no snapshot yet, waits for a full compute. This keeps
+ * the board responsive even when the free-tier DB is slow to compute.
+ */
+export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
+  if (!cache) return refresh(); // first ever on this instance — must wait
+  if (Date.now() - cache.at < FRESH_MS) return cache.data; // fresh
+  const stale = cache.data;
+  return Promise.race([
+    refresh().catch(() => stale),
+    new Promise<BoardsSnapshot>((resolve) => setTimeout(() => resolve(stale), STALE_WAIT_MS)),
+  ]);
 }
