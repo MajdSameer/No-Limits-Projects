@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { dailyBoard, monthlyBoard, pipelineBoard, yesterdayBoard } from "../../../db/queries/boards";
-import { liveAllocation } from "../../../db/queries/allocation";
-import { getMonthlyGoal, isGameDay } from "../../../db/settings";
+import { getBoardsSnapshot } from "../../../db/queries/boards-snapshot";
 
 export const dynamic = "force-dynamic";
 // Fail fast rather than hang the wall display if the DB is ever unreachable.
@@ -11,32 +9,10 @@ export const maxDuration = 20;
 /**
  * Public by design (the wall TV has no session): first names, counts, goals,
  * gender/team tint, monthly progress and live allocation shares ONLY — never
- * customer or money data.
+ * customer or money data. Served from a short cache so many polling tabs don't
+ * stampede the DB (see boards-snapshot).
  */
 export async function GET() {
-  const now = new Date();
-  const [daily, yesterday, monthly, pipeline, allocation, gameDay, goal] = await Promise.all([
-    dailyBoard(now),
-    yesterdayBoard(now),
-    monthlyBoard(now),
-    pipelineBoard(now),
-    liveAllocation(now),
-    isGameDay(),
-    getMonthlyGoal(),
-  ]);
-  const monthlyTotal = monthly.reduce((s, r) => s + r.count, 0);
-  return NextResponse.json(
-    {
-      daily,
-      yesterday,
-      monthly,
-      pipeline,
-      allocation,
-      gameDay,
-      monthlyGoal: goal,
-      monthlyTotal,
-      generatedAtISO: now.toISOString(),
-    },
-    { headers: { "cache-control": "no-store" } },
-  );
+  const data = await getBoardsSnapshot();
+  return NextResponse.json(data, { headers: { "cache-control": "no-store" } });
 }
