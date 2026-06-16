@@ -213,10 +213,10 @@ async function sheetPipelineCounts(): Promise<Map<string, number>> {
 }
 
 /**
- * Pipeline board: bookings whose MOVE DATE falls in the current month + the
- * next two (≈ the 1st of this month to the 1st three months out). Uses the live
- * sheet tally when the Booking tab is pushing (raw row count, the floor's
- * number); otherwise falls back to the app's deduped bookings in that window.
+ * Pipeline board: bookings whose MOVE DATE falls within the next 3 months from
+ * today (a rolling [today, today+3mo] window). Uses the live sheet tally when
+ * the Booking tab is pushing (raw row count, the floor's number); otherwise
+ * falls back to the app's deduped bookings in that window.
  */
 export async function pipelineBoard(now: Date = new Date()): Promise<BoardRow[]> {
   const [reps, sheet] = await Promise.all([activeReps(), sheetPipelineCounts()]);
@@ -230,7 +230,7 @@ export async function pipelineBoard(now: Date = new Date()): Promise<BoardRow[]>
     .where(
       and(
         gte(schema.bookings.moveDate, from),
-        lt(schema.bookings.moveDate, to),
+        lte(schema.bookings.moveDate, to),
         isNull(schema.bookings.deletedAt),
       ),
     )
