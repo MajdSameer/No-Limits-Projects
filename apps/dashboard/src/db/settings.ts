@@ -21,8 +21,8 @@ export async function isGameDay(): Promise<boolean> {
   return (await getSetting("game_day", "off")) === "on";
 }
 
-/** Combined team monthly booking goal (default 1500). */
+/** Combined team monthly booking goal. Default 1995 = 17 reps × Tier 3 (115). */
 export async function getMonthlyGoal(): Promise<number> {
-  const n = Number(await getSetting("monthly_goal", "1500"));
-  return Number.isFinite(n) && n > 0 ? n : 1500;
+  const n = Number(await getSetting("monthly_goal", "1995"));
+  return Number.isFinite(n) && n > 0 ? n : 1995;
 }
