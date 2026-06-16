@@ -41,6 +41,10 @@ export interface BoardsSnapshot {
 // booking shows on the board (and triggers the gong) within ~15s of being
 // entered — pooler handles the extra recomputes fine.
 const FRESH_MS = 8000;
+// First compute on a cold instance: wait at most this long, then serve an empty
+// board (the after() refresh keeps running to fill the cache). Bounds the cold
+// path so it can never hang into a 504.
+const COLD_WAIT_MS = 9000;
 
 let cache: { at: number; data: BoardsSnapshot } | null = null;
 let inflight: Promise<BoardsSnapshot> | null = null;
@@ -113,21 +117,18 @@ function refresh(): Promise<BoardsSnapshot> {
 export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
   if (cache && Date.now() - cache.at < FRESH_MS) return cache.data; // fresh
   const job = refresh(); // coalesced
-  if (cache) {
-    // Stale: serve it instantly and let the refresh finish after the response
-    // (Vercel keeps the function alive for after()), so the cache stays warm.
-    try {
-      after(() => job.catch(() => {}));
-    } catch {
-      /* not in a request scope (build/test) */
-    }
-    return cache.data;
-  }
-  // No snapshot yet: wait for the compute (the pooler makes it complete in a
-  // few seconds), falling back to an empty board only on a real DB error.
+  // Let the refresh finish past the response (Vercel keeps the function alive
+  // for after()), so the cache populates even on a cold instance.
   try {
-    return await job;
+    after(() => job.catch(() => {}));
   } catch {
-    return emptySnapshot();
+    /* not in a request scope (build/test) */
   }
+  if (cache) return cache.data; // stale — served instantly, after() refreshes it
+  // No snapshot yet: wait briefly, then serve an empty board if the cold compute
+  // is slow (after() keeps it running to fill the cache). Never hangs into a 504.
+  return Promise.race([
+    job.catch(() => emptySnapshot()),
+    new Promise<BoardsSnapshot>((resolve) => setTimeout(() => resolve(emptySnapshot()), COLD_WAIT_MS)),
+  ]);
 }
