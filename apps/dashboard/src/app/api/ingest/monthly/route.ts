@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getDb } from "../../../../db/client";
-import { ingestMonthly } from "../../../../db/ingest-monthly";
+import { ingestMonthly, ingestPipeline } from "../../../../db/ingest-monthly";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -9,6 +9,8 @@ export const maxDuration = 60;
 interface MonthlyBody {
   month?: string;
   counts?: Record<string, number>;
+  /** Optional "next 3 months" per-rep tally (current month + next two). */
+  pipeline?: Record<string, number>;
 }
 
 /**
@@ -35,8 +37,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await ingestMonthly(await getDb(), body.month, body.counts);
-    return NextResponse.json({ ok: true, ...result });
+    const db = await getDb();
+    const result = await ingestMonthly(db, body.month, body.counts);
+    const pipeline =
+      body.pipeline && typeof body.pipeline === "object"
+        ? await ingestPipeline(db, body.pipeline)
+        : undefined;
+    return NextResponse.json({ ok: true, ...result, pipeline });
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }

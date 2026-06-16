@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
 
 import { getDb, schema } from "../client";
-import { monthSettingKey } from "../ingest-monthly";
+import { monthSettingKey, PIPELINE_KEY } from "../ingest-monthly";
 import { getSetting } from "../settings";
 import {
   next3MonthsDateRange,
@@ -197,8 +197,31 @@ export async function teamMonthly(now: Date, goal: number): Promise<TeamMonthly>
   return { total, goal, pct: goal > 0 ? Math.round((total / goal) * 100) : 0, rows };
 }
 
-/** Pipeline: bookings whose MOVE DATE is within the next 3 months. */
+/** Per-rep "next 3 months" tally as the SHEET counts it (raw Booking rows with
+ * a move date in the current month + next two), pushed via api/ingest/monthly.
+ * Empty until the Booking tab pushes — callers fall back to the app's own
+ * count then. */
+async function sheetPipelineCounts(): Promise<Map<string, number>> {
+  const raw = await getSetting(PIPELINE_KEY, "");
+  if (!raw) return new Map();
+  try {
+    const obj = JSON.parse(raw) as Record<string, number>;
+    return new Map(Object.entries(obj).map(([id, n]) => [id, Number(n) || 0]));
+  } catch {
+    return new Map();
+  }
+}
+
+/**
+ * Pipeline board: bookings whose MOVE DATE falls in the current month + the
+ * next two (≈ the 1st of this month to the 1st three months out). Uses the live
+ * sheet tally when the Booking tab is pushing (raw row count, the floor's
+ * number); otherwise falls back to the app's deduped bookings in that window.
+ */
 export async function pipelineBoard(now: Date = new Date()): Promise<BoardRow[]> {
+  const [reps, sheet] = await Promise.all([activeReps(), sheetPipelineCounts()]);
+  if (sheet.size > 0) return compose(reps, sheet, null);
+
   const db = await getDb();
   const { from, to } = next3MonthsDateRange(now);
   const rows = await db
@@ -207,11 +230,10 @@ export async function pipelineBoard(now: Date = new Date()): Promise<BoardRow[]>
     .where(
       and(
         gte(schema.bookings.moveDate, from),
-        lte(schema.bookings.moveDate, to),
+        lt(schema.bookings.moveDate, to),
         isNull(schema.bookings.deletedAt),
       ),
     )
     .groupBy(schema.bookings.salesRepId);
-  const reps = await activeReps();
   return compose(reps, new Map(rows.map((r) => [r.staffId, r.count])), null);
 }

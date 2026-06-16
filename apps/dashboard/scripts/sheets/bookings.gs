@@ -57,21 +57,30 @@ function pushBookings() {
   var cutoff = new Date();
   cutoff.setHours(0, 0, 0, 0);
   cutoff.setDate(cutoff.getDate() - WINDOW_DAYS);
-  var thisMonth = Utilities.formatDate(new Date(), tz, "yyyy-MM");
+  var nowd = new Date();
+  var thisMonth = Utilities.formatDate(nowd, tz, "yyyy-MM");
+  // Pipeline window = this month + the next two (e.g. Jun, Jul, Aug).
+  var pipeMonths = {};
+  for (var k = 0; k < 3; k++) {
+    pipeMonths[Utilities.formatDate(new Date(nowd.getFullYear(), nowd.getMonth() + k, 1), tz, "yyyy-MM")] = 1;
+  }
 
   var rows = [];
-  var monthCounts = {}; // sales person name -> rows with a move date this month
+  var monthCounts = {}; // sales person -> rows with a move date this month
+  var pipelineCounts = {}; // sales person -> rows with a move date in the next 3 months
   for (var i = 0; i < values.length; i++) {
     var v = values[i];
     var job = String(v[COL.job] || "").trim();
     var date = v[COL.date];
     if (!(date instanceof Date) || isNaN(date.getTime())) continue;
 
-    // Monthly tally: every row with a sales person + a move date this month
+    // Tallies: every row with a sales person, by the month of its move date
     // (raw row count — the number the floor watches, not deduped by job).
     var sales = String(v[COL.sales] || "").trim();
-    if (sales && Utilities.formatDate(date, tz, "yyyy-MM") === thisMonth) {
-      monthCounts[sales] = (monthCounts[sales] || 0) + 1;
+    if (sales) {
+      var ym = Utilities.formatDate(date, tz, "yyyy-MM");
+      if (ym === thisMonth) monthCounts[sales] = (monthCounts[sales] || 0) + 1;
+      if (pipeMonths[ym]) pipelineCounts[sales] = (pipelineCounts[sales] || 0) + 1;
     }
 
     if (!job || date < cutoff) continue; // bookings sync: recent + upcoming only
@@ -101,7 +110,7 @@ function pushBookings() {
     method: "post",
     contentType: "application/json",
     headers: { Authorization: "Bearer " + secret },
-    payload: JSON.stringify({ month: thisMonth, counts: monthCounts }),
+    payload: JSON.stringify({ month: thisMonth, counts: monthCounts, pipeline: pipelineCounts }),
     muteHttpExceptions: true,
   });
   if (monthlyRes.getResponseCode() >= 300) {
