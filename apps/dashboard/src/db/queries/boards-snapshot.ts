@@ -35,16 +35,11 @@ export interface BoardsSnapshot {
   generatedAtISO: string;
 }
 
-// Serve a cached snapshot this long without any refresh.
-const FRESH_MS = 10000;
-// When stale, kick off a refresh but only wait this long for it before serving
-// the stale snapshot anyway — so a slow/cold DB never makes a caller hang once
-// we have ANY snapshot to fall back on.
-const STALE_WAIT_MS = 2500;
-// First-ever compute with no snapshot: wait this long, then serve an empty
-// board if the cold DB is hanging (the refresh keeps running and fills the
-// cache for the next caller). Bounds every path so nothing ever 504s.
-const COLD_WAIT_MS = 8000;
+// Serve a cached snapshot this long without recomputing. A request that finds
+// the cache stale/absent AWAITS a fresh compute (coalesced) — we can't refresh
+// in the background because Vercel freezes the instance after the response, so
+// the only way the cache ever updates is for a request to wait for it.
+const FRESH_MS = 15000;
 
 let cache: { at: number; data: BoardsSnapshot } | null = null;
 let inflight: Promise<BoardsSnapshot> | null = null;
@@ -107,27 +102,18 @@ function refresh(): Promise<BoardsSnapshot> {
 }
 
 /**
- * The current board snapshot. Stale-while-revalidate: once we have ANY
- * snapshot, callers get it instantly (fresh) or after a short wait at most
- * (stale → refresh races a 2.5s timeout, then the stale value is served and the
- * refresh lands in cache for the next caller). Only the very first call per
- * server instance, with no snapshot yet, waits for a full compute — and if that
- * fails (the free-tier DB hiccuping on a cold start), it returns an empty board
- * rather than throwing, so the page renders and the client poll fills it in.
+ * The current board snapshot. Returns the cache instantly while it's fresh;
+ * otherwise AWAITS a recompute (coalesced, so concurrent callers share one) and
+ * caches it. On a DB error it falls back to the last good snapshot, or an empty
+ * board if there's none yet — so a cold-DB hiccup never throws, and the client
+ * (which ignores empty responses) keeps showing the last good board. The await
+ * is what populates the cache; a short FRESH_MS window keeps most polls instant.
  */
 export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
-  if (!cache) {
-    // First ever on this instance: wait briefly, then serve an empty board if
-    // the cold DB errors OR hangs (the refresh keeps running to fill the cache).
-    return Promise.race([
-      refresh().catch(() => emptySnapshot()),
-      new Promise<BoardsSnapshot>((resolve) => setTimeout(() => resolve(emptySnapshot()), COLD_WAIT_MS)),
-    ]);
+  if (cache && Date.now() - cache.at < FRESH_MS) return cache.data;
+  try {
+    return await refresh();
+  } catch {
+    return cache?.data ?? emptySnapshot();
   }
-  if (Date.now() - cache.at < FRESH_MS) return cache.data; // fresh
-  const stale = cache.data;
-  return Promise.race([
-    refresh().catch(() => stale),
-    new Promise<BoardsSnapshot>((resolve) => setTimeout(() => resolve(stale), STALE_WAIT_MS)),
-  ]);
 }
