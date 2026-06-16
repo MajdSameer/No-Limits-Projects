@@ -27,6 +27,7 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
   const [stale, setStale] = useState(false);
   const [clock, setClock] = useState("");
   const lastSuccess = useRef(Date.now());
+  const inFlight = useRef(false);
 
   // Enable the gong after any interaction (TV may need one click to unmute).
   useEffect(() => {
@@ -40,6 +41,8 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
   }, []);
 
   const refetch = useCallback(() => {
+    if (inFlight.current) return; // don't stack — the board query takes a few seconds
+    inFlight.current = true;
     fetch("/api/boards", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: BoardsDTO) => {
@@ -47,7 +50,10 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
         lastSuccess.current = Date.now();
         setStale(false);
       })
-      .catch(() => setStale(Date.now() - lastSuccess.current > STALE_MS));
+      .catch(() => setStale(Date.now() - lastSuccess.current > STALE_MS))
+      .finally(() => {
+        inFlight.current = false;
+      });
   }, []);
   useLiveRefresh(["bookings"], refetch);
 
