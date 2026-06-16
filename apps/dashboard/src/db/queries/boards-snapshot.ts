@@ -41,6 +41,10 @@ const FRESH_MS = 10000;
 // the stale snapshot anyway — so a slow/cold DB never makes a caller hang once
 // we have ANY snapshot to fall back on.
 const STALE_WAIT_MS = 2500;
+// First-ever compute with no snapshot: wait this long, then serve an empty
+// board if the cold DB is hanging (the refresh keeps running and fills the
+// cache for the next caller). Bounds every path so nothing ever 504s.
+const COLD_WAIT_MS = 8000;
 
 let cache: { at: number; data: BoardsSnapshot } | null = null;
 let inflight: Promise<BoardsSnapshot> | null = null;
@@ -73,6 +77,21 @@ async function compute(): Promise<BoardsSnapshot> {
   };
 }
 
+/** An empty board to fall back on so a DB hiccup degrades instead of 500ing. */
+function emptySnapshot(): BoardsSnapshot {
+  return {
+    daily: [],
+    yesterday: [],
+    monthly: [],
+    pipeline: [],
+    allocation: { eligible: [], nextUp: null, totalLeadsToday: 0 },
+    gameDay: false,
+    monthlyGoal: 1500,
+    monthlyTotal: 0,
+    generatedAtISO: new Date().toISOString(),
+  };
+}
+
 /** Compute into the cache, coalescing concurrent callers onto one run. */
 function refresh(): Promise<BoardsSnapshot> {
   if (inflight) return inflight;
@@ -92,11 +111,19 @@ function refresh(): Promise<BoardsSnapshot> {
  * snapshot, callers get it instantly (fresh) or after a short wait at most
  * (stale → refresh races a 2.5s timeout, then the stale value is served and the
  * refresh lands in cache for the next caller). Only the very first call per
- * server instance, with no snapshot yet, waits for a full compute. This keeps
- * the board responsive even when the free-tier DB is slow to compute.
+ * server instance, with no snapshot yet, waits for a full compute — and if that
+ * fails (the free-tier DB hiccuping on a cold start), it returns an empty board
+ * rather than throwing, so the page renders and the client poll fills it in.
  */
 export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
-  if (!cache) return refresh(); // first ever on this instance — must wait
+  if (!cache) {
+    // First ever on this instance: wait briefly, then serve an empty board if
+    // the cold DB errors OR hangs (the refresh keeps running to fill the cache).
+    return Promise.race([
+      refresh().catch(() => emptySnapshot()),
+      new Promise<BoardsSnapshot>((resolve) => setTimeout(() => resolve(emptySnapshot()), COLD_WAIT_MS)),
+    ]);
+  }
   if (Date.now() - cache.at < FRESH_MS) return cache.data; // fresh
   const stale = cache.data;
   return Promise.race([
