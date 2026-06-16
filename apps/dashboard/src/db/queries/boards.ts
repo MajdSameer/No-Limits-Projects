@@ -19,6 +19,10 @@ export interface BoardRow {
   goal: number | null;
   gender: "f" | "m" | "x";
   team: "orange" | "blue" | null;
+  /** MovePro job codes behind today's count, in sheet order (daily board only,
+   * when the live sheet is pushing). The last one is the most recent booking —
+   * the live board pops it up when a rep's count ticks over. */
+  jobCodes?: string[];
 }
 
 async function activeReps() {
@@ -86,35 +90,53 @@ function compose(
  * (rep_live, pushed by the Apps Script). Empty until the sheet pushes a
  * snapshot for today — callers fall back to the app's own count then.
  */
-async function liveSheetCounts(now: Date): Promise<Map<string, number>> {
+async function liveSheetCounts(
+  now: Date,
+): Promise<Map<string, { count: number; codes: string[] }>> {
   const db = await getDb();
   const today = sydneyToday(now);
   const rows = await db
     .select({
       staffId: schema.repLive.staffId,
       count: schema.repLive.bookingsToday,
+      codes: schema.repLive.jobCodes,
       asOf: schema.repLive.asOfDate,
     })
     .from(schema.repLive);
-  const m = new Map<string, number>();
-  for (const r of rows) if (r.asOf === today) m.set(r.staffId, r.count);
+  const m = new Map<string, { count: number; codes: string[] }>();
+  for (const r of rows) {
+    if (r.asOf === today) m.set(r.staffId, { count: r.count, codes: (r.codes ?? []) as string[] });
+  }
   return m;
 }
 
 /**
  * Today's board per rep, with daily goals. Uses the live sheet's "bookings
  * today" count when the Leaderboard tab is pushing (the number the floor
- * watches); otherwise falls back to bookings entered in the app today.
+ * watches); otherwise falls back to bookings entered in the app today. In sheet
+ * mode each row also carries its MovePro job codes so the live board can pop up
+ * the latest one when a rep's count ticks over.
  */
 export async function dailyBoard(now: Date = new Date()): Promise<BoardRow[]> {
   const { start, end } = sydneyDayRange(now);
-  const [reps, sheetCounts, bookingCounts, goals] = await Promise.all([
+  const [reps, sheet, bookingCounts, goals] = await Promise.all([
     activeReps(),
     liveSheetCounts(now),
     countsByEnteredAt(start, end),
     currentGoals(now),
   ]);
-  return compose(reps, sheetCounts.size > 0 ? sheetCounts : bookingCounts, goals);
+  const useSheet = sheet.size > 0;
+  const counts = useSheet
+    ? new Map([...sheet].map(([id, v]) => [id, v.count]))
+    : bookingCounts;
+  const rows = compose(reps, counts, goals);
+  if (useSheet) {
+    for (const r of rows) {
+      const codes = sheet.get(r.staffId)?.codes;
+      if (codes && codes.length > 0) r.jobCodes = codes;
+    }
+  }
+  return rows;
 }
 
 /** Bookings ENTERED yesterday (Sydney) per rep, with goals. */

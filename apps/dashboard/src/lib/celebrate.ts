@@ -35,6 +35,41 @@ export function crossedThreshold(
   return fresh;
 }
 
+// ── Per-booking pop: fire the instant a rep's count ticks up ─────────────
+
+export interface DailyCountRow {
+  staffId: string;
+  name: string;
+  count: number;
+  /** MovePro codes behind today's count; the last is the newest booking. */
+  jobCodes?: string[];
+}
+
+export interface BookingPop {
+  staffId: string;
+  name: string;
+  /** The MovePro number of the booking that just landed, if known. */
+  code: string | null;
+}
+
+/**
+ * Pure: given the current daily rows and the per-rep counts we last saw,
+ * return a pop for every rep whose count went UP (one per rep, carrying the
+ * latest MovePro code), and update `prev` to the new counts. Reps not yet in
+ * `prev` are only seeded — they don't fire — so a fresh page load is silent.
+ */
+export function risenBookings(rows: DailyCountRow[], prev: Map<string, number>): BookingPop[] {
+  const pops: BookingPop[] = [];
+  for (const r of rows) {
+    const before = prev.get(r.staffId);
+    if (before !== undefined && r.count > before) {
+      pops.push({ staffId: r.staffId, name: r.name, code: r.jobCodes?.at(-1) ?? null });
+    }
+    prev.set(r.staffId, r.count);
+  }
+  return pops;
+}
+
 // ── Web Audio gong (synthesised — no asset, works offline) ───────────────
 let ctx: AudioContext | null = null;
 

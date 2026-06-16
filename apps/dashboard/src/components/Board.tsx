@@ -6,7 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
-import { armAudio, celebrateGong, crossedThreshold, GONG_THRESHOLD } from "../lib/celebrate";
+import { armAudio } from "../lib/celebrate";
+import { BookingCelebration } from "./BookingCelebration";
 import { cellMessage, cellTier } from "../lib/leaderboard-messages";
 import { useLiveRefresh } from "../lib/live";
 import { sydneyToday } from "../lib/sydney";
@@ -18,6 +19,8 @@ export interface BoardRowDTO {
   goal: number | null;
   gender: "f" | "m" | "x";
   team: "orange" | "blue" | null;
+  /** MovePro codes behind today's count (daily board, live-sheet mode). */
+  jobCodes?: string[];
 }
 
 interface AllocSlotDTO {
@@ -130,7 +133,6 @@ export function Board({
   const [data, setData] = useState<BoardsDTO>(initial);
   const [greet, setGreet] = useState<string | null>(welcome ?? null);
   const greetFired = useRef(false);
-  const gongSeeded = useRef(false);
 
   // Enable the gong after the first interaction (browser autoplay policy).
   useEffect(() => {
@@ -142,19 +144,6 @@ export function Board({
       window.removeEventListener("keydown", arm);
     };
   }, []);
-
-  // Gong + confetti when a rep reaches 3 bookings today (once per rep/day).
-  useEffect(() => {
-    const key = `nl-gong3-${sydneyToday()}`;
-    const seen = new Set<string>(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);
-    const fresh = crossedThreshold(data.daily, seen, GONG_THRESHOLD);
-    localStorage.setItem(key, JSON.stringify([...seen]));
-    if (!gongSeeded.current) {
-      gongSeeded.current = true; // seed silently on first render — no load blast
-      return;
-    }
-    if (fresh.length > 0) celebrateGong();
-  }, [data]);
 
   const refetch = useCallback(() => {
     fetch("/api/boards", { cache: "no-store" })
@@ -186,6 +175,7 @@ export function Board({
   return (
     // lg+: lock to one landscape screen, no scroll. Smaller screens flow normally.
     <div className="relative flex flex-col gap-3 lg:h-[calc(100dvh-10.5rem)] lg:overflow-hidden">
+      <BookingCelebration daily={data.daily} />
       {greet && (
         <div className="fade-in fixed top-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-brand-900 px-5 py-3 text-white shadow-xl">
           <p className="font-bold">{greet}</p>
