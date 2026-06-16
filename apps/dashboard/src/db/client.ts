@@ -32,15 +32,15 @@ async function create(): Promise<Db> {
     //   prepare:false — required behind Supabase's transaction pooler.
     const client = postgres(process.env.DATABASE_URL, {
       prepare: false,
-      // One connection per instance. The board endpoint fires ~17 queries via
-      // Promise.all; opening several connections to the Supabase pooler AT ONCE
-      // intermittently stalls (max:8 always 504'd; max:3 still 504'd on cold
-      // instances), while a timing probe running them through one connection was
-      // reliably fast. max:1 means queries queue through the single connection —
-      // no connection-open storm — so the board loads every time. idle_timeout
-      // closes it when idle so connections can't accumulate (the original
-      // outage); connect_timeout fails fast instead of hanging.
-      max: 1,
+      // Small pool. Opening many Supabase-pooler connections at once stalls this
+      // instance's tiny DB, so the board (~17 queries) must not fan out wide.
+      // The board is now computed behind a short cache that coalesces concurrent
+      // requests (see boards-snapshot), so only ONE board computation runs at a
+      // time per instance — a pool of 3 lets that single computation finish
+      // quickly without the cross-request connection storm that 504'd before.
+      // idle_timeout closes idle connections so they can't accumulate (the
+      // original outage); connect_timeout fails fast instead of hanging.
+      max: 3,
       idle_timeout: 20,
       max_lifetime: 60 * 10,
       connect_timeout: 10,
