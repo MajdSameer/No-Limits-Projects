@@ -85,8 +85,8 @@ test("monthly uses the sheet tally (raw row count) once the Booking tab pushes",
   await setSetting(monthSettingKey("2026-06"), "");
 });
 
-test("pipeline (fallback) counts move dates in [today, today+3mo]", async () => {
-  const rows = await pipelineBoard(NOW); // NOW = 2026-06-12 → window [2026-06-12, 2026-09-12]
+test("pipeline (fallback) counts move dates from the 1st of the month, 3 months out", async () => {
+  const rows = await pipelineBoard(NOW); // NOW = 2026-06-12 → window [2026-06-01, 2026-09-01)
   // andy: 06-20, 07-15, 08-01 (deleted 06-25 excluded) = 3
   expect(rows.find((r) => r.staffId === "andy")?.count).toBe(3);
   // hanna: 06-18, 06-13 in window; 10-01 outside = 2
