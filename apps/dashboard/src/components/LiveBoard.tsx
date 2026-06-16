@@ -9,6 +9,7 @@ import { BookingCelebration } from "./BookingCelebration";
 import { DailyCell } from "./DailyCell";
 import { armAudio } from "../lib/celebrate";
 import { useLiveRefresh } from "../lib/live";
+import { tierProgress } from "../lib/tiers";
 
 /**
  * Full-screen wall leaderboard for /live — the dashboard's three boards (Today,
@@ -29,8 +30,26 @@ function monthlyMessage(pct: number): string {
   return "Fresh month, big target — let's chase it 🚀";
 }
 
+/** Small chip showing how far a rep is off their next incentive tier. */
+function TierChip({ count }: { count: number }) {
+  const t = tierProgress(count);
+  if (t.top) {
+    return (
+      <span className="shrink-0 rounded bg-accent-400/25 px-1.5 py-0.5 text-xs font-bold text-accent-800">
+        ★ Super
+      </span>
+    );
+  }
+  return (
+    <span className="shrink-0 text-right text-xs font-semibold tabular-nums text-slate-500">
+      <span className="text-brand-700">{t.gap}</span>
+      <span className="text-slate-400"> → {t.next!.short}</span>
+    </span>
+  );
+}
+
 /** A dense ranked row used by the This-month / Next-3-months columns. */
-function RankRow({ r, i, max }: { r: BoardRowDTO; i: number; max?: number }) {
+function RankRow({ r, i, max, tier }: { r: BoardRowDTO; i: number; max?: number; tier?: boolean }) {
   return (
     <li className="flex min-h-8 flex-1 items-center gap-2 px-3 lg:min-h-0">
       <span
@@ -43,7 +62,8 @@ function RankRow({ r, i, max }: { r: BoardRowDTO; i: number; max?: number }) {
       </span>
       <span aria-hidden className={cx("size-2 shrink-0 rounded-full", genderDot(r.gender))} />
       <span className="flex-1 truncate text-base font-semibold text-brand-900">{r.name}</span>
-      {max != null && (
+      {tier && <TierChip count={r.count} />}
+      {!tier && max != null && (
         <div aria-hidden className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-slate-100 xl:block">
           <div
             className="h-full rounded-full bg-brand-400"
@@ -91,7 +111,6 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   const dailyTotal = data.daily.reduce((s, r) => s + r.count, 0);
   const monthly = [...data.monthly].sort((a, b) => b.count - a.count);
   const pipeline = [...data.pipeline].sort((a, b) => b.count - a.count);
-  const monthlyMax = Math.max(1, ...monthly.map((r) => r.count));
   const pct = data.monthlyGoal > 0 ? Math.round((data.monthlyTotal / data.monthlyGoal) * 100) : 0;
 
   return (
@@ -165,7 +184,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
           </div>
           <ol className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {monthly.map((r, i) => (
-              <RankRow key={r.staffId} r={r} i={i} max={monthlyMax} />
+              <RankRow key={r.staffId} r={r} i={i} tier />
             ))}
           </ol>
         </section>
