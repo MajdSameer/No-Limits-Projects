@@ -133,6 +133,7 @@ export function Board({
   const [data, setData] = useState<BoardsDTO>(initial);
   const [greet, setGreet] = useState<string | null>(welcome ?? null);
   const greetFired = useRef(false);
+  const inFlight = useRef(false);
 
   // Enable the gong after the first interaction (browser autoplay policy).
   useEffect(() => {
@@ -146,10 +147,15 @@ export function Board({
   }, []);
 
   const refetch = useCallback(() => {
+    if (inFlight.current) return; // don't stack — the board query takes a few seconds
+    inFlight.current = true;
     fetch("/api/boards", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: BoardsDTO | null) => d && setData(d))
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        inFlight.current = false;
+      });
   }, []);
   useLiveRefresh(["bookings", "clock"], refetch);
 
