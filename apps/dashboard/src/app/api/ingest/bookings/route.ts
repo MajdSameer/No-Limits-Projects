@@ -4,6 +4,9 @@ import { getDb } from "../../../../db/client";
 import { ingestBookings, type BookingRow } from "../../../../db/ingest-bookings";
 
 export const dynamic = "force-dynamic";
+// Bulk upsert keeps this well under a second, but allow headroom for a large
+// first push and a cold DB connection.
+export const maxDuration = 60;
 
 interface BookingsBody {
   rows?: BookingRow[];

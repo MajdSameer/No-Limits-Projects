@@ -10,7 +10,7 @@
  * non-roster name (ex-staff, other contractors) are skipped, as are rows for
  * companies that aren't NL/RRR/PM.
  */
-import { eq } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 
 import { hashPin } from "../lib/auth-core";
 import { newId } from "../lib/id";
@@ -84,6 +84,10 @@ export async function ingestBookings(db: Db, rows: BookingRow[]): Promise<Bookin
   const staffRows = await db.select({ id: schema.staff.id }).from(schema.staff);
   const known = new Set(staffRows.map((s) => s.id));
 
+  // Pass 1 — validate + map every row in memory (no DB round-trips). Dedup by
+  // job number, last row wins, so a single batch can't conflict with itself.
+  const valid = new Map<string, { repId: string; values: typeof schema.bookings.$inferInsert }>();
+  let needSubcontractor = false;
   for (const row of rows) {
     const jobNumber = str(row.jobNumber);
     const moveDate = str(row.moveDate);
@@ -102,58 +106,94 @@ export async function ingestBookings(db: Db, rows: BookingRow[]): Promise<Bookin
       result.skipped.unknownRep += 1;
       continue;
     }
-    if (isSub && !known.has(SUBCONTRACTOR_ID)) {
-      // Create the subcontractor as inactive staff so it's off the board but
-      // still satisfies the salesRep/createdBy foreign keys.
-      await db
-        .insert(schema.staff)
-        .values({ id: SUBCONTRACTOR_ID, name: "Domanic", pinHash: hashPin("1234"), active: false });
-      known.add(SUBCONTRACTOR_ID);
-    }
-    result.total += 1;
+    if (isSub) needSubcontractor = true;
 
-    const fields = {
-      company,
-      customerName: str(row.customerName),
-      customerPhone: str(row.customerPhone),
-      customerEmail: str(row.customerEmail),
-      pickup: str(row.pickup),
-      delivery: str(row.delivery),
-      state: str(row.state),
-      moveDate,
-      deposit: numOrNull(row.deposit),
-      beds: intOrNull(row.beds),
-      cubic: intOrNull(row.cubic),
-      men: intOrNull(row.men),
-      leadSource: str(row.leadSource),
-      notes: str(row.notes),
-      subcontractor: isSub,
-      salesRepId: repId,
-    };
-
-    const [existing] = await db
-      .select({ id: schema.bookings.id })
-      .from(schema.bookings)
-      .where(eq(schema.bookings.jobNumber, jobNumber))
-      .limit(1);
-
-    if (existing) {
-      await db
-        .update(schema.bookings)
-        .set({ ...fields, updatedAt: new Date() })
-        .where(eq(schema.bookings.id, existing.id));
-      result.updated += 1;
-    } else {
-      await db.insert(schema.bookings).values({
+    valid.set(jobNumber, {
+      repId,
+      values: {
         id: newId(),
         jobNumber,
-        ...fields,
+        company,
+        customerName: str(row.customerName),
+        customerPhone: str(row.customerPhone),
+        customerEmail: str(row.customerEmail),
+        pickup: str(row.pickup),
+        delivery: str(row.delivery),
+        state: str(row.state),
+        moveDate,
+        deposit: numOrNull(row.deposit),
+        beds: intOrNull(row.beds),
+        cubic: intOrNull(row.cubic),
+        men: intOrNull(row.men),
+        leadSource: str(row.leadSource),
+        notes: str(row.notes),
+        subcontractor: isSub,
+        salesRepId: repId,
         createdBy: repId,
         // Bucket the leaderboard on the job date (~Sydney midday), not import time.
         enteredAt: new Date(`${moveDate}T02:00:00.000Z`),
+      },
+    });
+  }
+
+  result.total = valid.size;
+  if (valid.size === 0) return result;
+
+  // Create the subcontractor as inactive staff so it's off the board but still
+  // satisfies the salesRep/createdBy foreign keys.
+  if (needSubcontractor && !known.has(SUBCONTRACTOR_ID)) {
+    await db
+      .insert(schema.staff)
+      .values({ id: SUBCONTRACTOR_ID, name: "Domanic", pinHash: hashPin("1234"), active: false })
+      .onConflictDoNothing();
+    known.add(SUBCONTRACTOR_ID);
+  }
+
+  // Tally inserted-vs-updated up front in one query (the upsert itself can't
+  // report which rows were new).
+  const jobNumbers = [...valid.keys()];
+  const existingRows = await db
+    .select({ jobNumber: schema.bookings.jobNumber })
+    .from(schema.bookings)
+    .where(inArray(schema.bookings.jobNumber, jobNumbers));
+  const existing = new Set(existingRows.map((r) => r.jobNumber));
+  for (const jn of jobNumbers) {
+    if (existing.has(jn)) result.updated += 1;
+    else result.inserted += 1;
+  }
+
+  // Pass 2 — one bulk upsert per chunk (keyed on the unique job number).
+  // Identity/provenance columns (id, createdBy, enteredAt) are preserved on
+  // conflict; only the mutable sheet fields are refreshed.
+  const now = new Date();
+  const rowsToWrite = [...valid.values()].map((v) => v.values);
+  const CHUNK = 200;
+  for (let i = 0; i < rowsToWrite.length; i += CHUNK) {
+    await db
+      .insert(schema.bookings)
+      .values(rowsToWrite.slice(i, i + CHUNK))
+      .onConflictDoUpdate({
+        target: schema.bookings.jobNumber,
+        set: {
+          company: sql`excluded.company`,
+          customerName: sql`excluded.customer_name`,
+          customerPhone: sql`excluded.customer_phone`,
+          customerEmail: sql`excluded.customer_email`,
+          pickup: sql`excluded.pickup`,
+          delivery: sql`excluded.delivery`,
+          state: sql`excluded.state`,
+          moveDate: sql`excluded.move_date`,
+          deposit: sql`excluded.deposit`,
+          beds: sql`excluded.beds`,
+          cubic: sql`excluded.cubic`,
+          men: sql`excluded.men`,
+          leadSource: sql`excluded.lead_source`,
+          notes: sql`excluded.notes`,
+          subcontractor: sql`excluded.subcontractor`,
+          salesRepId: sql`excluded.sales_rep_id`,
+          updatedAt: now,
+        },
       });
-      result.inserted += 1;
-    }
   }
 
   return result;
