@@ -11,6 +11,7 @@ import { BookingCelebration } from "./BookingCelebration";
 import { DailyCell } from "./DailyCell";
 import { useLiveRefresh } from "../lib/live";
 import { sydneyToday } from "../lib/sydney";
+import { tierProgress } from "../lib/tiers";
 
 export interface BoardRowDTO {
   staffId: string;
@@ -135,7 +136,6 @@ export function Board({
   const pipeline = [...data.pipeline].sort((a, b) => b.count - a.count);
   const dailyTotal = data.daily.reduce((s, r) => s + r.count, 0);
   const pct = data.monthlyGoal > 0 ? Math.round((data.monthlyTotal / data.monthlyGoal) * 100) : 0;
-  const monthlyMax = Math.max(1, ...monthly.map((r) => r.count));
 
   return (
     // lg+: lock to one landscape screen, no scroll. Smaller screens flow normally.
@@ -249,12 +249,18 @@ export function Board({
                 </span>
                 <span aria-hidden className={cx("size-2 shrink-0 rounded-full", genderDot(r.gender))} />
                 <span className="flex-1 truncate text-sm font-semibold text-brand-900">{r.name}</span>
-                <div aria-hidden className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-slate-100 xl:block">
-                  <div
-                    className="h-full rounded-full bg-brand-400"
-                    style={{ width: `${Math.round((r.count / monthlyMax) * 100)}%` }}
-                  />
-                </div>
+                {(() => {
+                  const t = tierProgress(r.count);
+                  return t.top ? (
+                    <span className="shrink-0 rounded bg-accent-400/25 px-1.5 text-xs font-bold text-accent-800">
+                      ★ Super
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded bg-slate-100 px-1.5 text-xs font-semibold whitespace-nowrap text-slate-600 tabular-nums">
+                      <span className="font-bold text-brand-700">{t.gap}</span> off {t.next!.short}
+                    </span>
+                  );
+                })()}
                 <span className="w-8 text-right text-base font-bold tabular-nums text-brand-900">
                   {r.count}
                 </span>
