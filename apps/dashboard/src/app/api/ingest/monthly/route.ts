@@ -4,7 +4,9 @@ import { getDb } from "../../../../db/client";
 import { ingestMonthly, ingestPipeline } from "../../../../db/ingest-monthly";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Tiny write (two upserts). Fail fast on a cold-DB hang so the caller's retry
+// kicks in quickly instead of waiting out a long timeout.
+export const maxDuration = 25;
 
 interface MonthlyBody {
   month?: string;
