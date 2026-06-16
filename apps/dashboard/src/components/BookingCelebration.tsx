@@ -12,7 +12,7 @@ import { playGong, risenBookings, type BookingPop, type DailyCountRow } from "..
  * plus a gong and confetti. Multiple bookings between polls queue up and play
  * one after another. Seeded silently on mount so a page load never fires.
  */
-const HOLD_MS = 4200; // how long one celebration stays up
+const HOLD_MS = 6500; // how long one celebration stays up (matches the long gong)
 const GAP_MS = 350; // beat between queued celebrations
 const MAX_QUEUE = 6; // don't black the wall out for a full minute on a big push
 
