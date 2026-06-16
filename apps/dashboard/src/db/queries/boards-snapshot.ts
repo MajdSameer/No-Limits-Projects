@@ -42,15 +42,18 @@ let inflight: Promise<BoardsSnapshot> | null = null;
 
 async function compute(): Promise<BoardsSnapshot> {
   const now = new Date();
-  const [daily, yesterday, monthly, pipeline, allocation, gameDay, monthlyGoal] = await Promise.all([
-    dailyBoard(now),
-    yesterdayBoard(now),
-    monthlyBoard(now),
-    pipelineBoard(now),
-    liveAllocation(now),
-    isGameDay(),
-    getMonthlyGoal(),
-  ]);
+  // Run the board queries SEQUENTIALLY, not via Promise.all. Firing them all at
+  // once opens a burst of pooler connections that stalls a cold instance (the
+  // source of the 504s); a timing probe proved that one-at-a-time they're
+  // reliably fast (~5s total cold, ~2s warm). The cache above means this only
+  // runs once every few seconds, so the slightly higher latency is invisible.
+  const daily = await dailyBoard(now);
+  const yesterday = await yesterdayBoard(now);
+  const monthly = await monthlyBoard(now);
+  const pipeline = await pipelineBoard(now);
+  const allocation = await liveAllocation(now);
+  const gameDay = await isGameDay();
+  const monthlyGoal = await getMonthlyGoal();
   const monthlyTotal = monthly.reduce((s, r) => s + r.count, 0);
   return {
     daily,
