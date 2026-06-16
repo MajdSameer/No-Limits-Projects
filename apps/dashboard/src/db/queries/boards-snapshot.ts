@@ -37,8 +37,10 @@ export interface BoardsSnapshot {
   generatedAtISO: string;
 }
 
-// Serve a cached snapshot this long without recomputing.
-const FRESH_MS = 15000;
+// Serve a cached snapshot this long without recomputing. Kept short so a new
+// booking shows on the board (and triggers the gong) within ~15s of being
+// entered — pooler handles the extra recomputes fine.
+const FRESH_MS = 8000;
 
 let cache: { at: number; data: BoardsSnapshot } | null = null;
 let inflight: Promise<BoardsSnapshot> | null = null;

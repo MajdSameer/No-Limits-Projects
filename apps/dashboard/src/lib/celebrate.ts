@@ -101,7 +101,8 @@ export function playGong(volume = 0.55): void {
   master.gain.value = volume;
   master.connect(c.destination);
 
-  // Inharmonic partials give the shimmering metallic "gong" timbre.
+  // Inharmonic partials give the shimmering metallic "gong" timbre. Long decay
+  // so it rings out for several seconds.
   const base = 110;
   const partials = [1, 2.71, 5.15, 8.6, 12.2];
   partials.forEach((ratio, i) => {
@@ -112,11 +113,11 @@ export function playGong(volume = 0.55): void {
     const peak = 0.6 / (i + 1);
     g.gain.setValueAtTime(0.0001, now);
     g.gain.exponentialRampToValueAtTime(peak, now + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 3.4 + i * 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 8 + i * 0.5);
     osc.connect(g);
     g.connect(master);
     osc.start(now);
-    osc.stop(now + 4.2);
+    osc.stop(now + 9.5);
   });
 
   // Short filtered noise = the mallet strike.
