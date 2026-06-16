@@ -39,10 +39,6 @@ export interface BoardsSnapshot {
 
 // Serve a cached snapshot this long without recomputing.
 const FRESH_MS = 15000;
-// On a cold instance with no snapshot yet, wait at most this long for the first
-// compute before serving an empty board (the after() refresh keeps running and
-// fills the cache for the next caller).
-const COLD_WAIT_MS = 8000;
 
 let cache: { at: number; data: BoardsSnapshot } | null = null;
 let inflight: Promise<BoardsSnapshot> | null = null;
@@ -115,16 +111,21 @@ function refresh(): Promise<BoardsSnapshot> {
 export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
   if (cache && Date.now() - cache.at < FRESH_MS) return cache.data; // fresh
   const job = refresh(); // coalesced
-  try {
-    // Return the promise so Vercel keeps the function alive until the refresh
-    // finishes and the cache is populated (it runs after the response is sent).
-    after(() => job.catch(() => {}));
-  } catch {
-    /* not in a request scope (build/test) — nothing to schedule */
+  if (cache) {
+    // Stale: serve it instantly and let the refresh finish after the response
+    // (Vercel keeps the function alive for after()), so the cache stays warm.
+    try {
+      after(() => job.catch(() => {}));
+    } catch {
+      /* not in a request scope (build/test) */
+    }
+    return cache.data;
   }
-  if (cache) return cache.data; // stale — served now, after() refreshes it
-  return Promise.race([
-    job.catch(() => emptySnapshot()),
-    new Promise<BoardsSnapshot>((resolve) => setTimeout(() => resolve(emptySnapshot()), COLD_WAIT_MS)),
-  ]);
+  // No snapshot yet: wait for the compute (the pooler makes it complete in a
+  // few seconds), falling back to an empty board only on a real DB error.
+  try {
+    return await job;
+  } catch {
+    return emptySnapshot();
+  }
 }
