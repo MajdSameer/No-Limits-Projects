@@ -44,16 +44,16 @@ function monthlyMessage(pct: number): string {
   return "Fresh month, big target — let's chase it 🚀";
 }
 
-/** Today's leaderboard tile — dark, glowing by gender. */
+/** Today's leaderboard tile — dark, glowing by gender. Shrinks to fit the grid
+ * so every rep is always visible (no fixed height to overflow). */
 function GlowCell({ r }: { r: BoardRowDTO }) {
   const tier = cellTier(r.count, r.goal);
   const hot = tier === "hit" || tier === "over" || tier === "wild";
-  const w = r.goal ? Math.min(100, (r.count / r.goal) * 100) : 0;
   return (
     <li
       title={cellMessage(r.staffId, sydneyToday(), tier)}
       className={cx(
-        "flex min-h-[4.5rem] flex-col justify-between rounded-xl bg-white/[0.06] p-2.5 lg:min-h-0",
+        "flex min-h-0 flex-col justify-center gap-0.5 overflow-hidden rounded-xl bg-white/[0.06] px-3 py-2",
         hot
           ? "ring-2 ring-accent-400 shadow-[0_0_28px_-2px_rgba(255,212,46,0.85)]"
           : glow(r.gender),
@@ -61,21 +61,12 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
     >
       <div className="flex items-center justify-between gap-1">
         <span className="truncate text-sm font-bold text-white">{r.name}</span>
-        {EMOJI[tier] && <span className="text-sm leading-none">{EMOJI[tier]}</span>}
+        {EMOJI[tier] && <span className="shrink-0 text-sm leading-none">{EMOJI[tier]}</span>}
       </div>
-      <p className="mt-1 text-3xl leading-none font-bold tracking-tight text-white">
+      <p className="text-[1.6rem] leading-none font-bold tracking-tight text-white">
         {r.count}
-        <span className="text-base text-white/45"> / {r.goal ?? "—"}</span>
+        <span className="text-sm font-semibold text-white/40"> / {r.goal ?? "—"}</span>
       </p>
-      <div aria-hidden className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-        <div
-          className={cx(
-            "h-full rounded-full transition-all duration-700",
-            hot ? "bg-accent-400" : "bg-white/45",
-          )}
-          style={{ width: `${w}%` }}
-        />
-      </div>
     </li>
   );
 }
@@ -100,7 +91,7 @@ function TierChip({ count }: { count: number }) {
 /** A dense ranked row (This month / Next 3 months) — dark. */
 function RankRow({ r, i, tier }: { r: BoardRowDTO; i: number; tier?: boolean }) {
   return (
-    <li className="flex min-h-8 flex-1 items-center gap-2 px-3 lg:min-h-0">
+    <li className="flex min-h-0 flex-1 items-center gap-2 overflow-hidden px-3">
       <span
         className={cx(
           "w-5 text-center text-sm font-bold",
@@ -210,7 +201,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
             <h2 className="text-lg font-bold text-white">Today</h2>
             <span className="text-sm font-medium text-white/50">{dailyTotal} bookings</span>
           </div>
-          <ul className="mt-2 grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-hidden sm:grid-cols-3 xl:grid-cols-4 lg:[grid-auto-rows:1fr]">
+          <ul className="mt-2 grid min-h-0 flex-1 grid-cols-3 gap-2.5 overflow-hidden sm:grid-cols-4 [grid-auto-rows:1fr]">
             {data.daily.map((r) => (
               <GlowCell key={r.staffId} r={r} />
             ))}
