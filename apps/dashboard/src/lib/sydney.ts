@@ -48,11 +48,11 @@ export function sydneyMonthRange(now: Date = new Date()): InstantRange {
 }
 
 /**
- * Date-string window for the pipeline board: move_date in [1st of this month,
- * 1st three months out) — i.e. the current month + the next two (≈ Jun 1 → Sep
- * 1). `to` is EXCLUSIVE. Compared against the DATE column directly.
+ * Date-string window for the pipeline board: move_date in [today, today+3mo],
+ * a rolling window from today's date. Both bounds inclusive. Compared against
+ * the DATE column directly.
  */
 export function next3MonthsDateRange(now: Date = new Date()): { from: string; to: string } {
   const zoned = toZonedTime(now, SYDNEY_TZ);
-  return { from: format(zoned, "yyyy-MM-01"), to: format(addMonths(zoned, 3), "yyyy-MM-01") };
+  return { from: format(zoned, "yyyy-MM-dd"), to: format(addMonths(zoned, 3), "yyyy-MM-dd") };
 }

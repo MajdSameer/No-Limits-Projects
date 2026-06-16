@@ -48,10 +48,10 @@ describe("date-string helpers", () => {
     expect(sydneyToday(new Date("2026-06-12T03:00:00Z"))).toBe("2026-06-12");
   });
 
-  test("next3MonthsDateRange spans the 1st of this month to the 1st three months out", () => {
+  test("next3MonthsDateRange is a rolling [today, today+3mo] window", () => {
     expect(next3MonthsDateRange(new Date("2026-06-12T03:00:00Z"))).toEqual({
-      from: "2026-06-01",
-      to: "2026-09-01",
+      from: "2026-06-12",
+      to: "2026-09-12",
     });
   });
 
