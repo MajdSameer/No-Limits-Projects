@@ -5,6 +5,8 @@ import { liveAllocation } from "../../../db/queries/allocation";
 import { getMonthlyGoal, isGameDay } from "../../../db/settings";
 
 export const dynamic = "force-dynamic";
+// Fail fast rather than hang the wall display if the DB is ever unreachable.
+export const maxDuration = 20;
 
 /**
  * Public by design (the wall TV has no session): first names, counts, goals,
