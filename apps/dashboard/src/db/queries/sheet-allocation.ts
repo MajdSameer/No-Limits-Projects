@@ -35,8 +35,13 @@ function sheetStatus(r: {
   return "off";
 }
 
-/** Who should receive the next lead, per the sheet's live clock. */
-export async function nextRepFromSheet(now: Date = new Date()): Promise<string | null> {
+/**
+ * Build the live allocation candidates from the sheet clock (rep_live) and
+ * today's recorded leads — one DB round-trip's worth of state. Callers that
+ * allocate a batch can bump each candidate's `leadsToday` in memory between
+ * picks instead of re-querying per lead.
+ */
+export async function buildSheetCandidates(now: Date = new Date()): Promise<AllocCandidate[]> {
   const db = await getDb();
   const today = sydneyToday(now);
   const { start, end } = sydneyDayRange(now);
@@ -59,7 +64,7 @@ export async function nextRepFromSheet(now: Date = new Date()): Promise<string |
   const leadsByStaff = new Map<string, number>();
   for (const l of leadRows) leadsByStaff.set(l.staffId, (leadsByStaff.get(l.staffId) ?? 0) + 1);
 
-  const candidates: AllocCandidate[] = reps.map((r) => {
+  return reps.map((r) => {
     const live = liveByStaff.get(r.id);
     return {
       staffId: r.id,
@@ -70,6 +75,9 @@ export async function nextRepFromSheet(now: Date = new Date()): Promise<string |
       leadsToday: leadsByStaff.get(r.id) ?? 0,
     };
   });
+}
 
-  return allocate(candidates).nextUp;
+/** Who should receive the next lead, per the sheet's live clock. */
+export async function nextRepFromSheet(now: Date = new Date()): Promise<string | null> {
+  return allocate(await buildSheetCandidates(now)).nextUp;
 }
