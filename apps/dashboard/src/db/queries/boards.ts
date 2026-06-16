@@ -1,6 +1,8 @@
 import { and, asc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
 
 import { getDb, schema } from "../client";
+import { monthSettingKey } from "../ingest-monthly";
+import { getSetting } from "../settings";
 import {
   next3MonthsDateRange,
   sydneyDayRange,
@@ -127,45 +129,36 @@ export async function yesterdayBoard(now: Date = new Date()): Promise<BoardRow[]
 }
 
 /**
- * Real monthly tally carried over from the team's existing tracking, used as
- * a starting baseline for the month it applies to. App-entered bookings are
- * added on top. (Manager's snapshot, 13 Jun 2026 — total 961.)
+ * This month's per-rep count as the SHEET tallies it (every Booking row with a
+ * sales person against a move date in the month), pushed via api/ingest/monthly
+ * and stored in app_settings. This is the number the floor watches; it counts
+ * raw rows, unlike the app's bookings table (deduped by job number). Empty
+ * until the Booking sheet pushes for this month — callers fall back then.
  */
-export const MONTHLY_BASELINE: { month: string; counts: Record<string, number> } = {
-  month: "2026-06",
-  counts: {
-    nisreen: 104,
-    francis: 100,
-    jenifer: 98,
-    randee: 91,
-    harry: 87,
-    hadeel: 71,
-    ann: 63,
-    issac: 60,
-    andy: 58,
-    max: 56,
-    mariam: 49,
-    hanna: 46,
-    emilia: 37,
-    jessica: 31,
-    hermez: 10,
-  },
-};
-
-function baselineFor(now: Date): Record<string, number> {
-  return MONTHLY_BASELINE.month === sydneyToday(now).slice(0, 7)
-    ? MONTHLY_BASELINE.counts
-    : {};
+async function sheetMonthCounts(now: Date): Promise<Map<string, number>> {
+  const raw = await getSetting(monthSettingKey(sydneyToday(now).slice(0, 7)), "");
+  if (!raw) return new Map();
+  try {
+    const obj = JSON.parse(raw) as Record<string, number>;
+    return new Map(Object.entries(obj).map(([id, n]) => [id, Number(n) || 0]));
+  } catch {
+    return new Map();
+  }
 }
 
-/** Bookings ENTERED this Sydney calendar month per rep, plus the baseline. */
+/**
+ * This Sydney calendar month per rep. Uses the live sheet tally when the
+ * Booking tab is pushing (the number the floor watches); otherwise falls back
+ * to bookings entered in the app this month.
+ */
 export async function monthlyBoard(now: Date = new Date()): Promise<BoardRow[]> {
   const { start, end } = sydneyMonthRange(now);
-  const [reps, counts] = await Promise.all([activeReps(), countsByEnteredAt(start, end)]);
-  const base = baselineFor(now);
-  const withBase = new Map(counts);
-  for (const [id, n] of Object.entries(base)) withBase.set(id, (withBase.get(id) ?? 0) + n);
-  return compose(reps, withBase, null);
+  const [reps, sheetCounts, appCounts] = await Promise.all([
+    activeReps(),
+    sheetMonthCounts(now),
+    countsByEnteredAt(start, end),
+  ]);
+  return compose(reps, sheetCounts.size > 0 ? sheetCounts : appCounts, null);
 }
 
 export interface TeamMonthly {

@@ -57,14 +57,24 @@ function pushBookings() {
   var cutoff = new Date();
   cutoff.setHours(0, 0, 0, 0);
   cutoff.setDate(cutoff.getDate() - WINDOW_DAYS);
+  var thisMonth = Utilities.formatDate(new Date(), tz, "yyyy-MM");
 
   var rows = [];
+  var monthCounts = {}; // sales person name -> rows with a move date this month
   for (var i = 0; i < values.length; i++) {
     var v = values[i];
     var job = String(v[COL.job] || "").trim();
     var date = v[COL.date];
-    if (!job || !(date instanceof Date) || isNaN(date.getTime())) continue;
-    if (date < cutoff) continue; // recent + upcoming only
+    if (!(date instanceof Date) || isNaN(date.getTime())) continue;
+
+    // Monthly tally: every row with a sales person + a move date this month
+    // (raw row count — the number the floor watches, not deduped by job).
+    var sales = String(v[COL.sales] || "").trim();
+    if (sales && Utilities.formatDate(date, tz, "yyyy-MM") === thisMonth) {
+      monthCounts[sales] = (monthCounts[sales] || 0) + 1;
+    }
+
+    if (!job || date < cutoff) continue; // bookings sync: recent + upcoming only
     rows.push({
       jobNumber: job,
       company: String(v[COL.company] || "").trim(),
@@ -83,6 +93,19 @@ function pushBookings() {
       leadSource: String(v[COL.leadFrom] || "").trim(),
       notes: String(v[COL.notes] || "").trim(),
     });
+  }
+
+  // Push the month tally first so the board's headline total is right even if
+  // the bigger bookings sync below is slow.
+  var monthlyRes = UrlFetchApp.fetch(url.replace(/\/$/, "") + "/api/ingest/monthly", {
+    method: "post",
+    contentType: "application/json",
+    headers: { Authorization: "Bearer " + secret },
+    payload: JSON.stringify({ month: thisMonth, counts: monthCounts }),
+    muteHttpExceptions: true,
+  });
+  if (monthlyRes.getResponseCode() >= 300) {
+    throw new Error("Monthly ingest failed " + monthlyRes.getResponseCode() + ": " + monthlyRes.getContentText());
   }
 
   var endpoint = url.replace(/\/$/, "") + "/api/ingest/bookings";
