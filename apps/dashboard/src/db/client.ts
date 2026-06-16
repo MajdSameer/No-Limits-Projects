@@ -25,8 +25,18 @@ const globalForDb = globalThis as unknown as { __nlDbPromise?: Promise<Db> };
 
 async function create(): Promise<Db> {
   if (process.env.DATABASE_URL) {
-    // prepare:false — required behind Supabase's transaction pooler.
-    const client = postgres(process.env.DATABASE_URL, { prepare: false });
+    // Serverless-safe pool. Each Vercel instance handles one request at a time,
+    // so a tiny pool is plenty; without an idle timeout, postgres-js keeps
+    // connections open forever and instances pile up until Supabase refuses new
+    // ones and every query hangs. connect_timeout fails fast instead of hanging.
+    //   prepare:false — required behind Supabase's transaction pooler.
+    const client = postgres(process.env.DATABASE_URL, {
+      prepare: false,
+      max: 5,
+      idle_timeout: 20,
+      max_lifetime: 60 * 10,
+      connect_timeout: 10,
+    });
     return drizzlePg(client, { schema });
   }
   const dataDir =
