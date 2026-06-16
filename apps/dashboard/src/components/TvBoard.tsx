@@ -6,7 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "@nlr/ui";
 
 import type { BoardsDTO } from "./Board";
-import { armAudio, celebrateGong, crossedThreshold, GONG_THRESHOLD } from "../lib/celebrate";
+import { BookingCelebration } from "./BookingCelebration";
+import { armAudio } from "../lib/celebrate";
 import { useLiveRefresh } from "../lib/live";
 import { SYDNEY_TZ, sydneyToday } from "../lib/sydney";
 
@@ -26,7 +27,6 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
   const [stale, setStale] = useState(false);
   const [clock, setClock] = useState("");
   const lastSuccess = useRef(Date.now());
-  const gongSeeded = useRef(false);
 
   // Enable the gong after any interaction (TV may need one click to unmute).
   useEffect(() => {
@@ -38,19 +38,6 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
       window.removeEventListener("keydown", arm);
     };
   }, []);
-
-  // Gong + confetti when a rep reaches 3 bookings today (once per rep/day).
-  useEffect(() => {
-    const key = `nl-gong3-${sydneyToday()}`;
-    const seen = new Set<string>(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);
-    const fresh = crossedThreshold(data.daily, seen, GONG_THRESHOLD);
-    localStorage.setItem(key, JSON.stringify([...seen]));
-    if (!gongSeeded.current) {
-      gongSeeded.current = true;
-      return;
-    }
-    if (fresh.length > 0) celebrateGong();
-  }, [data]);
 
   const refetch = useCallback(() => {
     fetch("/api/boards", { cache: "no-store" })
@@ -112,6 +99,7 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
 
   return (
     <main className="ink-grain flex h-dvh flex-col overflow-hidden bg-ink-950 text-manila-100">
+      <BookingCelebration daily={data.daily} />
       <header className="flex items-center justify-between border-b-2 border-accent-400 px-8 py-4">
         <p className="font-display text-2xl font-bold tracking-wide uppercase">
           No Limits <span className="text-accent-400">Ops</span>
