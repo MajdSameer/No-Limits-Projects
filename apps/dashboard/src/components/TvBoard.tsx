@@ -46,9 +46,13 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
     fetch("/api/boards", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: BoardsDTO) => {
-        setData(d);
-        lastSuccess.current = Date.now();
-        setStale(false);
+        // Ignore the empty fallback the API returns on a cold-DB hiccup —
+        // keep the last good board rather than blanking the wall display.
+        if (Array.isArray(d.daily) && d.daily.length > 0) {
+          setData(d);
+          lastSuccess.current = Date.now();
+          setStale(false);
+        }
       })
       .catch(() => setStale(Date.now() - lastSuccess.current > STALE_MS))
       .finally(() => {

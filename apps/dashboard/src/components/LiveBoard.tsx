@@ -76,7 +76,11 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
     inFlight.current = true;
     fetch("/api/boards", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: BoardsDTO | null) => d && setData(d))
+      // Ignore the empty fallback the API returns on a cold-DB hiccup —
+      // keep showing the last good board instead of blanking the screen.
+      .then((d: BoardsDTO | null) => {
+        if (d && Array.isArray(d.daily) && d.daily.length > 0) setData(d);
+      })
       .catch(() => undefined)
       .finally(() => {
         inFlight.current = false;
@@ -91,8 +95,14 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   const pct = data.monthlyGoal > 0 ? Math.round((data.monthlyTotal / data.monthlyGoal) * 100) : 0;
 
   return (
-    <main className="ops-bg flex h-dvh flex-col gap-3 overflow-hidden p-4 sm:p-5">
+    <main className="ops-bg relative flex h-dvh flex-col gap-3 overflow-hidden p-4 sm:p-5">
       <BookingCelebration daily={data.daily} />
+
+      {data.daily.length === 0 && (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-slate-50/95">
+          <p className="animate-pulse text-xl font-semibold text-slate-500">Loading the board…</p>
+        </div>
+      )}
 
       {/* Team monthly goal band */}
       <section className="relative shrink-0 overflow-hidden rounded-2xl bg-brand-900 px-5 py-3 text-white shadow-lg">

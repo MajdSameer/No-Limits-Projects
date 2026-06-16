@@ -107,7 +107,10 @@ export function Board({
     inFlight.current = true;
     fetch("/api/boards", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: BoardsDTO | null) => d && setData(d))
+      // Ignore the empty fallback the API returns on a cold-DB hiccup.
+      .then((d: BoardsDTO | null) => {
+        if (d && Array.isArray(d.daily) && d.daily.length > 0) setData(d);
+      })
       .catch(() => undefined)
       .finally(() => {
         inFlight.current = false;
