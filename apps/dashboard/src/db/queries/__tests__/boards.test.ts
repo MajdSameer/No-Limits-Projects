@@ -67,12 +67,22 @@ test("yesterday window", async () => {
   expect(rows.find((r) => r.staffId === "andy")?.count).toBe(0);
 });
 
-test("monthly counts the calendar month, plus the carried-over baseline", async () => {
-  const { MONTHLY_BASELINE } = await import("../boards");
-  const base = MONTHLY_BASELINE.counts;
-  const rows = await monthlyBoard(NOW); // NOW is 2026-06, so baseline applies
-  expect(rows.find((r) => r.staffId === "hanna")?.count).toBe(3 + (base.hanna ?? 0));
-  expect(rows.find((r) => r.staffId === "andy")?.count).toBe(2 + (base.andy ?? 0));
+test("monthly falls back to app bookings entered this month when no sheet push", async () => {
+  const rows = await monthlyBoard(NOW);
+  expect(rows.find((r) => r.staffId === "hanna")?.count).toBe(3);
+  expect(rows.find((r) => r.staffId === "andy")?.count).toBe(2);
+});
+
+test("monthly uses the sheet tally (raw row count) once the Booking tab pushes", async () => {
+  const { setSetting } = await import("../../settings");
+  const { monthSettingKey } = await import("../../ingest-monthly");
+  // 2026-06 sheet tally — higher than the app's deduped count, as on the floor.
+  await setSetting(monthSettingKey("2026-06"), JSON.stringify({ hanna: 46, andy: 58 }));
+  const rows = await monthlyBoard(NOW);
+  expect(rows.find((r) => r.staffId === "hanna")?.count).toBe(46);
+  expect(rows.find((r) => r.staffId === "andy")?.count).toBe(58);
+  // Clean up so other tests in this file see the fallback again.
+  await setSetting(monthSettingKey("2026-06"), "");
 });
 
 test("pipeline counts move dates within 3 months regardless of entry time", async () => {
