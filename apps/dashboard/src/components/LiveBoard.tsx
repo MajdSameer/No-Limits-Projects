@@ -30,20 +30,19 @@ function monthlyMessage(pct: number): string {
   return "Fresh month, big target — let's chase it 🚀";
 }
 
-/** Small chip showing how far a rep is off their next incentive tier. */
+/** Small chip showing how many bookings a rep is off their next incentive tier. */
 function TierChip({ count }: { count: number }) {
   const t = tierProgress(count);
   if (t.top) {
     return (
-      <span className="shrink-0 rounded bg-accent-400/25 px-1.5 py-0.5 text-xs font-bold text-accent-800">
-        ★ Super
+      <span className="shrink-0 rounded bg-accent-400/25 px-2 py-0.5 text-sm font-bold text-accent-800">
+        ★ Super Bonus
       </span>
     );
   }
   return (
-    <span className="shrink-0 text-right text-xs font-semibold tabular-nums text-slate-500">
-      <span className="text-brand-700">{t.gap}</span>
-      <span className="text-slate-400"> → {t.next!.short}</span>
+    <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-sm font-semibold whitespace-nowrap text-slate-600 tabular-nums">
+      <span className="font-bold text-brand-700">{t.gap}</span> off {t.next!.name}
     </span>
   );
 }
