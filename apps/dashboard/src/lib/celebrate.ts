@@ -53,19 +53,36 @@ export interface BookingPop {
 }
 
 /**
- * Pure: given the current daily rows and the per-rep counts we last saw,
- * return a pop for every rep whose count went UP (one per rep, carrying the
- * latest MovePro code), and update `prev` to the new counts. Reps not yet in
- * `prev` are only seeded — they don't fire — so a fresh page load is silent.
+ * Pure: new bookings since we last looked, deduped by MovePro job code so each
+ * booking fires exactly once — even though the polled board count bounces
+ * around (different server instances serve slightly stale snapshots) and resets
+ * each day. A code is celebrated the first time it's seen; reps with no codes
+ * fall back to a per-rep high-water count. On the seed pass it only records
+ * state and returns nothing, so a page load is silent. Mutates `seenCodes` /
+ * `seenCount`.
  */
-export function risenBookings(rows: DailyCountRow[], prev: Map<string, number>): BookingPop[] {
+export function newBookings(
+  rows: DailyCountRow[],
+  seenCodes: Set<string>,
+  seenCount: Map<string, number>,
+  seed: boolean,
+): BookingPop[] {
   const pops: BookingPop[] = [];
   for (const r of rows) {
-    const before = prev.get(r.staffId);
-    if (before !== undefined && r.count > before) {
-      pops.push({ staffId: r.staffId, name: r.name, code: r.jobCodes?.at(-1) ?? null });
+    const codes = (r.jobCodes ?? []).map((c) => String(c).trim()).filter(Boolean);
+    if (codes.length > 0) {
+      for (const code of codes) {
+        if (seenCodes.has(code)) continue;
+        seenCodes.add(code);
+        if (!seed) pops.push({ staffId: r.staffId, name: r.name, code });
+      }
+    } else {
+      const before = seenCount.get(r.staffId);
+      if (!seed && before !== undefined && r.count > before) {
+        pops.push({ staffId: r.staffId, name: r.name, code: null });
+      }
+      if (before === undefined || r.count > before) seenCount.set(r.staffId, r.count);
     }
-    prev.set(r.staffId, r.count);
   }
   return pops;
 }

@@ -40,7 +40,7 @@ export interface BoardsSnapshot {
 // Serve a cached snapshot this long without recomputing. Kept short so a new
 // booking shows on the board (and triggers the gong) within ~15s of being
 // entered — pooler handles the extra recomputes fine.
-const FRESH_MS = 8000;
+const FRESH_MS = 5000;
 // First compute on a cold instance: wait at most this long, then serve an empty
 // board (the after() refresh keeps running to fill the cache). Bounds the cold
 // path so it can never hang into a 504.

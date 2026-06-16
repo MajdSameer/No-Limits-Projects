@@ -3,14 +3,14 @@
 import confetti from "canvas-confetti";
 import { useEffect, useRef, useState } from "react";
 
-import { playGong, risenBookings, type BookingPop, type DailyCountRow } from "../lib/celebrate";
+import { newBookings, playGong, type BookingPop, type DailyCountRow } from "../lib/celebrate";
 
 /**
- * Live "someone just booked!" moment. Whenever a rep's daily count ticks up
- * (every single booking — detected from the polled board data), the screen
- * blacks out and the rep's name pops in with the MovePro number underneath,
- * plus a gong and confetti. Multiple bookings between polls queue up and play
- * one after another. Seeded silently on mount so a page load never fires.
+ * Live "someone just booked!" moment. When a new booking appears (deduped by
+ * MovePro job code, so it fires exactly once even as the polled count bounces),
+ * the screen blacks out and the rep's name pops in with the MovePro number
+ * underneath, plus a gong and confetti. Multiple bookings queue up and play one
+ * after another. Seeded silently on mount so a page load never fires.
  */
 const HOLD_MS = 6500; // how long one celebration stays up (matches the long gong)
 const GAP_MS = 350; // beat between queued celebrations
@@ -26,14 +26,18 @@ function reducedMotion(): boolean {
 }
 
 export function BookingCelebration({ daily }: { daily: DailyCountRow[] }) {
-  const prev = useRef<Map<string, number>>(new Map());
+  const seenCodes = useRef<Set<string>>(new Set());
+  const seenCount = useRef<Map<string, number>>(new Map());
+  const seeded = useRef(false);
   const queue = useRef<BookingPop[]>([]);
   const running = useRef(false);
   const timers = useRef<number[]>([]);
   const [active, setActive] = useState<BookingPop | null>(null);
 
   useEffect(() => {
-    const pops = risenBookings(daily, prev.current);
+    if (daily.length === 0) return; // ignore the empty cold-DB fallback
+    const pops = newBookings(daily, seenCodes.current, seenCount.current, !seeded.current);
+    seeded.current = true;
     if (pops.length === 0) return;
     for (const p of pops) {
       if (queue.current.length < MAX_QUEUE) queue.current.push(p);
