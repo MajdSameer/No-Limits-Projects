@@ -3,7 +3,9 @@ import { expect, test } from "vitest";
 
 process.env.PGLITE_DIR = ":memory:";
 const { getDb, schema } = await import("../client");
-const { ingestMonthly, monthSettingKey } = await import("../ingest-monthly");
+const { ingestMonthly, ingestPipeline, monthSettingKey, PIPELINE_KEY } = await import(
+  "../ingest-monthly"
+);
 const db = await getDb();
 
 test("monthly ingest: slugs names, sums variants, stores a per-month blob", async () => {
@@ -37,4 +39,15 @@ test("monthly ingest: slugs names, sums variants, stores a per-month blob", asyn
 
 test("monthly ingest: rejects a malformed month", async () => {
   await expect(ingestMonthly(db, "2026/06", { Francis: 1 })).rejects.toThrow();
+});
+
+test("pipeline ingest: slugs + stores the rolling next-3-months blob", async () => {
+  const res = await ingestPipeline(db, { Francis: 40, "Hanna ": 25, Hanna: 0 });
+  expect(res.total).toBe(65);
+  expect(res.reps).toBe(2);
+  const [row] = await db
+    .select()
+    .from(schema.appSettings)
+    .where(eq(schema.appSettings.key, PIPELINE_KEY));
+  expect(JSON.parse(row!.value)).toEqual({ francis: 40, hanna: 25 });
 });

@@ -85,12 +85,22 @@ test("monthly uses the sheet tally (raw row count) once the Booking tab pushes",
   await setSetting(monthSettingKey("2026-06"), "");
 });
 
-test("pipeline counts move dates within 3 months regardless of entry time", async () => {
-  const rows = await pipelineBoard(NOW);
-  // andy: 2026-06-20, 2026-07-15, 2026-08-01 (deleted 06-25 excluded) = 3
+test("pipeline (fallback) counts move dates from the 1st of the month, 3 months out", async () => {
+  const rows = await pipelineBoard(NOW); // NOW = 2026-06-12 → window [2026-06-01, 2026-09-01)
+  // andy: 06-20, 07-15, 08-01 (deleted 06-25 excluded) = 3
   expect(rows.find((r) => r.staffId === "andy")?.count).toBe(3);
   // hanna: 06-18, 06-13 in window; 10-01 outside = 2
   expect(rows.find((r) => r.staffId === "hanna")?.count).toBe(2);
+});
+
+test("pipeline uses the sheet tally (raw row count) once the Booking tab pushes", async () => {
+  const { setSetting } = await import("../../settings");
+  const { PIPELINE_KEY } = await import("../../ingest-monthly");
+  await setSetting(PIPELINE_KEY, JSON.stringify({ andy: 40, hanna: 25 }));
+  const rows = await pipelineBoard(NOW);
+  expect(rows.find((r) => r.staffId === "andy")?.count).toBe(40);
+  expect(rows.find((r) => r.staffId === "hanna")?.count).toBe(25);
+  await setSetting(PIPELINE_KEY, ""); // clean up for other tests
 });
 
 test("inactive staff and managers never appear", async () => {
