@@ -25,22 +25,14 @@ const globalForDb = globalThis as unknown as { __nlDbPromise?: Promise<Db> };
 
 async function create(): Promise<Db> {
   if (process.env.DATABASE_URL) {
-    // Serverless-safe pool. Each Vercel instance handles one request at a time,
-    // so a tiny pool is plenty; without an idle timeout, postgres-js keeps
-    // connections open forever and instances pile up until Supabase refuses new
-    // ones and every query hangs. connect_timeout fails fast instead of hanging.
-    //   prepare:false — required behind Supabase's transaction pooler.
+    // DATABASE_URL points at Supabase's transaction pooler (port 6543), which is
+    // built for many short-lived serverless connections, so a normal pool is
+    // fine — the board's queries can fan out again. idle_timeout closes idle
+    // connections so they can't accumulate across instances; connect_timeout
+    // fails fast instead of hanging. prepare:false is required for the pooler.
     const client = postgres(process.env.DATABASE_URL, {
       prepare: false,
-      // Small pool. Opening many Supabase-pooler connections at once stalls this
-      // instance's tiny DB, so the board (~17 queries) must not fan out wide.
-      // The board is now computed behind a short cache that coalesces concurrent
-      // requests (see boards-snapshot), so only ONE board computation runs at a
-      // time per instance — a pool of 3 lets that single computation finish
-      // quickly without the cross-request connection storm that 504'd before.
-      // idle_timeout closes idle connections so they can't accumulate (the
-      // original outage); connect_timeout fails fast instead of hanging.
-      max: 3,
+      max: 10,
       idle_timeout: 20,
       max_lifetime: 60 * 10,
       connect_timeout: 10,
