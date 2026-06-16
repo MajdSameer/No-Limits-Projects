@@ -32,13 +32,15 @@ async function create(): Promise<Db> {
     //   prepare:false — required behind Supabase's transaction pooler.
     const client = postgres(process.env.DATABASE_URL, {
       prepare: false,
-      // The board endpoint fires ~17 queries; let them run a few at a time so
-      // it stays fast. The original outage wasn't the pool SIZE — it was the
-      // missing idle_timeout: with postgres-js's default (no idle timeout) every
-      // Vercel instance kept its connections open forever until Supabase ran
-      // out. idle_timeout closes idle connections, so a modest pool no longer
-      // accumulates. connect_timeout fails fast instead of hanging.
-      max: 8,
+      // The board endpoint fires ~17 queries via Promise.all. Each query is
+      // fast (a timing probe ran all of them sequentially in ~7s), but opening
+      // many connections to the Supabase pooler AT ONCE stalls — max:8 made the
+      // endpoint 504 while the same queries run one-at-a-time were fine. A small
+      // pool makes the queries queue through a few connections instead of each
+      // demanding its own, which is both reliable and fast.
+      // idle_timeout closes idle connections so they can't accumulate (the
+      // original outage); connect_timeout fails fast instead of hanging.
+      max: 3,
       idle_timeout: 20,
       max_lifetime: 60 * 10,
       connect_timeout: 10,
