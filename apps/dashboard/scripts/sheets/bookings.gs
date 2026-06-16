@@ -59,9 +59,12 @@ function pushBookings() {
   cutoff.setDate(cutoff.getDate() - WINDOW_DAYS);
   var nowd = new Date();
   var thisMonth = Utilities.formatDate(nowd, tz, "yyyy-MM");
-  // Pipeline window = a rolling [today, today + 3 months], both inclusive.
-  var pipeFrom = new Date(nowd.getFullYear(), nowd.getMonth(), nowd.getDate());
-  var pipeTo = new Date(nowd.getFullYear(), nowd.getMonth() + 3, nowd.getDate());
+  // Pipeline window = this month + the next two (e.g. Jun, Jul, Aug — counts ALL
+  // of the current month, including days before today).
+  var pipeMonths = {};
+  for (var k = 0; k < 3; k++) {
+    pipeMonths[Utilities.formatDate(new Date(nowd.getFullYear(), nowd.getMonth() + k, 1), tz, "yyyy-MM")] = 1;
+  }
 
   var rows = [];
   var monthCounts = {}; // sales person -> rows with a move date this month
@@ -72,12 +75,13 @@ function pushBookings() {
     var date = v[COL.date];
     if (!(date instanceof Date) || isNaN(date.getTime())) continue;
 
-    // Tallies: every row with a sales person (raw row count — the number the
-    // floor watches, not deduped by job).
+    // Tallies: every row with a sales person, by the month of its move date
+    // (raw row count — the number the floor watches, not deduped by job).
     var sales = String(v[COL.sales] || "").trim();
     if (sales) {
-      if (Utilities.formatDate(date, tz, "yyyy-MM") === thisMonth) monthCounts[sales] = (monthCounts[sales] || 0) + 1;
-      if (date >= pipeFrom && date <= pipeTo) pipelineCounts[sales] = (pipelineCounts[sales] || 0) + 1;
+      var ym = Utilities.formatDate(date, tz, "yyyy-MM");
+      if (ym === thisMonth) monthCounts[sales] = (monthCounts[sales] || 0) + 1;
+      if (pipeMonths[ym]) pipelineCounts[sales] = (pipelineCounts[sales] || 0) + 1;
     }
 
     if (!job || date < cutoff) continue; // bookings sync: recent + upcoming only
