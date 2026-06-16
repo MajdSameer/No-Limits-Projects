@@ -4,6 +4,9 @@ import { getDb } from "../../../../db/client";
 import { ingestLeads, type LeadRow } from "../../../../db/ingest-leads";
 
 export const dynamic = "force-dynamic";
+// Batch is allocated in memory off one snapshot, but allow headroom for a
+// large first push and a cold DB connection.
+export const maxDuration = 60;
 
 interface LeadsBody {
   rows?: LeadRow[];
