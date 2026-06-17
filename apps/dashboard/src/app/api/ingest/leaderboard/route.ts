@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getDb } from "../../../../db/client";
 import { ingestLeaderboard, type LeaderboardRow } from "../../../../db/ingest-leaderboard";
+import { notify } from "../../../../lib/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await ingestLeaderboard(await getDb(), body.rows, body.asOfDate);
+    notify("bookings"); // nudge live boards to refetch right away (not just on poll)
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
