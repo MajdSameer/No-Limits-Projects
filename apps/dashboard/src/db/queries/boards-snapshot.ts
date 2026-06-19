@@ -12,8 +12,6 @@
  * underlying data continuously and a few seconds of staleness on a wall board
  * is invisible.
  */
-import { after } from "next/server";
-
 import { dailyBoard, monthlyBoard, pipelineBoard, yesterdayBoard, type BoardRow } from "./boards";
 import { liveAllocation } from "./allocation";
 import { getMonthlyGoal, isGameDay } from "../settings";
@@ -40,11 +38,7 @@ export interface BoardsSnapshot {
 // Serve a cached snapshot this long without recomputing. Kept short so a new
 // booking shows on the board (and triggers the gong) within ~15s of being
 // entered — pooler handles the extra recomputes fine.
-const FRESH_MS = 5000;
-// First compute on a cold instance: wait at most this long, then serve an empty
-// board (the after() refresh keeps running to fill the cache). Bounds the cold
-// path so it can never hang into a 504.
-const COLD_WAIT_MS = 9000;
+const FRESH_MS = 4000;
 
 let cache: { at: number; data: BoardsSnapshot } | null = null;
 let inflight: Promise<BoardsSnapshot> | null = null;
@@ -105,30 +99,19 @@ function refresh(): Promise<BoardsSnapshot> {
 }
 
 /**
- * The current board snapshot, never hanging and never blanking:
- *  - Fresh cache → return instantly.
- *  - Stale cache → return it instantly and refresh via after() (which runs past
- *    the response, so the cache updates even though Vercel freezes the instance).
- *  - No cache yet → wait briefly for the first (coalesced) compute, else serve
- *    an empty board while after() keeps computing to fill the cache.
- * The client ignores empty responses, so it keeps the last good board and picks
- * up real data on the next poll once the cache is warm.
+ * The current board snapshot. Within the short fresh window the cache is served
+ * instantly; otherwise we AWAIT a fresh compute (coalesced, so concurrent
+ * callers share one) so every caller gets CURRENT data — that's what makes a new
+ * booking appear (and gong) within ~15s, instead of bouncing around stale
+ * per-instance caches. The pooler makes the recompute reliable (~2s warm); on a
+ * DB error we fall back to the last good snapshot, or an empty board, rather
+ * than throwing. The route's maxDuration caps any pathological hang.
  */
 export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
   if (cache && Date.now() - cache.at < FRESH_MS) return cache.data; // fresh
-  const job = refresh(); // coalesced
-  // Let the refresh finish past the response (Vercel keeps the function alive
-  // for after()), so the cache populates even on a cold instance.
   try {
-    after(() => job.catch(() => {}));
+    return await refresh(); // coalesced — returns current data
   } catch {
-    /* not in a request scope (build/test) */
+    return cache?.data ?? emptySnapshot();
   }
-  if (cache) return cache.data; // stale — served instantly, after() refreshes it
-  // No snapshot yet: wait briefly, then serve an empty board if the cold compute
-  // is slow (after() keeps it running to fill the cache). Never hangs into a 504.
-  return Promise.race([
-    job.catch(() => emptySnapshot()),
-    new Promise<BoardsSnapshot>((resolve) => setTimeout(() => resolve(emptySnapshot()), COLD_WAIT_MS)),
-  ]);
 }
