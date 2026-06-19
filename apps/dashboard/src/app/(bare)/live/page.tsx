@@ -3,7 +3,7 @@ import { LiveBoard } from "../../../components/LiveBoard";
 
 export const metadata = { title: "Live board" };
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 25;
 
 /**
  * Wall-display leaderboard — the dashboard's "Today" board, full-screen with no
