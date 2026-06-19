@@ -12,6 +12,8 @@
  * underlying data continuously and a few seconds of staleness on a wall board
  * is invisible.
  */
+import { after } from "next/server";
+
 import { dailyBoard, monthlyBoard, pipelineBoard, yesterdayBoard, type BoardRow } from "./boards";
 import { liveAllocation } from "./allocation";
 import { getMonthlyGoal, isGameDay } from "../settings";
@@ -110,16 +112,21 @@ function refresh(): Promise<BoardsSnapshot> {
 export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
   if (cache && Date.now() - cache.at < FRESH_MS) return cache.data; // fresh
   const job = refresh(); // coalesced — current data
+  // Keep the compute alive past the response (Vercel after()) so the cache fills
+  // even when the soft cap below fires on a slow cold instance.
+  try {
+    after(() => job.catch(() => {}));
+  } catch {
+    /* not in a request scope (build/test) */
+  }
   try {
     return await Promise.race([
       job,
       new Promise<BoardsSnapshot>((_, reject) => setTimeout(() => reject(new Error("slow")), 12000)),
     ]);
   } catch {
-    // The compute errored or is taking too long on a cold instance: serve the
-    // last good snapshot (or empty) so we never hang into a 504. The compute
-    // keeps running and fills the cache for the next caller.
-    void job.catch(() => {});
+    // Compute errored or is taking too long: serve the last good snapshot (or
+    // empty) so we never hang into a 504; after() finishes filling the cache.
     return cache?.data ?? emptySnapshot();
   }
 }
