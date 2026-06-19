@@ -109,9 +109,17 @@ function refresh(): Promise<BoardsSnapshot> {
  */
 export async function getBoardsSnapshot(): Promise<BoardsSnapshot> {
   if (cache && Date.now() - cache.at < FRESH_MS) return cache.data; // fresh
+  const job = refresh(); // coalesced — current data
   try {
-    return await refresh(); // coalesced — returns current data
+    return await Promise.race([
+      job,
+      new Promise<BoardsSnapshot>((_, reject) => setTimeout(() => reject(new Error("slow")), 12000)),
+    ]);
   } catch {
+    // The compute errored or is taking too long on a cold instance: serve the
+    // last good snapshot (or empty) so we never hang into a 504. The compute
+    // keeps running and fills the cache for the next caller.
+    void job.catch(() => {});
     return cache?.data ?? emptySnapshot();
   }
 }
