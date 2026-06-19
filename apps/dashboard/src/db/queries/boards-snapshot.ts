@@ -47,16 +47,18 @@ let inflight: Promise<BoardsSnapshot> | null = null;
 
 async function compute(): Promise<BoardsSnapshot> {
   const now = new Date();
-  // Fan out — the transaction pooler handles the concurrent connections fine.
-  const [daily, yesterday, monthly, pipeline, allocation, gameDay, monthlyGoal] = await Promise.all([
-    dailyBoard(now),
-    yesterdayBoard(now),
-    monthlyBoard(now),
-    pipelineBoard(now),
-    liveAllocation(now),
-    isGameDay(),
-    getMonthlyGoal(),
-  ]);
+  // Run the boards ONE AT A TIME, not Promise.all. Fanning out fires ~17
+  // queries at once, which opens too many Supabase-pooler connections
+  // simultaneously and stalls (a timing probe: sequential ~5s total, parallel
+  // timed out >20s). Each board internally still parallelises its own few
+  // queries — that's fine; it's the all-at-once burst that stalls.
+  const daily = await dailyBoard(now);
+  const yesterday = await yesterdayBoard(now);
+  const monthly = await monthlyBoard(now);
+  const pipeline = await pipelineBoard(now);
+  const allocation = await liveAllocation(now);
+  const gameDay = await isGameDay();
+  const monthlyGoal = await getMonthlyGoal();
   const monthlyTotal = monthly.reduce((s, r) => s + r.count, 0);
   return {
     daily,
