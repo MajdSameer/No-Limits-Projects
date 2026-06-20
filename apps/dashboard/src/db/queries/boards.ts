@@ -86,6 +86,37 @@ function compose(
 }
 
 /**
+ * Today's combined daily target: the sum of the daily goals of the reps who are
+ * clocked in today (rep_live.timeIn set on today's snapshot), and how many that
+ * is. Grows through the day as people come on shift.
+ */
+export async function dailyTeamGoal(
+  now: Date = new Date(),
+): Promise<{ target: number; active: number }> {
+  const db = await getDb();
+  const today = sydneyToday(now);
+  const [liveRows, goals] = await Promise.all([
+    db
+      .select({
+        staffId: schema.repLive.staffId,
+        timeIn: schema.repLive.timeIn,
+        asOf: schema.repLive.asOfDate,
+      })
+      .from(schema.repLive),
+    currentGoals(now),
+  ]);
+  let target = 0;
+  let active = 0;
+  for (const r of liveRows) {
+    if (r.asOf !== today) continue;
+    if (!r.timeIn || !String(r.timeIn).trim()) continue; // clocked in today
+    active += 1;
+    target += goals.get(r.staffId) ?? 0;
+  }
+  return { target, active };
+}
+
+/**
  * Today's booking count per rep straight from the live "Leaderboard" sheet
  * (rep_live, pushed by the Apps Script). Empty until the sheet pushes a
  * snapshot for today — callers fall back to the app's own count then.

@@ -14,7 +14,14 @@
  */
 import { after } from "next/server";
 
-import { dailyBoard, monthlyBoard, pipelineBoard, yesterdayBoard, type BoardRow } from "./boards";
+import {
+  dailyBoard,
+  dailyTeamGoal,
+  monthlyBoard,
+  pipelineBoard,
+  yesterdayBoard,
+  type BoardRow,
+} from "./boards";
 import { liveAllocation } from "./allocation";
 import { getMonthlyGoal, isGameDay } from "../settings";
 
@@ -34,6 +41,10 @@ export interface BoardsSnapshot {
   gameDay: boolean;
   monthlyGoal: number;
   monthlyTotal: number;
+  /** Combined daily target = sum of goals of reps clocked in today. */
+  dailyTarget: number;
+  /** How many reps are clocked in today (drives dailyTarget). */
+  activeToday: number;
   generatedAtISO: string;
 }
 
@@ -59,6 +70,7 @@ async function compute(): Promise<BoardsSnapshot> {
   const allocation = await liveAllocation(now);
   const gameDay = await isGameDay();
   const monthlyGoal = await getMonthlyGoal();
+  const { target: dailyTarget, active: activeToday } = await dailyTeamGoal(now);
   const monthlyTotal = monthly.reduce((s, r) => s + r.count, 0);
   return {
     daily,
@@ -69,6 +81,8 @@ async function compute(): Promise<BoardsSnapshot> {
     gameDay,
     monthlyGoal,
     monthlyTotal,
+    dailyTarget,
+    activeToday,
     generatedAtISO: now.toISOString(),
   };
 }
@@ -82,8 +96,10 @@ function emptySnapshot(): BoardsSnapshot {
     pipeline: [],
     allocation: { eligible: [], nextUp: null, totalLeadsToday: 0 },
     gameDay: false,
-    monthlyGoal: 1500,
+    monthlyGoal: 1995,
     monthlyTotal: 0,
+    dailyTarget: 0,
+    activeToday: 0,
     generatedAtISO: new Date().toISOString(),
   };
 }
