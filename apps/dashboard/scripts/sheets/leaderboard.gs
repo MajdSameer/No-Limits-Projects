@@ -16,7 +16,7 @@
 
 var TAB = "Leaderboard";
 var ROSTER_RANGE = "A5:J25"; // weight,name,goal, … ,clockName,timeIn,breakStart,breakEnd,timeOut,hours
-var COUNTS_RANGE = "A39:H60"; // flag,name,count, jobCode…
+var COUNTS_RANGE = "A39:Z60"; // flag,name,count, then job codes across (D onward — wide enough for reps with 6+ today)
 
 function pushLeaderboard() {
   var props = PropertiesService.getScriptProperties();
