@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm";
 
 import { logAudit } from "../../db/audit";
 import { getDb, schema } from "../../db/client";
-import { setSetting } from "../../db/settings";
+import { shiftOverrideKey } from "../../db/queries/boards";
+import { getSetting, setSetting } from "../../db/settings";
 import { hashPin, validPinFormat } from "../../lib/auth-core";
 import { newId } from "../../lib/id";
 import { notify } from "../../lib/notify";
@@ -158,6 +159,43 @@ export async function setMonthlyGoal(goal: number): Promise<ActionState> {
   await logAudit({ staffId: manager.staffId, action: "settings.monthly_goal", entity: "app_settings", entityId: "monthly_goal", diff: { goal } });
   notify("bookings");
   revalidatePath("/");
+  revalidatePath("/manage");
+  return {};
+}
+
+/**
+ * Set whether a rep is on shift today, driving the live daily team target.
+ * `onShift` true/false forces them on/off regardless of the sheet; `null` clears
+ * the override so they follow the sheet's clock-in again. Resets daily (the
+ * override is stored under a date-stamped key). Manager-only.
+ */
+export async function setOnShift(
+  staffId: string,
+  onShift: boolean | null,
+): Promise<ActionState> {
+  const manager = await requireManager();
+  const key = shiftOverrideKey();
+  const raw = await getSetting(key, "");
+  let obj: Record<string, boolean> = {};
+  if (raw) {
+    try {
+      obj = JSON.parse(raw) as Record<string, boolean>;
+    } catch {
+      obj = {};
+    }
+  }
+  if (onShift === null) delete obj[staffId];
+  else obj[staffId] = onShift;
+  await setSetting(key, JSON.stringify(obj));
+  await logAudit({
+    staffId: manager.staffId,
+    action: onShift === null ? "shift.clear" : onShift ? "shift.clock_in" : "shift.clock_out",
+    entity: "app_settings",
+    entityId: key,
+    diff: { staffId, onShift },
+  });
+  notify("clock"); // clock indicators + roster
+  notify("bookings"); // the live daily target depends on who's on shift
   revalidatePath("/manage");
   return {};
 }
