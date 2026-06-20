@@ -129,6 +129,31 @@ dialog::backdrop {
 }
 
 /* ── Live booking celebration (BookingCelebration overlay) ────────── */
+/* Whole-overlay fade in/out so it never snaps on or off. */
+@keyframes nl-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.nl-overlay-in {
+  animation: nl-overlay-in 0.22s ease-out both;
+}
+
+@keyframes nl-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.nl-overlay-out {
+  animation: nl-overlay-out 0.5s ease-in both;
+}
+
 @keyframes nl-pop {
   from {
     opacity: 0;
@@ -144,6 +169,7 @@ dialog::backdrop {
 }
 .nl-pop {
   animation: nl-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
 }
 
 @keyframes nl-pop-lg {
@@ -161,6 +187,7 @@ dialog::backdrop {
 }
 .nl-pop-lg {
   animation: nl-pop-lg 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
 }
 
 @keyframes nl-rise {
@@ -175,19 +202,32 @@ dialog::backdrop {
 }
 .nl-rise {
   animation: nl-rise 0.5s 0.15s ease-out both;
+  will-change: transform, opacity;
 }
 
 @keyframes nl-glow {
   0%,
   100% {
-    opacity: 0.35;
+    opacity: 0.4;
   }
   50% {
     opacity: 0.75;
   }
 }
 .nl-glow {
-  animation: nl-glow 2.2s ease-in-out infinite;
+  animation: nl-glow 2.4s ease-in-out infinite;
+  will-change: opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-overlay-in,
+  .nl-overlay-out,
+  .nl-pop,
+  .nl-pop-lg,
+  .nl-rise,
+  .nl-glow {
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
