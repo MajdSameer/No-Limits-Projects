@@ -59,7 +59,7 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
       )}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-base font-bold text-white">
+        <span className="truncate text-xl font-bold text-white">
           {r.name}
           {EMOJI[tier] && <span className="ml-1">{EMOJI[tier]}</span>}
         </span>
