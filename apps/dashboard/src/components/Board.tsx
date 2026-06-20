@@ -40,6 +40,10 @@ export interface BoardsDTO {
   gameDay: boolean;
   monthlyGoal: number;
   monthlyTotal: number;
+  /** Combined daily target = sum of goals of reps clocked in today. */
+  dailyTarget: number;
+  /** How many reps are clocked in today. */
+  activeToday: number;
   generatedAtISO: string;
 }
 

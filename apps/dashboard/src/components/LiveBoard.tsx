@@ -157,6 +157,9 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   const monthly = [...data.monthly].sort((a, b) => b.count - a.count);
   const pipeline = [...data.pipeline].sort((a, b) => b.count - a.count);
   const pct = data.monthlyGoal > 0 ? Math.round((data.monthlyTotal / data.monthlyGoal) * 100) : 0;
+  const dailyTarget = data.dailyTarget ?? 0;
+  const dailyPct = dailyTarget > 0 ? Math.round((dailyTotal / dailyTarget) * 100) : 0;
+  const dailyHit = dailyTarget > 0 && dailyTotal >= dailyTarget;
 
   return (
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
@@ -168,43 +171,84 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
         </div>
       )}
 
-      {/* Team monthly goal band */}
-      <section className="relative shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 shadow-lg">
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-0 opacity-60 [background:radial-gradient(80%_140%_at_100%_0%,rgba(255,212,46,0.12),transparent_60%)]"
-        />
-        <div className="relative flex items-center gap-5">
-          <div className="shrink-0">
-            <p className="text-[0.65rem] font-semibold tracking-wider text-white/50 uppercase">
-              This month · team goal
+      {/* Top band: prominent TODAY number (left) + team monthly goal (right) */}
+      <div className="flex shrink-0 items-stretch gap-3">
+        {/* TODAY — the hero number, biggest thing on the wall */}
+        <section
+          className={cx(
+            "relative flex shrink-0 items-center gap-5 overflow-hidden rounded-2xl px-6 py-3 shadow-lg",
+            dailyHit
+              ? "border-2 border-accent-400 bg-accent-400/10 shadow-[0_0_28px_-4px_rgba(255,212,46,0.7)]"
+              : "border border-accent-400/40 bg-white/[0.04]",
+          )}
+        >
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-0 [background:radial-gradient(75%_120%_at_0%_0%,rgba(255,212,46,0.16),transparent_65%)]"
+          />
+          <div className="relative">
+            <p className="text-[0.65rem] font-semibold tracking-[0.2em] text-accent-300/80 uppercase">
+              Today
             </p>
-            <p className="flex items-baseline gap-1.5">
-              <span className="text-4xl font-bold tracking-tight tabular-nums">
-                {data.monthlyTotal.toLocaleString()}
+            <p className="flex items-baseline gap-2 leading-none">
+              <span className="font-display text-7xl font-black tracking-tight text-white tabular-nums">
+                {dailyTotal}
               </span>
-              <span className="text-lg font-semibold text-white/50">
-                / {data.monthlyGoal.toLocaleString()}
+              <span className="text-3xl font-bold text-white/40 tabular-nums">
+                / {dailyTarget || "—"}
               </span>
+            </p>
+            <p className="mt-1 text-xs font-semibold text-white/55">
+              bookings · <span className="text-accent-300">{data.activeToday ?? 0}</span> on shift
             </p>
           </div>
-          <div className="min-w-0 flex-1">
-            <div aria-hidden className="h-2.5 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-accent-400 to-accent-300 shadow-[0_0_12px_rgba(255,212,46,0.7)] transition-all duration-1000"
-                style={{ width: `${Math.min(100, pct)}%` }}
-              />
+          {dailyTarget > 0 && (
+            <div className="relative flex h-full flex-col justify-center">
+              <span className="text-4xl font-bold text-accent-400 tabular-nums">
+                {dailyHit ? "✓" : `${dailyPct}%`}
+              </span>
             </div>
-            <p className="mt-1.5 truncate text-sm font-semibold text-accent-300">{monthlyMessage(pct)}</p>
+          )}
+        </section>
+
+        {/* Team monthly goal band */}
+        <section className="relative flex-1 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 shadow-lg">
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-0 opacity-60 [background:radial-gradient(80%_140%_at_100%_0%,rgba(255,212,46,0.12),transparent_60%)]"
+          />
+          <div className="relative flex h-full items-center gap-5">
+            <div className="shrink-0">
+              <p className="text-[0.65rem] font-semibold tracking-wider text-white/50 uppercase">
+                This month · team goal
+              </p>
+              <p className="flex items-baseline gap-1.5">
+                <span className="text-4xl font-bold tracking-tight tabular-nums">
+                  {data.monthlyTotal.toLocaleString()}
+                </span>
+                <span className="text-lg font-semibold text-white/50">
+                  / {data.monthlyGoal.toLocaleString()}
+                </span>
+              </p>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div aria-hidden className="h-2.5 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-accent-400 to-accent-300 shadow-[0_0_12px_rgba(255,212,46,0.7)] transition-all duration-1000"
+                  style={{ width: `${Math.min(100, pct)}%` }}
+                />
+              </div>
+              <p className="mt-1.5 truncate text-sm font-semibold text-accent-300">{monthlyMessage(pct)}</p>
+            </div>
+            <div className="shrink-0 text-right">
+              <span className="text-5xl font-bold tracking-tight text-accent-400 tabular-nums">{pct}%</span>
+              <p className="text-[0.65rem] font-medium text-white/50">
+                {Math.max(0, data.monthlyGoal - data.monthlyTotal).toLocaleString()} to go
+              </p>
+            </div>
           </div>
-          <div className="shrink-0 text-right">
-            <span className="text-5xl font-bold tracking-tight text-accent-400 tabular-nums">{pct}%</span>
-            <p className="text-[0.65rem] font-medium text-white/50">
-              {Math.max(0, data.monthlyGoal - data.monthlyTotal).toLocaleString()} to go
-            </p>
-          </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
       {/* Three zones fill the rest of the screen */}
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-12">
@@ -212,7 +256,9 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
         <section className="flex min-h-0 flex-col lg:col-span-7">
           <div className="flex shrink-0 items-baseline justify-between">
             <h2 className="text-lg font-bold text-white">Today</h2>
-            <span className="text-sm font-medium text-white/50">{dailyTotal} bookings</span>
+            <span className="text-sm font-medium text-white/50">
+              {dailyTarget > 0 ? `team target ${dailyTarget}` : `${dailyTotal} bookings`}
+            </span>
           </div>
           {/* p-1 + no overflow-hidden so the fluorescent glow isn't clipped */}
           <ul className="mt-2 grid min-h-0 flex-1 grid-cols-3 gap-3 p-1 sm:grid-cols-4 [grid-auto-rows:1fr]">
