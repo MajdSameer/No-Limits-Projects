@@ -53,11 +53,14 @@ export interface BookingPop {
 }
 
 /**
- * Pure: new bookings since we last looked, deduped by MovePro job code so each
- * booking fires exactly once — even though the polled board count bounces
- * around (different server instances serve slightly stale snapshots) and resets
- * each day. A code is celebrated the first time it's seen; reps with no codes
- * fall back to a per-rep high-water count. On the seed pass it only records
+ * Pure: new bookings since we last looked. Every booking fires exactly once, and
+ * the rep's COUNT is the source of truth for how many to celebrate — so the 6th,
+ * 7th… booking still pops even though the Leaderboard sheet only pushes a handful
+ * of MovePro codes per rep (the codes are just labels for the pop). A per-rep
+ * high-water count means stale polls that dip the number never re-fire, and the
+ * count resets cleanly each day. Job codes label each pop when available and are
+ * deduped so the same number is never shown twice; once the count outruns the
+ * known codes we still celebrate, code-less. On the seed pass it only records
  * state and returns nothing, so a page load is silent. Mutates `seenCodes` /
  * `seenCount`.
  */
@@ -70,19 +73,28 @@ export function newBookings(
   const pops: BookingPop[] = [];
   for (const r of rows) {
     const codes = (r.jobCodes ?? []).map((c) => String(c).trim()).filter(Boolean);
-    if (codes.length > 0) {
-      for (const code of codes) {
-        if (seenCodes.has(code)) continue;
-        seenCodes.add(code);
-        if (!seed) pops.push({ staffId: r.staffId, name: r.name, code });
+    const fresh = codes.filter((c) => !seenCodes.has(c));
+    const prev = seenCount.get(r.staffId) ?? 0;
+    const target = Math.max(0, r.count);
+    const delta = Math.max(0, target - prev);
+
+    if (!seed) {
+      // Celebrate each new booking; attach the freshest unseen code we have,
+      // falling back to a code-less pop once the count outruns the codes.
+      for (let i = 0; i < delta; i++) {
+        pops.push({ staffId: r.staffId, name: r.name, code: fresh[i] ?? null });
       }
-    } else {
-      const before = seenCount.get(r.staffId);
-      if (!seed && before !== undefined && r.count > before) {
-        pops.push({ staffId: r.staffId, name: r.name, code: null });
-      }
-      if (before === undefined || r.count > before) seenCount.set(r.staffId, r.count);
     }
+
+    // Mark the codes we actually consumed (or all of them on the silent seed) so
+    // they're never shown twice; leftover fresh codes stay available for when the
+    // count catches up to them.
+    const consumed = seed ? codes.length : delta;
+    for (let i = 0; i < consumed && i < fresh.length; i++) {
+      const code = fresh[i];
+      if (code) seenCodes.add(code);
+    }
+    if (target > prev) seenCount.set(r.staffId, target);
   }
   return pops;
 }
