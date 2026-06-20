@@ -65,7 +65,7 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
         </span>
         <span className="shrink-0 text-3xl leading-none font-bold text-white tabular-nums">
           {r.count}
-          <span className="text-base font-semibold text-white/40">/{r.goal ?? "—"}</span>
+          <span className="text-xl font-semibold text-white/40">/{r.goal ?? "—"}</span>
         </span>
       </div>
       {codes.length > 0 && (
