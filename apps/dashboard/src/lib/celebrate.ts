@@ -52,49 +52,88 @@ export interface BookingPop {
   code: string | null;
 }
 
+/** Mutable per-session memory for the live celebration. Create one per board. */
+export interface CelebrateState {
+  /** MovePro codes already shown as a label, so the same number isn't repeated. */
+  seenCodes: Set<string>;
+  /** Bookings already celebrated per rep (high-water that can fall — see below). */
+  fired: Map<string, number>;
+  /** Consecutive polls a rep's count has sat below `fired` (drop debounce). */
+  lowFor: Map<string, number>;
+}
+
+/** A rep's count must sit below its celebrated high-water for this many polls
+ * before we trust the drop. One stale poll from another server instance is a
+ * blip and is ignored; a real delete persists and is accepted, so re-adding the
+ * booking celebrates again. */
+const DROP_PERSIST = 2;
+
+/** Fresh, empty celebration memory. */
+export function createCelebrateState(): CelebrateState {
+  return { seenCodes: new Set(), fired: new Map(), lowFor: new Map() };
+}
+
 /**
- * Pure: new bookings since we last looked. Every booking fires exactly once, and
- * the rep's COUNT is the source of truth for how many to celebrate — so the 6th,
- * 7th… booking still pops even though the Leaderboard sheet only pushes a handful
- * of MovePro codes per rep (the codes are just labels for the pop). A per-rep
- * high-water count means stale polls that dip the number never re-fire, and the
- * count resets cleanly each day. Job codes label each pop when available and are
- * deduped so the same number is never shown twice; once the count outruns the
- * known codes we still celebrate, code-less. On the seed pass it only records
- * state and returns nothing, so a page load is silent. Mutates `seenCodes` /
- * `seenCount`.
+ * Pure: new bookings since we last looked. The rep's COUNT drives how many pops
+ * fire — so the 6th, 7th… booking still pops even though the Leaderboard sheet
+ * only pushes a handful of MovePro codes per rep (codes are just cosmetic labels,
+ * never a trigger). The celebrated count is a high-water mark so stale polls that
+ * dip the number don't re-fire — but a dip that PERSISTS for `DROP_PERSIST` polls
+ * is taken as a real delete and lowers the mark, so deleting a booking and
+ * re-entering it later celebrates and gongs again. A label is forgotten the
+ * moment its code leaves the board, so a re-added booking shows its number again.
+ * On the seed pass it only records state and returns nothing, so a page load is
+ * silent. Mutates `state`.
  */
 export function newBookings(
   rows: DailyCountRow[],
-  seenCodes: Set<string>,
-  seenCount: Map<string, number>,
+  state: CelebrateState,
   seed: boolean,
 ): BookingPop[] {
+  const { seenCodes, fired, lowFor } = state;
   const pops: BookingPop[] = [];
+
+  // Forget labels for codes no longer on the board (purely cosmetic — never
+  // gongs — so a deleted-then-re-added booking shows its MovePro number again).
+  const present = new Set<string>();
+  for (const r of rows) {
+    for (const c of r.jobCodes ?? []) {
+      const code = String(c).trim();
+      if (code) present.add(code);
+    }
+  }
+  for (const c of [...seenCodes]) if (!present.has(c)) seenCodes.delete(c);
+
   for (const r of rows) {
     const codes = (r.jobCodes ?? []).map((c) => String(c).trim()).filter(Boolean);
-    const fresh = codes.filter((c) => !seenCodes.has(c));
-    const prev = seenCount.get(r.staffId) ?? 0;
+    const freshCodes = codes.filter((c) => !seenCodes.has(c));
     const target = Math.max(0, r.count);
-    const delta = Math.max(0, target - prev);
+    const prev = fired.get(r.staffId) ?? 0;
 
-    if (!seed) {
-      // Celebrate each new booking; attach the freshest unseen code we have,
-      // falling back to a code-less pop once the count outruns the codes.
-      for (let i = 0; i < delta; i++) {
-        pops.push({ staffId: r.staffId, name: r.name, code: fresh[i] ?? null });
+    if (target > prev) {
+      // New bookings — one pop each, labelled with any not-yet-shown code.
+      if (!seed) {
+        for (let i = 0; i < target - prev; i++) {
+          pops.push({ staffId: r.staffId, name: r.name, code: freshCodes[i] ?? null });
+        }
       }
+      fired.set(r.staffId, target);
+      lowFor.delete(r.staffId);
+    } else if (target < prev) {
+      // Dropped below the high-water. Could be a real delete or just a stale
+      // snapshot from another instance — only trust it once it persists.
+      const misses = (lowFor.get(r.staffId) ?? 0) + 1;
+      if (misses >= DROP_PERSIST) {
+        fired.set(r.staffId, target); // accept it → re-adding the booking re-fires
+        lowFor.delete(r.staffId);
+      } else {
+        lowFor.set(r.staffId, misses);
+      }
+    } else {
+      lowFor.delete(r.staffId);
     }
 
-    // Mark the codes we actually consumed (or all of them on the silent seed) so
-    // they're never shown twice; leftover fresh codes stay available for when the
-    // count catches up to them.
-    const consumed = seed ? codes.length : delta;
-    for (let i = 0; i < consumed && i < fresh.length; i++) {
-      const code = fresh[i];
-      if (code) seenCodes.add(code);
-    }
-    if (target > prev) seenCount.set(r.staffId, target);
+    for (const c of freshCodes) seenCodes.add(c);
   }
   return pops;
 }
