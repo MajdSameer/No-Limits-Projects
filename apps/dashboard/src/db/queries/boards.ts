@@ -85,33 +85,103 @@ function compose(
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
+/** app_settings key holding the manager's on-shift overrides for a given day. */
+export function shiftOverrideKey(now: Date = new Date()): string {
+  return `shift_override_${sydneyToday(now)}`;
+}
+
 /**
- * Today's combined daily target: the sum of the daily goals of the reps who are
- * clocked in today (rep_live.timeIn set on today's snapshot), and how many that
- * is. Grows through the day as people come on shift.
+ * The manager's explicit "on shift today" overrides: staffId -> boolean. A rep
+ * absent from this map follows the sheet's clock-in; present forces them on
+ * (true) or off (false) regardless of what the sheet says. Reset each day (the
+ * key is date-stamped).
+ */
+async function shiftOverrides(now: Date): Promise<Map<string, boolean>> {
+  const raw = await getSetting(shiftOverrideKey(now), "");
+  if (!raw) return new Map();
+  try {
+    const obj = JSON.parse(raw) as Record<string, boolean>;
+    return new Map(Object.entries(obj).map(([id, v]) => [id, Boolean(v)]));
+  } catch {
+    return new Map();
+  }
+}
+
+/** Reps the live sheet shows clocked in today (timeIn set on today's snapshot). */
+async function sheetClockedIn(now: Date): Promise<Set<string>> {
+  const db = await getDb();
+  const today = sydneyToday(now);
+  const rows = await db
+    .select({
+      staffId: schema.repLive.staffId,
+      timeIn: schema.repLive.timeIn,
+      asOf: schema.repLive.asOfDate,
+    })
+    .from(schema.repLive);
+  const on = new Set<string>();
+  for (const r of rows) {
+    if (r.asOf !== today) continue;
+    if (r.timeIn && String(r.timeIn).trim()) on.add(r.staffId);
+  }
+  return on;
+}
+
+export interface ShiftState {
+  staffId: string;
+  name: string;
+  goal: number | null;
+  gender: "f" | "m" | "x";
+  /** Effective: is this rep counted as on shift right now? */
+  onShift: boolean;
+  /** Does the live sheet show them clocked in? */
+  fromSheet: boolean;
+  /** Has the manager set an explicit override (so it ignores the sheet)? */
+  overridden: boolean;
+}
+
+/**
+ * Per active rep: whether they're on shift today, where that came from (sheet vs
+ * a manager override), and their daily goal — so /manage can show and adjust
+ * who's clocked in (which drives the combined daily target).
+ */
+export async function shiftStates(now: Date = new Date()): Promise<ShiftState[]> {
+  const [reps, goals, sheet, overrides] = await Promise.all([
+    activeReps(),
+    currentGoals(now),
+    sheetClockedIn(now),
+    shiftOverrides(now),
+  ]);
+  return reps.map((r) => {
+    const fromSheet = sheet.has(r.id);
+    const overridden = overrides.has(r.id);
+    return {
+      staffId: r.id,
+      name: r.name,
+      goal: goals.get(r.id) ?? null,
+      gender: r.gender,
+      onShift: overridden ? overrides.get(r.id)! : fromSheet,
+      fromSheet,
+      overridden,
+    };
+  });
+}
+
+/**
+ * Today's combined daily target: the sum of the daily goals of the reps on shift
+ * today, and how many that is. "On shift" = the manager's override when set,
+ * otherwise the sheet's clock-in (rep_live.timeIn). Grows through the day as
+ * people come on shift.
  */
 export async function dailyTeamGoal(
   now: Date = new Date(),
 ): Promise<{ target: number; active: number }> {
-  const db = await getDb();
-  const today = sydneyToday(now);
-  const [liveRows, goals] = await Promise.all([
-    db
-      .select({
-        staffId: schema.repLive.staffId,
-        timeIn: schema.repLive.timeIn,
-        asOf: schema.repLive.asOfDate,
-      })
-      .from(schema.repLive),
-    currentGoals(now),
-  ]);
+  const states = await shiftStates(now);
   let target = 0;
   let active = 0;
-  for (const r of liveRows) {
-    if (r.asOf !== today) continue;
-    if (!r.timeIn || !String(r.timeIn).trim()) continue; // clocked in today
+  for (const s of states) {
+    if (!s.onShift) continue;
     active += 1;
-    target += goals.get(r.staffId) ?? 0;
+    target += s.goal ?? 0;
   }
   return { target, active };
 }

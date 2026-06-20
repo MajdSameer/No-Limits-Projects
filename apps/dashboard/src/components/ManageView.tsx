@@ -12,10 +12,21 @@ import {
   setGoal,
   setIntakeWeight,
   setMonthlyGoal,
+  setOnShift,
   setPin,
   setTeam,
   unlockStaff,
 } from "../app/actions/manage";
+
+interface ShiftRow {
+  staffId: string;
+  name: string;
+  goal: number | null;
+  gender: "f" | "m" | "x";
+  onShift: boolean;
+  fromSheet: boolean;
+  overridden: boolean;
+}
 
 interface StaffRow {
   id: string;
@@ -45,10 +56,12 @@ export function ManageView({
   staff,
   audit,
   monthlyGoal,
+  shifts,
 }: {
   staff: StaffRow[];
   audit: AuditRow[];
   monthlyGoal: number;
+  shifts: ShiftRow[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -83,6 +96,10 @@ export function ManageView({
     run(() => addStaff(String(formData.get("name")), formData.get("role") === "manager" ? "manager" : "rep"));
   };
 
+  const onShiftReps = shifts.filter((s) => s.onShift);
+  const shiftActive = onShiftReps.length;
+  const shiftTarget = onShiftReps.reduce((sum, s) => sum + (s.goal ?? 0), 0);
+
   return (
     <div>
       <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Managers only</p>
@@ -93,6 +110,71 @@ export function ManageView({
           {message}
         </p>
       )}
+
+      {/* On shift today — drives the live daily team target on /live */}
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold text-brand-900">On shift today</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Who&apos;s clocked in drives the live daily target. <b>Auto</b> follows the sheet; set{" "}
+              <b>On</b>/<b>Off</b> to override. Resets each day.
+            </p>
+          </div>
+          <p className="text-sm font-semibold text-brand-900">
+            <span className="text-2xl font-bold tabular-nums">{shiftTarget}</span> target ·{" "}
+            <span className="tabular-nums">{shiftActive}</span> on shift
+          </p>
+        </div>
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {shifts.map((s) => (
+            <li
+              key={s.staffId}
+              className={cx(
+                "flex items-center justify-between gap-2 rounded-xl border px-3 py-2",
+                s.onShift ? "border-brand-300 bg-brand-50" : "border-slate-200 bg-slate-50",
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">
+                {s.name}
+                <span className="ml-1 text-xs font-normal text-slate-400">· goal {s.goal ?? "—"}</span>
+                {s.overridden && (
+                  <span className="ml-1 rounded bg-accent-100 px-1 text-[0.6rem] font-bold tracking-wide text-brand-900 uppercase">
+                    manual
+                  </span>
+                )}
+              </span>
+              <div className="flex shrink-0 overflow-hidden rounded-full border border-slate-200">
+                {([
+                  { label: "Auto", val: null as boolean | null, on: !s.overridden },
+                  { label: "On", val: true as boolean | null, on: s.overridden && s.onShift },
+                  { label: "Off", val: false as boolean | null, on: s.overridden && !s.onShift },
+                ]).map((opt) => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => run(() => setOnShift(s.staffId, opt.val))}
+                    className={cx(
+                      "min-h-8 px-2.5 text-xs font-semibold transition-colors",
+                      opt.on
+                        ? opt.label === "Off"
+                          ? "bg-slate-600 text-white"
+                          : "bg-brand-900 text-white"
+                        : "bg-white text-slate-500 hover:bg-slate-100",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </li>
+          ))}
+          {shifts.length === 0 && (
+            <li className="text-sm text-slate-500">No active reps.</li>
+          )}
+        </ul>
+      </section>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <button
