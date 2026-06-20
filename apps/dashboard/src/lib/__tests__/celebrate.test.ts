@@ -1,6 +1,11 @@
 import { expect, test } from "vitest";
 
-import { crossedThreshold, GONG_THRESHOLD, newBookings } from "../celebrate";
+import {
+  createCelebrateState,
+  crossedThreshold,
+  GONG_THRESHOLD,
+  newBookings,
+} from "../celebrate";
 
 const row = (staffId: string, count: number) => ({ staffId, name: staffId, count });
 
@@ -15,95 +20,100 @@ test("crossedThreshold returns reps that reached the threshold and weren't seen"
   expect([...seen].sort()).toEqual(["a", "c"]);
 });
 
-// ── newBookings: fire once per booking, deduped by MovePro job code ──
+// ── newBookings: one pop per booking, count-driven, codes are labels ──
 
-test("seed pass records codes but fires nothing", () => {
-  const codes = new Set<string>();
-  const counts = new Map<string, number>();
+test("seed pass records state but fires nothing", () => {
+  const s = createCelebrateState();
   const pops = newBookings(
     [{ staffId: "a", name: "Andy", count: 2, jobCodes: ["X1", "X2"] }],
-    codes,
-    counts,
+    s,
     true,
   );
   expect(pops).toEqual([]);
-  expect(codes.has("X1") && codes.has("X2")).toBe(true);
+  expect(s.fired.get("a")).toBe(2);
+  expect(s.seenCodes.has("X1") && s.seenCodes.has("X2")).toBe(true);
 });
 
-test("a new code fires once, and never again as the count bounces (stale instances)", () => {
-  const codes = new Set<string>(["X1", "X2"]);
-  const counts = new Map<string, number>([["a", 2]]); // seeded at 2 bookings
+test("a new booking fires once, and a single stale dip never re-fires it", () => {
+  const s = createCelebrateState();
+  newBookings([{ staffId: "a", name: "Andy", count: 2, jobCodes: ["X1", "X2"] }], s, true);
   // new booking X3
   expect(
-    newBookings([{ staffId: "a", name: "Andy", count: 3, jobCodes: ["X1", "X2", "X3"] }], codes, counts, false),
+    newBookings([{ staffId: "a", name: "Andy", count: 3, jobCodes: ["X1", "X2", "X3"] }], s, false),
   ).toEqual([{ staffId: "a", name: "Andy", code: "X3" }]);
-  // a stale poll shows only 2 codes — no fire
+  // a single stale poll shows only 2 — a blip, debounced away
   expect(
-    newBookings([{ staffId: "a", name: "Andy", count: 2, jobCodes: ["X1", "X2"] }], codes, counts, false),
+    newBookings([{ staffId: "a", name: "Andy", count: 2, jobCodes: ["X1", "X2"] }], s, false),
   ).toEqual([]);
-  // back to 3 — X3 already seen, so it does NOT re-fire
+  // back to 3 — must NOT re-fire (the dip never persisted)
   expect(
-    newBookings([{ staffId: "a", name: "Andy", count: 3, jobCodes: ["X1", "X2", "X3"] }], codes, counts, false),
+    newBookings([{ staffId: "a", name: "Andy", count: 3, jobCodes: ["X1", "X2", "X3"] }], s, false),
   ).toEqual([]);
 });
 
-test("a rep with no job codes uses a per-rep high-water count", () => {
-  const codes = new Set<string>();
-  const counts = new Map<string, number>([["a", 2]]);
-  expect(newBookings([row("a", 3)], codes, counts, false)).toEqual([
-    { staffId: "a", name: "a", code: null },
-  ]);
-  // bounce down then back up — never re-fires
-  expect(newBookings([row("a", 2)], codes, counts, false)).toEqual([]);
-  expect(newBookings([row("a", 3)], codes, counts, false)).toEqual([]);
+test("deleting a booking and re-entering it later celebrates again (with its code)", () => {
+  const s = createCelebrateState();
+  newBookings([{ staffId: "a", name: "Andy", count: 3, jobCodes: ["A1", "A2", "A3"] }], s, true);
+  // delete A3 — the drop must persist before we trust it
+  expect(
+    newBookings([{ staffId: "a", name: "Andy", count: 2, jobCodes: ["A1", "A2"] }], s, false),
+  ).toEqual([]); // 1st low poll — not yet trusted
+  expect(
+    newBookings([{ staffId: "a", name: "Andy", count: 2, jobCodes: ["A1", "A2"] }], s, false),
+  ).toEqual([]); // 2nd low poll — delete accepted
+  // put it back in — celebrates + gongs again, showing the number again
+  expect(
+    newBookings([{ staffId: "a", name: "Andy", count: 3, jobCodes: ["A1", "A2", "A3"] }], s, false),
+  ).toEqual([{ staffId: "a", name: "Andy", code: "A3" }]);
+});
+
+test("a codeless rep also re-celebrates after a persistent delete", () => {
+  const s = createCelebrateState();
+  newBookings([row("a", 2)], s, true);
+  // 3rd booking, no codes — fires code-less
+  expect(newBookings([row("a", 3)], s, false)).toEqual([{ staffId: "a", name: "a", code: null }]);
+  // single stale dip — ignored
+  expect(newBookings([row("a", 2)], s, false)).toEqual([]);
+  expect(newBookings([row("a", 3)], s, false)).toEqual([]);
+  // a real, persistent delete then re-add — re-fires
+  expect(newBookings([row("a", 2)], s, false)).toEqual([]); // low poll 1
+  expect(newBookings([row("a", 2)], s, false)).toEqual([]); // low poll 2 — accepted
+  expect(newBookings([row("a", 3)], s, false)).toEqual([{ staffId: "a", name: "a", code: null }]);
 });
 
 test("keeps celebrating past the codes the sheet pushes (6th booking, capped codes)", () => {
-  const codes = new Set<string>();
-  const counts = new Map<string, number>();
-  // Seed: rep already on 5 with 5 codes pushed.
+  const s = createCelebrateState();
   newBookings(
     [{ staffId: "a", name: "Jenifer", count: 5, jobCodes: ["A1", "A2", "A3", "A4", "A5"] }],
-    codes,
-    counts,
+    s,
     true,
   );
-  // 6th booking lands but the sheet still only pushes 5 codes — must still fire,
-  // code-less, instead of going silent.
+  // 6th booking lands but the sheet still only pushes 5 codes — fires code-less
   expect(
     newBookings(
       [{ staffId: "a", name: "Jenifer", count: 6, jobCodes: ["A1", "A2", "A3", "A4", "A5"] }],
-      codes,
-      counts,
+      s,
       false,
     ),
   ).toEqual([{ staffId: "a", name: "Jenifer", code: null }]);
-  // 7th, with a fresh code finally pushed — fires with that code.
-  expect(
-    newBookings(
-      [{ staffId: "a", name: "Jenifer", count: 7, jobCodes: ["A1", "A2", "A3", "A4", "A5", "A7"] }],
-      codes,
-      counts,
-      false,
-    ),
-  ).toEqual([{ staffId: "a", name: "Jenifer", code: "A7" }]);
 });
 
 test("a jump of several bookings at once fires one pop per booking", () => {
-  const codes = new Set<string>();
-  const counts = new Map<string, number>([["a", 1]]);
+  const s = createCelebrateState();
+  s.fired.set("a", 1);
   expect(
-    newBookings([{ staffId: "a", name: "Andy", count: 3, jobCodes: ["B2", "B3"] }], codes, counts, false),
+    newBookings([{ staffId: "a", name: "Andy", count: 3, jobCodes: ["B2", "B3"] }], s, false),
   ).toEqual([
     { staffId: "a", name: "Andy", code: "B2" },
     { staffId: "a", name: "Andy", code: "B3" },
   ]);
 });
 
-test("the new day's fresh codes fire (old codes already seen)", () => {
-  const codes = new Set<string>(["OLD1", "OLD2"]);
-  const counts = new Map<string, number>();
+test("the new day's fresh codes fire (old codes already labelled)", () => {
+  const s = createCelebrateState();
+  s.seenCodes.add("OLD1");
+  s.seenCodes.add("OLD2");
   expect(
-    newBookings([{ staffId: "a", name: "Andy", count: 1, jobCodes: ["NEW1"] }], codes, counts, false),
+    newBookings([{ staffId: "a", name: "Andy", count: 1, jobCodes: ["NEW1"] }], s, false),
   ).toEqual([{ staffId: "a", name: "Andy", code: "NEW1" }]);
 });

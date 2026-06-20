@@ -5,7 +5,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
-import { newBookings, playGong, type BookingPop, type DailyCountRow } from "../lib/celebrate";
+import {
+  createCelebrateState,
+  newBookings,
+  playGong,
+  type BookingPop,
+  type DailyCountRow,
+} from "../lib/celebrate";
 
 /**
  * Live "someone just booked!" moment. When a new booking appears (deduped by
@@ -29,8 +35,7 @@ function reducedMotion(): boolean {
 }
 
 export function BookingCelebration({ daily }: { daily: DailyCountRow[] }) {
-  const seenCodes = useRef<Set<string>>(new Set());
-  const seenCount = useRef<Map<string, number>>(new Map());
+  const state = useRef(createCelebrateState());
   const seeded = useRef(false);
   const queue = useRef<BookingPop[]>([]);
   const running = useRef(false);
@@ -39,7 +44,7 @@ export function BookingCelebration({ daily }: { daily: DailyCountRow[] }) {
 
   useEffect(() => {
     if (daily.length === 0) return; // ignore the empty cold-DB fallback
-    const pops = newBookings(daily, seenCodes.current, seenCount.current, !seeded.current);
+    const pops = newBookings(daily, state.current, !seeded.current);
     seeded.current = true;
     if (pops.length === 0) return;
     for (const p of pops) {
