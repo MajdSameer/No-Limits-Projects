@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { startTransition as lowPriority, useOptimistic, useState, useTransition } from "react";
 
 import { cx } from "@nlr/ui";
 
@@ -67,12 +67,16 @@ export function ManageView({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
+  // Run a mutation, then refresh server data in the BACKGROUND. The refresh is
+  // its own low-priority transition so `pending` clears the moment the write
+  // returns — buttons re-enable immediately instead of staying frozen through a
+  // full server re-fetch (which is what made clicks feel dropped).
   const run = (fn: () => Promise<{ error?: string }>) => {
     setMessage(null);
     startTransition(async () => {
       const r = await fn();
       if (r.error) setMessage(r.error);
-      router.refresh();
+      lowPriority(() => router.refresh());
     });
   };
 
@@ -96,7 +100,30 @@ export function ManageView({
     run(() => addStaff(String(formData.get("name")), formData.get("role") === "manager" ? "manager" : "rep"));
   };
 
-  const onShiftReps = shifts.filter((s) => s.onShift);
+  // Optimistic on-shift state: a toggle updates the UI (and the live target/
+  // headcount) instantly, before the server round-trip, then reconciles on
+  // refresh. Server truth matches the optimistic value, so there's no flicker.
+  const [optimisticShifts, applyShift] = useOptimistic(
+    shifts,
+    (cur, u: { staffId: string; val: boolean | null }) =>
+      cur.map((s) => {
+        if (s.staffId !== u.staffId) return s;
+        if (u.val === null) return { ...s, overridden: false, onShift: s.fromSheet };
+        return { ...s, overridden: true, onShift: u.val };
+      }),
+  );
+
+  const toggleShift = (s: ShiftRow, val: boolean | null) => {
+    setMessage(null);
+    startTransition(async () => {
+      applyShift({ staffId: s.staffId, val });
+      const r = await setOnShift(s.staffId, val);
+      if (r.error) setMessage(r.error);
+      lowPriority(() => router.refresh());
+    });
+  };
+
+  const onShiftReps = optimisticShifts.filter((s) => s.onShift);
   const shiftActive = onShiftReps.length;
   const shiftTarget = onShiftReps.reduce((sum, s) => sum + (s.goal ?? 0), 0);
 
@@ -127,11 +154,11 @@ export function ManageView({
           </p>
         </div>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {shifts.map((s) => (
+          {optimisticShifts.map((s) => (
             <li
               key={s.staffId}
               className={cx(
-                "flex items-center justify-between gap-2 rounded-xl border px-3 py-2",
+                "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 transition-colors",
                 s.onShift ? "border-brand-300 bg-brand-50" : "border-slate-200 bg-slate-50",
               )}
             >
@@ -144,6 +171,8 @@ export function ManageView({
                   </span>
                 )}
               </span>
+              {/* Not gated on `pending` — these stay clickable so a tap always
+                  registers; the optimistic state gives instant feedback. */}
               <div className="flex shrink-0 overflow-hidden rounded-full border border-slate-200">
                 {([
                   { label: "Auto", val: null as boolean | null, on: !s.overridden },
@@ -153,8 +182,7 @@ export function ManageView({
                   <button
                     key={opt.label}
                     type="button"
-                    disabled={pending}
-                    onClick={() => run(() => setOnShift(s.staffId, opt.val))}
+                    onClick={() => toggleShift(s, opt.val)}
                     className={cx(
                       "min-h-8 px-2.5 text-xs font-semibold transition-colors",
                       opt.on
@@ -170,7 +198,7 @@ export function ManageView({
               </div>
             </li>
           ))}
-          {shifts.length === 0 && (
+          {optimisticShifts.length === 0 && (
             <li className="text-sm text-slate-500">No active reps.</li>
           )}
         </ul>
