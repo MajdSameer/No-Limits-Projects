@@ -63,9 +63,9 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
           {r.name}
           {EMOJI[tier] && <span className="ml-1">{EMOJI[tier]}</span>}
         </span>
-        <span className="shrink-0 text-xl leading-none font-bold text-white tabular-nums">
+        <span className="shrink-0 text-3xl leading-none font-bold text-white tabular-nums">
           {r.count}
-          <span className="text-xs font-semibold text-white/40">/{r.goal ?? "—"}</span>
+          <span className="text-base font-semibold text-white/40">/{r.goal ?? "—"}</span>
         </span>
       </div>
       {codes.length > 0 && (
