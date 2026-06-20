@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { startTransition as lowPriority, useState, useTransition } from "react";
 
 import { cx } from "@nlr/ui";
 
@@ -122,14 +122,14 @@ export function BookingDetail({
             ? "Only the booking's rep or a manager can edit this."
             : "Couldn't save — check the values.",
       );
-      if (r.ok) router.refresh();
+      if (r.ok) lowPriority(() => router.refresh());
     });
   };
 
   const toggleDeleted = () => {
     startTransition(async () => {
       await setDeleted(booking.id, !booking.deletedAt);
-      router.refresh();
+      lowPriority(() => router.refresh());
     });
   };
 

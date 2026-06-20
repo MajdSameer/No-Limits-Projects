@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { startTransition as lowPriority, useState, useTransition } from "react";
 
 import { cx } from "@nlr/ui";
 
@@ -62,7 +62,11 @@ export function RosterView({
   const [tab, setTab] = useState<"roster" | "timesheet">("roster");
   const [editing, setEditing] = useState<{ staffId: string; weekday: number } | null>(null);
   const [pending, startTransition] = useTransition();
-  useLiveRefresh(["clock", "roster"], () => router.refresh(), 5000);
+  // Clock punches / roster edits push a realtime ping (see notify), so live
+  // status updates near-instantly. This poll is just a safety net — keep it slow
+  // and low-priority so it never re-runs the whole server tree under the user's
+  // clicks. (Was every 5s and blocking, which made the page feel janky.)
+  useLiveRefresh(["clock", "roster"], () => lowPriority(() => router.refresh()), 20000);
 
   const shiftFor = (staffId: string, weekday: number) =>
     shifts.find((s) => s.staffId === staffId && s.weekday === weekday);
@@ -74,7 +78,7 @@ export function RosterView({
     startTransition(async () => {
       await setShift(editing.staffId, editing.weekday, start, end);
       setEditing(null);
-      router.refresh();
+      lowPriority(() => router.refresh());
     });
   };
 
@@ -86,7 +90,7 @@ export function RosterView({
         String(formData.get("toDate")),
         String(formData.get("reason") ?? ""),
       );
-      router.refresh();
+      lowPriority(() => router.refresh());
     });
   };
 
@@ -155,7 +159,7 @@ export function RosterView({
                                       startTransition(async () => {
                                         await clearShift(s.id, weekday);
                                         setEditing(null);
-                                        router.refresh();
+                                        lowPriority(() => router.refresh());
                                       })
                                     }
                                     className="rounded-lg border border-slate-300 px-2 py-1"
@@ -210,7 +214,7 @@ export function RosterView({
                     <button
                       type="button"
                       aria-label="Remove time off"
-                      onClick={() => startTransition(async () => { await removeTimeOff(t.id); router.refresh(); })}
+                      onClick={() => startTransition(async () => { await removeTimeOff(t.id); lowPriority(() => router.refresh()); })}
                       className="grid size-9 place-items-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand-900"
                     >
                       ✕
