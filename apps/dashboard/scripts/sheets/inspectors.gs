@@ -1,28 +1,38 @@
 /**
  * No Limits — Site Inspections → dashboard live push (Google Apps Script).
  *
- * Bound to the SITE-INSPECTION BOOKINGS spreadsheet (the one whose tab has a
- * "Site Inspector" column). Each row is one inspection: a Date, the Sales Person
- * whose customer it's for, a Job Number, and the Site Inspector (Martin, Danny…).
+ * The inspection details are entered in a TAB INSIDE THE FOLLOW-UP SHEET (the
+ * same spreadsheet that runs leaderboard.gs). A spreadsheet has only ONE Apps
+ * Script project, so this lives as an extra FILE in that project alongside
+ * leaderboard.gs / roster.gs — it does not get its own project.
  *
- * It collects today's job-numbered inspections per inspector and POSTs them to
- * the dashboard's /api/ingest/inspectors, which drives the "Site Inspectors"
- * boxes on /live and the applause celebration. Runs on edit and on a 5-minute
- * timer; runs as you in Google, so there's no OAuth token to expire.
+ * For each row of the inspections tab that has all three of Job Number + Sales
+ * Rep + Site Inspector filled, it POSTs to /api/ingest/inspectors, driving the
+ * "Site Inspectors" boxes on /live and the applause celebration (inspector name,
+ * job number, and the sales rep the inspection is for). Runs on edit (only when
+ * the inspections tab is touched) and on a 5-minute timer.
  *
  * SETUP — see scripts/sheets/README.md. In short:
- *   1. Open the bookings spreadsheet → Extensions → Apps Script, paste this in.
- *   2. Project Settings → Script Properties: add
- *        DASHBOARD_URL  = https://<your-dashboard>.vercel.app
- *        INGEST_SECRET  = <same value as the dashboard's INGEST_SECRET>
- *   3. Run installInspectorTriggers() once and authorize.
- *   4. Test: run pushInspections() and check the log, then open /live.
+ *   1. In the FOLLOW-UP sheet's Apps Script project, add this as a new file.
+ *      (DASHBOARD_URL / INGEST_SECRET script properties are already set there
+ *      for leaderboard.gs.)
+ *   2. Run installInspectorTriggers() once — it installs ONLY its own triggers,
+ *      leaving the leaderboard/roster triggers untouched.
+ *   3. Test: run pushInspections() and check the log, then open /live.
  */
 
 var INSP_TZ = "Australia/Sydney"; // the floor's day, matches the dashboard
-var INSP_GID = 1132462575; // the inspections tab (fallback: find by header)
+var INSP_GID = 947259945; // the inspections tab (fallback: find it by header)
 var INSP_HEADER_SCAN = 40; // header may not be row 1 — scan the top N rows
 var INSP_MAXROWS = 20000; // safety cap so a giant sheet can't time out
+
+// Header names we accept for each column (lower-cased, exact match, in order).
+var INSP_COLS = {
+  inspector: ["site inspector", "site inspector name", "inspector", "inspector name"],
+  sales: ["sales person", "sales rep", "sales rep name", "salesperson", "sales", "rep", "rep name", "consultant"],
+  job: ["job number", "job #", "job no", "job no.", "movepro", "move pro", "movepro number", "move pro number", "job"],
+  date: ["date", "inspection date", "site inspection date"],
+};
 
 function inspCfg_() {
   var props = PropertiesService.getScriptProperties();
@@ -34,6 +44,15 @@ function inspCfg_() {
   return { url: url, secret: secret };
 }
 
+/** First column whose header matches one of the candidates, or -1. */
+function inspFindCol_(hdr, cands) {
+  for (var i = 0; i < cands.length; i++) {
+    var idx = hdr.indexOf(cands[i]);
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
 /** "yyyy-MM-dd" in Sydney for a cell that may be a Date or a date string. */
 function inspYmd_(v) {
   if (v === "" || v == null) return "";
@@ -42,7 +61,8 @@ function inspYmd_(v) {
   return Utilities.formatDate(d, INSP_TZ, "yyyy-MM-dd");
 }
 
-/** Find the header row (1-based) within a sheet's top rows, or null. */
+/** Find the real table header row (has an inspector col AND a corroborating
+ * one), so a stray "Site Inspector" label/box above the table is skipped. */
 function inspHeader_(sheet) {
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
@@ -53,20 +73,17 @@ function inspHeader_(sheet) {
     var lc = top[r].map(function (x) {
       return String(x).trim().toLowerCase();
     });
-    // Require the real TABLE header: "site inspector" alongside another known
-    // column, so a stray "Site Inspector" label/box near the top is skipped.
+    if (inspFindCol_(lc, INSP_COLS.inspector) === -1) continue;
     var corroborated =
-      lc.indexOf("job number") !== -1 ||
-      lc.indexOf("sales person") !== -1 ||
-      lc.indexOf("date") !== -1;
-    if (lc.indexOf("site inspector") !== -1 && corroborated) {
-      return { headerRow: r + 1, hdr: lc };
-    }
+      inspFindCol_(lc, INSP_COLS.job) !== -1 ||
+      inspFindCol_(lc, INSP_COLS.sales) !== -1 ||
+      inspFindCol_(lc, INSP_COLS.date) !== -1;
+    if (corroborated) return { headerRow: r + 1, hdr: lc };
   }
   return null;
 }
 
-/** The inspections tab + the row its headers live on — by gid, else by header. */
+/** The inspections tab + its header row — by gid, else by header. */
 function inspSheet_() {
   var sheets = SpreadsheetApp.getActive().getSheets();
   for (var i = 0; i < sheets.length; i++) {
@@ -87,17 +104,24 @@ function pushInspections() {
   var t0 = new Date().getTime();
   var cfg = inspCfg_();
   var found = inspSheet_();
-  if (!found) throw new Error('No tab with a "Site Inspector" header was found.');
+  if (!found) throw new Error('No tab with a "Site Inspector" table header was found.');
   var sheet = found.sheet;
   var hdr = found.hdr;
   var headerRow = found.headerRow;
-  function col(name) {
-    return hdr.indexOf(name);
+
+  var ciDate = inspFindCol_(hdr, INSP_COLS.date);
+  var ciSales = inspFindCol_(hdr, INSP_COLS.sales);
+  var ciJob = inspFindCol_(hdr, INSP_COLS.job);
+  var ciInsp = inspFindCol_(hdr, INSP_COLS.inspector);
+  if (ciInsp === -1 || ciSales === -1 || ciJob === -1) {
+    throw new Error(
+      "Couldn't match inspector/sales/job columns. Headers seen on row " +
+        headerRow +
+        ": [" +
+        hdr.join(" | ") +
+        "]",
+    );
   }
-  var ciDate = col("date");
-  var ciSales = col("sales person");
-  var ciJob = col("job number");
-  var ciInsp = col("site inspector");
 
   var today = Utilities.formatDate(new Date(), INSP_TZ, "yyyy-MM-dd");
   var byName = {};
@@ -110,8 +134,6 @@ function pushInspections() {
   var n = sheet.getLastRow() - headerRow; // data rows below the header
   if (n > INSP_MAXROWS) n = INSP_MAXROWS;
   if (n > 0) {
-    // Read ONLY the columns we need (one narrow block) — pulling the whole
-    // 20-column range across the Apps Script bridge is what timed out.
     var present = [ciDate, ciSales, ciJob, ciInsp].filter(function (x) {
       return x >= 0;
     });
@@ -126,13 +148,12 @@ function pushInspections() {
       var inspector = String(cell(row, ciInsp) || "").trim();
       if (!inspector) continue;
       ins(inspector); // always list the inspector so its box shows (even at 0)
-      // An inspection counts (and celebrates) only once it has all three:
-      // job number + sales rep + site inspector.
+      // Counts (and celebrates) only with all three: job # + sales rep + inspector.
       var code = String(cell(row, ciJob) || "").trim();
       var forRep = String(cell(row, ciSales) || "").trim();
       if (!code || !forRep) continue;
-      // Keep it to today's board; an undated freshly-filled row counts as today,
-      // so the rep only has to fill those three fields (date optional).
+      // Today's board; an undated freshly-filled row counts as today, so the rep
+      // only has to fill those three fields (date optional).
       var ymd = ciDate === -1 ? "" : inspYmd_(cell(row, ciDate));
       if (ymd !== "" && ymd !== today) continue;
       ins(inspector).jobs.push({ code: code, forRep: forRep });
@@ -142,7 +163,14 @@ function pushInspections() {
   var rows = Object.keys(byName).map(function (k) {
     return byName[k];
   });
-  Logger.log("header row %s, read %s rows in %sms, %s inspectors", headerRow, n, new Date().getTime() - t0, rows.length);
+  Logger.log(
+    "tab '%s', header row %s, read %s rows in %sms, %s inspectors",
+    sheet.getName(),
+    headerRow,
+    n,
+    new Date().getTime() - t0,
+    rows.length,
+  );
 
   var res = UrlFetchApp.fetch(cfg.url.replace(/\/$/, "") + "/api/ingest/inspectors", {
     method: "post",
@@ -156,20 +184,18 @@ function pushInspections() {
   return res.getContentText();
 }
 
-/** onEdit installable trigger target — pushes on any edit to the bookings sheet. */
-function onInspectionEdit() {
+/** onEdit target — only pushes when the inspections tab itself is edited. */
+function onInspectionEdit(e) {
+  if (e && e.range && e.range.getSheet().getSheetId() !== INSP_GID) return;
   pushInspections();
 }
 
-/** Run once to (re)install the edit + 5-minute triggers. Safe to re-run.
- *
- * Clears ALL of this project's triggers first — Apps Script caps a project at 20
- * triggers, and leftover/duplicate ones from earlier runs hit that cap ("This
- * script has too many triggers"). This is a dedicated project for the
- * inspections push, so wiping its triggers is safe. */
+/** Installs ONLY the inspection triggers (leaves the leaderboard/roster ones
+ * alone). Safe to re-run. */
 function installInspectorTriggers() {
+  var mine = { onInspectionEdit: true, pushInspections: true };
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    ScriptApp.deleteTrigger(t);
+    if (mine[t.getHandlerFunction()]) ScriptApp.deleteTrigger(t);
   });
   var ss = SpreadsheetApp.getActive();
   ScriptApp.newTrigger("onInspectionEdit").forSpreadsheet(ss).onEdit().create();
