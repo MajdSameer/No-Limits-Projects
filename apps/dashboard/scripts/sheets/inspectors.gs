@@ -112,11 +112,15 @@ function onInspectionEdit() {
   pushInspections();
 }
 
-/** Run once to (re)install the edit + 5-minute triggers. Safe to re-run. */
+/** Run once to (re)install the edit + 5-minute triggers. Safe to re-run.
+ *
+ * Clears ALL of this project's triggers first — Apps Script caps a project at 20
+ * triggers, and leftover/duplicate ones from earlier runs hit that cap ("This
+ * script has too many triggers"). This is a dedicated project for the
+ * inspections push, so wiping its triggers is safe. */
 function installInspectorTriggers() {
-  var ours = { onInspectionEdit: true, pushInspections: true };
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (ours[t.getHandlerFunction()]) ScriptApp.deleteTrigger(t);
+    ScriptApp.deleteTrigger(t);
   });
   var ss = SpreadsheetApp.getActive();
   ScriptApp.newTrigger("onInspectionEdit").forSpreadsheet(ss).onEdit().create();
