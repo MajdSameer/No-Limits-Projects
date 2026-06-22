@@ -78,24 +78,32 @@ that's where the clock comes from — install `leaderboard.gs` first.
 
 ## Site inspections push (`inspectors.gs`)
 
-`inspectors.gs` is bound to the **site-inspection bookings** spreadsheet (its own
-Apps Script project + `DASHBOARD_URL` / `INGEST_SECRET` script properties, same
-values). It finds the tab with a **Site Inspector** column and reads, per row,
-the **Date**, **Sales Person**, **Job Number** and **Site Inspector**. It POSTs
-**today's** job-numbered inspections, grouped by inspector, to
+The inspection details are entered in a **tab inside the Follow-Up spreadsheet**
+(gid `947259945`), so `inspectors.gs` is an **extra file in the Follow-Up Apps
+Script project** (alongside `leaderboard.gs` / `roster.gs`) — a spreadsheet has
+only one bound script. It reuses the project's existing `DASHBOARD_URL` /
+`INGEST_SECRET` script properties.
+
+It finds the inspections tab (by gid, else by header), and for each row that has
+all three of **Job Number + Sales Rep + Site Inspector** filled, POSTs it to
 `/api/ingest/inspectors`, which drives the dedicated **Site Inspectors** boxes on
 `/live` (Martin, Danny…) and the **applause** celebration — inspector name, the
 job number, and the sales rep whose customer the inspection is for.
 
-1. Open the bookings sheet → **Extensions → Apps Script**, paste `inspectors.gs`.
-2. Set the two script properties, run **`installInspectorTriggers`** (onEdit +
-   5-minute timer).
-3. Test: run **`pushInspections`**, then open `/live`.
+1. In the **Follow-Up** sheet's Apps Script project, **add a file** and paste in
+   `inspectors.gs`, Save.
+2. Run **`installInspectorTriggers`** — it installs **only** its own triggers (a
+   tab-scoped onEdit + a 5-minute timer) and leaves the leaderboard/roster
+   triggers alone.
+3. Test: run **`pushInspections`**, check the log, then open `/live`.
 
-Only inspections that have a **job number** count toward an inspector's daily
-total (a site inspection isn't "real" until it has a MovePro number). Inspectors
-with none today still show their box at 0. Columns are matched by header name, so
-reordering them is fine; the day is Sydney time, matching the dashboard.
+A row counts (and celebrates) only once it has **Job Number + Sales Rep + Site
+Inspector** — the rep doesn't have to fill a date (an undated freshly-filled row
+counts as today; past/future-dated rows stay off today's board). Inspectors with
+none today still show their box at 0. Column headers are matched by name with
+common synonyms; if a column can't be matched, `pushInspections` throws an error
+listing the headers it saw. The header row is auto-detected (the table header,
+not a stray "Site Inspector" label box above it). The day is Sydney time.
 
 ## Notes
 
