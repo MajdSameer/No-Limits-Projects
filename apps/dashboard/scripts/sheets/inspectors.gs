@@ -21,6 +21,7 @@
 
 var INSP_TZ = "Australia/Sydney"; // the floor's day, matches the dashboard
 var INSP_GID = 1132462575; // the inspections tab (fallback: find by header)
+var INSP_HEADER_SCAN = 15; // header may not be row 1 — scan the top N rows
 var INSP_MAXROWS = 20000; // safety cap so a giant sheet can't time out
 
 function inspCfg_() {
@@ -41,43 +42,47 @@ function inspYmd_(v) {
   return Utilities.formatDate(d, INSP_TZ, "yyyy-MM-dd");
 }
 
-/** The inspections tab — by gid, else the tab whose header row has the column. */
+/** Find the header row (1-based) within a sheet's top rows, or null. */
+function inspHeader_(sheet) {
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 1 || lastCol < 1) return null;
+  var rows = Math.min(INSP_HEADER_SCAN, lastRow);
+  var top = sheet.getRange(1, 1, rows, lastCol).getValues();
+  for (var r = 0; r < top.length; r++) {
+    var lc = top[r].map(function (x) {
+      return String(x).trim().toLowerCase();
+    });
+    if (lc.indexOf("site inspector") !== -1) return { headerRow: r + 1, hdr: lc };
+  }
+  return null;
+}
+
+/** The inspections tab + the row its headers live on — by gid, else by header. */
 function inspSheet_() {
   var sheets = SpreadsheetApp.getActive().getSheets();
-  var sh = null;
   for (var i = 0; i < sheets.length; i++) {
     if (sheets[i].getSheetId() === INSP_GID) {
-      sh = sheets[i];
-      break;
+      var h = inspHeader_(sheets[i]);
+      if (h) return { sheet: sheets[i], hdr: h.hdr, headerRow: h.headerRow };
+      break; // gid matched but no header found — fall through and scan others
     }
   }
-  if (!sh) {
-    for (var j = 0; j < sheets.length && !sh; j++) {
-      var lc = sheets[j].getLastColumn();
-      if (lc < 1) continue;
-      var h = sheets[j].getRange(1, 1, 1, lc).getValues()[0];
-      for (var k = 0; k < h.length; k++) {
-        if (String(h[k]).trim().toLowerCase() === "site inspector") {
-          sh = sheets[j];
-          break;
-        }
-      }
-    }
+  for (var j = 0; j < sheets.length; j++) {
+    var h2 = inspHeader_(sheets[j]);
+    if (h2) return { sheet: sheets[j], hdr: h2.hdr, headerRow: h2.headerRow };
   }
-  if (!sh) return null;
-  var hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (x) {
-    return String(x).trim().toLowerCase();
-  });
-  return { sheet: sh, hdr: hdr };
+  return null;
 }
 
 function pushInspections() {
   var t0 = new Date().getTime();
   var cfg = inspCfg_();
   var found = inspSheet_();
-  if (!found) throw new Error('No tab with a "Site Inspector" column was found.');
+  if (!found) throw new Error('No tab with a "Site Inspector" header was found.');
   var sheet = found.sheet;
   var hdr = found.hdr;
+  var headerRow = found.headerRow;
   function col(name) {
     return hdr.indexOf(name);
   }
@@ -85,7 +90,6 @@ function pushInspections() {
   var ciSales = col("sales person");
   var ciJob = col("job number");
   var ciInsp = col("site inspector");
-  if (ciInsp === -1) throw new Error('No "Site Inspector" column in the header row.');
 
   var today = Utilities.formatDate(new Date(), INSP_TZ, "yyyy-MM-dd");
   var byName = {};
@@ -95,7 +99,7 @@ function pushInspections() {
     return byName[k];
   }
 
-  var n = sheet.getLastRow() - 1; // data rows (excl. header)
+  var n = sheet.getLastRow() - headerRow; // data rows below the header
   if (n > INSP_MAXROWS) n = INSP_MAXROWS;
   if (n > 0) {
     // Read ONLY the columns we need (one narrow block) — pulling the whole
@@ -105,7 +109,7 @@ function pushInspections() {
     });
     var lo = Math.min.apply(null, present); // 0-based
     var hi = Math.max.apply(null, present);
-    var block = sheet.getRange(2, lo + 1, n, hi - lo + 1).getValues();
+    var block = sheet.getRange(headerRow + 1, lo + 1, n, hi - lo + 1).getValues();
     function cell(rowArr, ci) {
       return ci < 0 ? "" : rowArr[ci - lo];
     }
@@ -125,7 +129,7 @@ function pushInspections() {
   var rows = Object.keys(byName).map(function (k) {
     return byName[k];
   });
-  Logger.log("read %s rows in %sms, %s inspectors", n, new Date().getTime() - t0, rows.length);
+  Logger.log("header row %s, read %s rows in %sms, %s inspectors", headerRow, n, new Date().getTime() - t0, rows.length);
 
   var res = UrlFetchApp.fetch(cfg.url.replace(/\/$/, "") + "/api/ingest/inspectors", {
     method: "post",
