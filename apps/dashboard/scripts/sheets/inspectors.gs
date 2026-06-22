@@ -21,7 +21,7 @@
 
 var INSP_TZ = "Australia/Sydney"; // the floor's day, matches the dashboard
 var INSP_GID = 1132462575; // the inspections tab (fallback: find by header)
-var INSP_HEADER_SCAN = 15; // header may not be row 1 — scan the top N rows
+var INSP_HEADER_SCAN = 40; // header may not be row 1 — scan the top N rows
 var INSP_MAXROWS = 20000; // safety cap so a giant sheet can't time out
 
 function inspCfg_() {
@@ -53,7 +53,15 @@ function inspHeader_(sheet) {
     var lc = top[r].map(function (x) {
       return String(x).trim().toLowerCase();
     });
-    if (lc.indexOf("site inspector") !== -1) return { headerRow: r + 1, hdr: lc };
+    // Require the real TABLE header: "site inspector" alongside another known
+    // column, so a stray "Site Inspector" label/box near the top is skipped.
+    var corroborated =
+      lc.indexOf("job number") !== -1 ||
+      lc.indexOf("sales person") !== -1 ||
+      lc.indexOf("date") !== -1;
+    if (lc.indexOf("site inspector") !== -1 && corroborated) {
+      return { headerRow: r + 1, hdr: lc };
+    }
   }
   return null;
 }
