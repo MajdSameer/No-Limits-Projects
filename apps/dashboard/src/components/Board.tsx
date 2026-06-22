@@ -31,11 +31,27 @@ interface AllocSlotDTO {
   leadsToday: number;
 }
 
+export interface InspectorJobDTO {
+  /** MovePro job number of the site inspection. */
+  code: string;
+  /** Sales rep whose customer the inspection is for. */
+  forRep: string | null;
+}
+
+export interface InspectorRowDTO {
+  id: string;
+  name: string;
+  count: number;
+  jobs: InspectorJobDTO[];
+}
+
 export interface BoardsDTO {
   daily: BoardRowDTO[];
   yesterday: BoardRowDTO[];
   monthly: BoardRowDTO[];
   pipeline: BoardRowDTO[];
+  /** Site inspectors' boxes (Martin, Danny…) for the wall display. */
+  inspectors: InspectorRowDTO[];
   allocation: { eligible: AllocSlotDTO[]; nextUp: string | null; totalLeadsToday: number };
   gameDay: boolean;
   monthlyGoal: number;
@@ -144,7 +160,7 @@ export function Board({
   return (
     // lg+: lock to one landscape screen, no scroll. Smaller screens flow normally.
     <div className="relative flex flex-col gap-3 lg:h-[calc(100dvh-10.5rem)] lg:overflow-hidden">
-      <BookingCelebration daily={data.daily} />
+      <BookingCelebration daily={data.daily} inspectors={data.inspectors} />
       {greet && (
         <div className="fade-in fixed top-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-brand-900 px-5 py-3 text-white shadow-xl">
           <p className="font-bold">{greet}</p>

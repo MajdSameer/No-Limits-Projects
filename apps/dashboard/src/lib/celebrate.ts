@@ -50,6 +50,10 @@ export interface BookingPop {
   name: string;
   /** The MovePro number of the booking that just landed, if known. */
   code: string | null;
+  /** "rep" booking (default) or a site-inspection ("inspector"). */
+  kind?: "rep" | "inspector";
+  /** Site inspections only: the SALES rep whose customer this inspection is for. */
+  forRep?: string | null;
 }
 
 /** Mutable per-session memory for the live celebration. Create one per board. */
@@ -138,6 +142,48 @@ export function newBookings(
   return pops;
 }
 
+// ── Site inspections: same per-booking pop, but each carries the SALES rep ───
+
+/** One inspector's live row for the celebration: today's job numbers, each tied
+ * to the sales rep whose customer the inspection is for. */
+export interface InspectorCountRow {
+  staffId: string;
+  name: string;
+  count: number;
+  jobs: { code: string; forRep: string | null }[];
+}
+
+/**
+ * Pure: new site inspections since we last looked. Reuses {@link newBookings}
+ * (count-driven, drop-debounced, seeded-silent) over the inspectors' job
+ * numbers, then tags each pop as an inspection and attaches the sales rep the
+ * job is for — so the celebration can show "<inspector> · #<job> · for <rep>".
+ * Mutates `state`.
+ */
+export function inspectorBookings(
+  rows: InspectorCountRow[],
+  state: CelebrateState,
+  seed: boolean,
+): BookingPop[] {
+  const codeToRep = new Map<string, string | null>();
+  for (const r of rows) for (const j of r.jobs) codeToRep.set(j.code, j.forRep ?? null);
+  const base = newBookings(
+    rows.map((r) => ({
+      staffId: r.staffId,
+      name: r.name,
+      count: r.count,
+      jobCodes: r.jobs.map((j) => j.code),
+    })),
+    state,
+    seed,
+  );
+  return base.map((p) => ({
+    ...p,
+    kind: "inspector" as const,
+    forRep: p.code ? (codeToRep.get(p.code) ?? null) : null,
+  }));
+}
+
 // ── Web Audio gong (synthesised — no asset, works offline) ───────────────
 let ctx: AudioContext | null = null;
 
@@ -207,6 +253,75 @@ export function playGong(volume = 0.55): void {
   ng.connect(master);
   noise.start(now);
   noise.stop(now + dur);
+}
+
+/**
+ * Theatre applause with echo — a crowd of synthesised claps swelling then
+ * tailing off, fed through a feedback delay so it rings around the "room". Used
+ * for site-inspection celebrations (instead of the gong). No audio asset; works
+ * offline like the gong.
+ */
+export function playApplause(volume = 0.5): void {
+  const c = getCtx();
+  if (!c) return;
+  if (c.state === "suspended") void c.resume();
+  const now = c.currentTime;
+
+  const master = c.createGain();
+  master.gain.value = volume;
+  master.connect(c.destination);
+
+  // Feedback delay = the hall echo. Claps feed both the dry master and this.
+  const delay = c.createDelay(1.0);
+  delay.delayTime.value = 0.23;
+  const feedback = c.createGain();
+  feedback.gain.value = 0.34;
+  const echoTone = c.createBiquadFilter(); // round off the repeats so they wash out
+  echoTone.type = "lowpass";
+  echoTone.frequency.value = 2600;
+  delay.connect(echoTone);
+  echoTone.connect(feedback);
+  feedback.connect(delay);
+  const echoLevel = c.createGain();
+  echoLevel.gain.value = 0.5;
+  delay.connect(echoLevel);
+  echoLevel.connect(master);
+
+  // One short, bright noise burst = a single clap.
+  const clap = (at: number, gain: number) => {
+    const dur = 0.025;
+    const buf = c.createBuffer(1, Math.max(1, Math.floor(c.sampleRate * dur)), c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
+    }
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1500 + Math.random() * 1400; // each clap a touch different
+    bp.Q.value = 0.7;
+    const g = c.createGain();
+    g.gain.value = gain;
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(master); // dry
+    g.connect(delay); // into the echo
+    src.start(at);
+    src.stop(at + dur);
+  };
+
+  // A crowd: ~2.6s of claps that swell in over the first ~0.4s then fade,
+  // densest in the middle. Randomised timing/gain so it reads as many hands.
+  const total = 2.6;
+  const claps = 110;
+  for (let i = 0; i < claps; i++) {
+    const t = (i / claps) * total + Math.random() * 0.03;
+    const swell = Math.min(1, t / 0.4); // ramp up at the start
+    const fade = Math.max(0, 1 - (t - 0.6) / (total - 0.6)); // ease out to the end
+    const env = swell * Math.max(0.12, fade);
+    clap(now + t, (0.07 + Math.random() * 0.16) * env);
+  }
 }
 
 const GONG_COLORS = ["#ffd42e", "#fff389", "#f472b6", "#38bdf8", "#f4f1e8"];

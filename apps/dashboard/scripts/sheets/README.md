@@ -76,6 +76,27 @@ while no one is clocked in are parked as "awaiting" on `/leads`.
 Auto-allocation depends on the Leaderboard push (rep_live) being live, since
 that's where the clock comes from — install `leaderboard.gs` first.
 
+## Site inspections push (`inspectors.gs`)
+
+`inspectors.gs` is bound to the **site-inspection bookings** spreadsheet (its own
+Apps Script project + `DASHBOARD_URL` / `INGEST_SECRET` script properties, same
+values). It finds the tab with a **Site Inspector** column and reads, per row,
+the **Date**, **Sales Person**, **Job Number** and **Site Inspector**. It POSTs
+**today's** job-numbered inspections, grouped by inspector, to
+`/api/ingest/inspectors`, which drives the dedicated **Site Inspectors** boxes on
+`/live` (Martin, Danny…) and the **applause** celebration — inspector name, the
+job number, and the sales rep whose customer the inspection is for.
+
+1. Open the bookings sheet → **Extensions → Apps Script**, paste `inspectors.gs`.
+2. Set the two script properties, run **`installInspectorTriggers`** (onEdit +
+   5-minute timer).
+3. Test: run **`pushInspections`**, then open `/live`.
+
+Only inspections that have a **job number** count toward an inspector's daily
+total (a site inspection isn't "real" until it has a MovePro number). Inspectors
+with none today still show their box at 0. Columns are matched by header name, so
+reordering them is fine; the day is Sydney time, matching the dashboard.
+
 ## Notes
 
 - The endpoint is idempotent and secret-protected; re-pushing is harmless.
