@@ -22,6 +22,7 @@ import {
   yesterdayBoard,
   type BoardRow,
 } from "./boards";
+import { inspectorBoard, type InspectorRow } from "./inspectors";
 import { liveAllocation } from "./allocation";
 import { getMonthlyGoal, isGameDay } from "../settings";
 
@@ -37,6 +38,8 @@ export interface BoardsSnapshot {
   yesterday: BoardRow[];
   monthly: BoardRow[];
   pipeline: BoardRow[];
+  /** Site inspectors' boxes for the wall display (Martin, Danny…). */
+  inspectors: InspectorRow[];
   allocation: { eligible: AllocSlot[]; nextUp: string | null; totalLeadsToday: number };
   gameDay: boolean;
   monthlyGoal: number;
@@ -67,6 +70,7 @@ async function compute(): Promise<BoardsSnapshot> {
   const yesterday = await yesterdayBoard(now);
   const monthly = await monthlyBoard(now);
   const pipeline = await pipelineBoard(now);
+  const inspectors = await inspectorBoard(now);
   const allocation = await liveAllocation(now);
   const gameDay = await isGameDay();
   const monthlyGoal = await getMonthlyGoal();
@@ -77,6 +81,7 @@ async function compute(): Promise<BoardsSnapshot> {
     yesterday,
     monthly,
     pipeline,
+    inspectors,
     allocation,
     gameDay,
     monthlyGoal,
@@ -94,6 +99,7 @@ function emptySnapshot(): BoardsSnapshot {
     yesterday: [],
     monthly: [],
     pipeline: [],
+    inspectors: [],
     allocation: { eligible: [], nextUp: null, totalLeadsToday: 0 },
     gameDay: false,
     monthlyGoal: 1995,
