@@ -126,11 +126,16 @@ function pushInspections() {
       var inspector = String(cell(row, ciInsp) || "").trim();
       if (!inspector) continue;
       ins(inspector); // always list the inspector so its box shows (even at 0)
-      if (ciDate === -1 || inspYmd_(cell(row, ciDate)) !== today) continue;
+      // An inspection counts (and celebrates) only once it has all three:
+      // job number + sales rep + site inspector.
       var code = String(cell(row, ciJob) || "").trim();
-      if (!code) continue; // only count inspections that have a job number
       var forRep = String(cell(row, ciSales) || "").trim();
-      ins(inspector).jobs.push({ code: code, forRep: forRep || null });
+      if (!code || !forRep) continue;
+      // Keep it to today's board; an undated freshly-filled row counts as today,
+      // so the rep only has to fill those three fields (date optional).
+      var ymd = ciDate === -1 ? "" : inspYmd_(cell(row, ciDate));
+      if (ymd !== "" && ymd !== today) continue;
+      ins(inspector).jobs.push({ code: code, forRep: forRep });
     }
   }
 
