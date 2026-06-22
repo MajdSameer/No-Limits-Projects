@@ -20,6 +20,8 @@
  */
 
 var INSP_TZ = "Australia/Sydney"; // the floor's day, matches the dashboard
+var INSP_GID = 1132462575; // the inspections tab (fallback: find by header)
+var INSP_MAXROWS = 20000; // safety cap so a giant sheet can't time out
 
 function inspCfg_() {
   var props = PropertiesService.getScriptProperties();
@@ -39,22 +41,38 @@ function inspYmd_(v) {
   return Utilities.formatDate(d, INSP_TZ, "yyyy-MM-dd");
 }
 
-/** The tab that holds the inspections (found by its "Site Inspector" header). */
+/** The inspections tab — by gid, else the tab whose header row has the column. */
 function inspSheet_() {
   var sheets = SpreadsheetApp.getActive().getSheets();
+  var sh = null;
   for (var i = 0; i < sheets.length; i++) {
-    var sh = sheets[i];
-    var lastCol = sh.getLastColumn();
-    if (lastCol < 1) continue;
-    var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (x) {
-      return String(x).trim().toLowerCase();
-    });
-    if (hdr.indexOf("site inspector") !== -1) return { sheet: sh, hdr: hdr };
+    if (sheets[i].getSheetId() === INSP_GID) {
+      sh = sheets[i];
+      break;
+    }
   }
-  return null;
+  if (!sh) {
+    for (var j = 0; j < sheets.length && !sh; j++) {
+      var lc = sheets[j].getLastColumn();
+      if (lc < 1) continue;
+      var h = sheets[j].getRange(1, 1, 1, lc).getValues()[0];
+      for (var k = 0; k < h.length; k++) {
+        if (String(h[k]).trim().toLowerCase() === "site inspector") {
+          sh = sheets[j];
+          break;
+        }
+      }
+    }
+  }
+  if (!sh) return null;
+  var hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (x) {
+    return String(x).trim().toLowerCase();
+  });
+  return { sheet: sh, hdr: hdr };
 }
 
 function pushInspections() {
+  var t0 = new Date().getTime();
   var cfg = inspCfg_();
   var found = inspSheet_();
   if (!found) throw new Error('No tab with a "Site Inspector" column was found.');
@@ -67,6 +85,7 @@ function pushInspections() {
   var ciSales = col("sales person");
   var ciJob = col("job number");
   var ciInsp = col("site inspector");
+  if (ciInsp === -1) throw new Error('No "Site Inspector" column in the header row.');
 
   var today = Utilities.formatDate(new Date(), INSP_TZ, "yyyy-MM-dd");
   var byName = {};
@@ -76,18 +95,29 @@ function pushInspections() {
     return byName[k];
   }
 
-  var lastRow = sheet.getLastRow();
-  if (lastRow >= 2) {
-    var data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
-    for (var r = 0; r < data.length; r++) {
-      var row = data[r];
-      var inspector = String(row[ciInsp] || "").trim();
+  var n = sheet.getLastRow() - 1; // data rows (excl. header)
+  if (n > INSP_MAXROWS) n = INSP_MAXROWS;
+  if (n > 0) {
+    // Read ONLY the columns we need (one narrow block) — pulling the whole
+    // 20-column range across the Apps Script bridge is what timed out.
+    var present = [ciDate, ciSales, ciJob, ciInsp].filter(function (x) {
+      return x >= 0;
+    });
+    var lo = Math.min.apply(null, present); // 0-based
+    var hi = Math.max.apply(null, present);
+    var block = sheet.getRange(2, lo + 1, n, hi - lo + 1).getValues();
+    function cell(rowArr, ci) {
+      return ci < 0 ? "" : rowArr[ci - lo];
+    }
+    for (var r = 0; r < block.length; r++) {
+      var row = block[r];
+      var inspector = String(cell(row, ciInsp) || "").trim();
       if (!inspector) continue;
       ins(inspector); // always list the inspector so its box shows (even at 0)
-      if (ciDate === -1 || inspYmd_(row[ciDate]) !== today) continue;
-      var code = ciJob === -1 ? "" : String(row[ciJob] || "").trim();
+      if (ciDate === -1 || inspYmd_(cell(row, ciDate)) !== today) continue;
+      var code = String(cell(row, ciJob) || "").trim();
       if (!code) continue; // only count inspections that have a job number
-      var forRep = ciSales === -1 ? "" : String(row[ciSales] || "").trim();
+      var forRep = String(cell(row, ciSales) || "").trim();
       ins(inspector).jobs.push({ code: code, forRep: forRep || null });
     }
   }
@@ -95,6 +125,8 @@ function pushInspections() {
   var rows = Object.keys(byName).map(function (k) {
     return byName[k];
   });
+  Logger.log("read %s rows in %sms, %s inspectors", n, new Date().getTime() - t0, rows.length);
+
   var res = UrlFetchApp.fetch(cfg.url.replace(/\/$/, "") + "/api/ingest/inspectors", {
     method: "post",
     contentType: "application/json",
