@@ -71,7 +71,9 @@ function inspHeader_(sheet) {
   var top = sheet.getRange(1, 1, rows, lastCol).getValues();
   for (var r = 0; r < top.length; r++) {
     var lc = top[r].map(function (x) {
-      return String(x).trim().toLowerCase();
+      // Collapse internal whitespace incl. NEWLINES, so a header typed as
+      // "job\nnumber" still matches the candidate "job number".
+      return String(x).trim().toLowerCase().replace(/\s+/g, " ");
     });
     if (inspFindCol_(lc, INSP_COLS.inspector) === -1) continue;
     var corroborated =
