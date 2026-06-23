@@ -265,71 +265,103 @@ export function playGong(volume = 0.55): void {
 }
 
 /**
- * Theatre applause with echo — a crowd of synthesised claps swelling then
- * tailing off, fed through a feedback delay so it rings around the "room". Used
- * for site-inspection celebrations (instead of the gong). No audio asset; works
- * offline like the gong.
+ * Theatre applause + crowd cheer — synthesised so it works offline. Two layers:
+ * (1) a swelling brown-noise "roar" = the body of a cheering crowd, and
+ * (2) ~220 sharp broadband clap transients with random timing/pitch so each
+ * reads as a real hand-clap, fed through a light room delay. Used for
+ * site-inspection celebrations (instead of the gong).
  */
-export function playApplause(volume = 0.5): void {
+export function playApplause(volume = 0.7): void {
   const c = getCtx();
   if (!c) return;
   if (c.state === "suspended") void c.resume();
   const now = c.currentTime;
+  const sr = c.sampleRate;
+  const DUR = 3.2;
 
   const master = c.createGain();
   master.gain.value = volume;
   master.connect(c.destination);
 
-  // Feedback delay = the hall echo. Claps feed both the dry master and this.
-  const delay = c.createDelay(1.0);
-  delay.delayTime.value = 0.23;
+  // Light room delay so the claps aren't bone dry (a hall, not a feedback wash).
+  const delay = c.createDelay(0.5);
+  delay.delayTime.value = 0.13;
   const feedback = c.createGain();
-  feedback.gain.value = 0.34;
-  const echoTone = c.createBiquadFilter(); // round off the repeats so they wash out
+  feedback.gain.value = 0.22;
+  const echoTone = c.createBiquadFilter();
   echoTone.type = "lowpass";
-  echoTone.frequency.value = 2600;
+  echoTone.frequency.value = 3200;
   delay.connect(echoTone);
   echoTone.connect(feedback);
   feedback.connect(delay);
   const echoLevel = c.createGain();
-  echoLevel.gain.value = 0.5;
+  echoLevel.gain.value = 0.35;
   delay.connect(echoLevel);
   echoLevel.connect(master);
 
-  // One short, bright noise burst = a single clap.
+  // ── Layer 1: crowd roar — brown noise (random walk) band-passed, swelling. ──
+  const bedBuf = c.createBuffer(1, Math.floor(sr * DUR), sr);
+  const bd = bedBuf.getChannelData(0);
+  let walk = 0;
+  for (let i = 0; i < bd.length; i++) {
+    walk += (Math.random() * 2 - 1) * 0.05;
+    if (walk > 1) walk = 1;
+    else if (walk < -1) walk = -1;
+    bd[i] = walk * 0.6;
+  }
+  const bed = c.createBufferSource();
+  bed.buffer = bedBuf;
+  const bedBp = c.createBiquadFilter();
+  bedBp.type = "bandpass";
+  bedBp.frequency.value = 950;
+  bedBp.Q.value = 0.4;
+  const bedGain = c.createGain();
+  bedGain.gain.setValueAtTime(0.0001, now);
+  bedGain.gain.exponentialRampToValueAtTime(0.4, now + 0.6);
+  bedGain.gain.setValueAtTime(0.4, now + DUR - 1.3);
+  bedGain.gain.exponentialRampToValueAtTime(0.0001, now + DUR);
+  bed.connect(bedBp);
+  bedBp.connect(bedGain);
+  bedGain.connect(master);
+  bed.start(now);
+  bed.stop(now + DUR);
+
+  // ── Layer 2: individual claps — short sharp broadband transients. ──
   const clap = (at: number, gain: number) => {
-    const dur = 0.025;
-    const buf = c.createBuffer(1, Math.max(1, Math.floor(c.sampleRate * dur)), c.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
+    const len = Math.max(1, Math.floor(sr * 0.012)); // ~12ms
+    const buf = c.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); // sharp attack/decay
     }
     const src = c.createBufferSource();
     src.buffer = buf;
+    const hp = c.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 900;
     const bp = c.createBiquadFilter();
     bp.type = "bandpass";
-    bp.frequency.value = 1500 + Math.random() * 1400; // each clap a touch different
-    bp.Q.value = 0.7;
+    bp.frequency.value = 1300 + Math.random() * 1700; // each hand a touch different
+    bp.Q.value = 1.1;
     const g = c.createGain();
     g.gain.value = gain;
-    src.connect(bp);
+    src.connect(hp);
+    hp.connect(bp);
     bp.connect(g);
     g.connect(master); // dry
-    g.connect(delay); // into the echo
+    g.connect(delay); // into the room
     src.start(at);
-    src.stop(at + dur);
+    src.stop(at + 0.05);
   };
 
-  // A crowd: ~2.6s of claps that swell in over the first ~0.4s then fade,
-  // densest in the middle. Randomised timing/gain so it reads as many hands.
-  const total = 2.6;
-  const claps = 110;
+  // ~220 claps spread randomly, swelling in then tailing off — reads as a crowd.
+  const claps = 220;
   for (let i = 0; i < claps; i++) {
-    const t = (i / claps) * total + Math.random() * 0.03;
-    const swell = Math.min(1, t / 0.4); // ramp up at the start
-    const fade = Math.max(0, 1 - (t - 0.6) / (total - 0.6)); // ease out to the end
-    const env = swell * Math.max(0.12, fade);
-    clap(now + t, (0.07 + Math.random() * 0.16) * env);
+    const t = Math.random() * DUR;
+    const swell = Math.min(1, t / 0.5);
+    const fade = Math.max(0, 1 - (t - (DUR - 1.5)) / 1.5);
+    const env = swell * Math.max(0.18, fade);
+    clap(now + t, (0.16 + Math.random() * 0.2) * env);
   }
 }
 
