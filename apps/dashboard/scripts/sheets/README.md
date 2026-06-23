@@ -87,35 +87,34 @@ that's where the clock comes from — install `leaderboard.gs` first.
 
 ## Site inspections push (`inspectors.gs`)
 
-The inspection details are entered in a **tab inside the Follow-Up spreadsheet**
-(gid `947259945`), so `inspectors.gs` is an **extra file in the Follow-Up Apps
-Script project** (alongside `leaderboard.gs` / `roster.gs`) — a spreadsheet has
-only one bound script. It reuses the project's existing `DASHBOARD_URL` /
-`INGEST_SECRET` script properties.
+Site inspections are logged in a **section of the "Leaderboard" tab** (the
+Follow-Up spreadsheet), so `inspectors.gs` is an **extra file in the Follow-Up
+Apps Script project** (alongside `leaderboard.gs` / `roster.gs`). It reuses the
+project's existing `DASHBOARD_URL` / `INGEST_SECRET` script properties.
 
-It finds the inspections tab (by gid, else by header), and for each row that has
-all three of **Job Number + Sales Rep + Site Inspector** filled, POSTs it to
-`/api/ingest/inspectors`, which drives the dedicated **Site Inspectors** boxes on
-`/live` (Martin, Danny…) and the **applause** celebration — inspector name, the
-job number, and the sales rep whose customer the inspection is for.
+It reads two fixed-cell areas on the Leaderboard tab and POSTs them to
+`/api/ingest/inspectors`, which drives the green **Site Inspectors** boxes on
+`/live` (Martin, Danny) and the **applause** celebration:
+
+- **Today's entries** grow down from **row 198** — a row counts (and celebrates)
+  once it has BOTH a job number and a sales rep:
+  - Martin: job# col **AU**, sales rep col **BA**
+  - Danny: job# col **BJ**, sales rep col **BP**
+- **This month's total** is read straight from the displayed cell on **row 194**
+  (the `194-195` merge): Martin col **BA**, Danny col **BP**.
+
+The box shows **today** (from the section) and **month** (from the cell) side by
+side; the celebration fires the instant a rep adds a today entry (inspector name,
+job number, and the sales rep it's for). Columns/rows are constants at the top of
+the script — adjust them there if the section moves.
 
 1. In the **Follow-Up** sheet's Apps Script project, **add a file** and paste in
    `inspectors.gs`, Save.
 2. Run **`installInspectorTriggers`** — it installs **only** its own triggers (a
-   tab-scoped onEdit + a 5-minute timer) and leaves the leaderboard/roster
+   section-scoped onEdit + a 5-minute timer) and leaves the leaderboard/roster
    triggers alone.
-3. Test: run **`pushInspections`**, check the log, then open `/live`.
-
-A row counts (and celebrates) only once it has **Job Number + Sales Rep + Site
-Inspector** — the rep doesn't have to fill a date (an undated freshly-filled row
-counts as today; past/future-dated rows stay off today's board). Inspectors with
-none today still show their box at 0. The push also sends each inspector's
-**monthly total** (`monthCount`) — every qualifying row dated in (or undated
-within) the current Sydney month — which the box shows next to today's count and
-resets on a new month. Column headers are matched by name with
-common synonyms; if a column can't be matched, `pushInspections` throws an error
-listing the headers it saw. The header row is auto-detected (the table header,
-not a stray "Site Inspector" label box above it). The day is Sydney time.
+3. Test: run **`pushInspections`**, check the log (`Name (today N, month M)`),
+   then open `/live`.
 
 ## Notes
 
