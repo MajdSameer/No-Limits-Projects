@@ -45,31 +45,19 @@ function monthlyMessage(pct: number): string {
   return "Fresh month, big target — let's chase it 🚀";
 }
 
-/** Tidy percentage label: 1 → "1%", 1.5 → "1.5%", 1.75 → "1.75%". */
-function pctLabel(pct: number): string {
-  return `${Number(pct.toFixed(2))}%`;
-}
-
-/**
- * Today's box — name + today's count up top, then (once the sheet pushes
- * revenue) a calm money block under a hairline: the month's NET revenue paired
- * with the rep's rate, and a quiet caption row of labels beneath. Flat single
- * surface — no nested panel — so a wall of 15 reads tidy.
- */
+/** Today's box — name + today's count against goal. The neon glow tints by
+ * gender; a hot tier swaps it for the gold "goal hit" outline. */
 function GlowCell({ r }: { r: BoardRowDTO }) {
   const tier = cellTier(r.count, r.goal);
   const hot = tier === "hit" || tier === "over" || tier === "wild";
-  const hasMoney = typeof r.revenue === "number";
-  const pct = r.commissionPct ?? 0;
   return (
     <li
       title={cellMessage(r.staffId, sydneyToday(), tier)}
       className={cx(
-        "flex min-h-0 flex-col overflow-hidden rounded-xl bg-white/[0.05] p-3",
+        "flex min-h-0 flex-col justify-center overflow-hidden rounded-xl bg-white/[0.05] p-3",
         hot ? "border-2 border-accent-400 shadow-[0_0_18px_0_rgba(255,212,46,0.65)]" : glow(r.gender),
       )}
     >
-      {/* Hero line: name + today's count / goal */}
       <div className="flex items-baseline justify-between gap-2">
         <span className="truncate text-2xl font-bold text-white">
           {r.name}
@@ -80,49 +68,19 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
           <span className="text-2xl font-semibold text-white/35">/{r.goal ?? "—"}</span>
         </span>
       </div>
-
-      {/* Money block — revenue + rate on a baseline, quiet labels beneath */}
-      {hasMoney && (
-        <div className="mt-auto border-t border-white/10 pt-2">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-2xl leading-none font-black text-emerald-300 tabular-nums xl:text-[1.7rem]">
-              {moneyCompact(r.revenue!)}
-            </span>
-            <span
-              className={cx(
-                "shrink-0 text-lg leading-none font-bold tabular-nums xl:text-xl",
-                pct > 0 ? "text-accent-300" : "text-white/30",
-              )}
-            >
-              {pctLabel(pct)}
-            </span>
-          </div>
-          <div className="mt-1.5 flex items-baseline justify-between gap-2 leading-none">
-            <span className="text-[0.65rem] font-semibold tracking-[0.12em] text-emerald-300/45 uppercase">
-              Revenue
-            </span>
-            {typeof r.commission === "number" && (
-              <span className="text-sm font-semibold text-white/55 tabular-nums">
-                ~${Math.round(r.commission).toLocaleString()}{" "}
-                <span className="text-[0.6rem] font-medium tracking-wide text-white/35 uppercase">comm</span>
-              </span>
-            )}
-          </div>
-        </div>
-      )}
     </li>
   );
 }
 
-/** A site inspector's box — violet glow, today's count, and each job number
+/** A site inspector's box — neon-green glow, today's count, and each job number
  * with the sales rep whose customer the inspection is for. */
 function InspectorCell({ r }: { r: InspectorRowDTO }) {
   return (
-    <li className="flex min-h-0 flex-col gap-1 overflow-hidden rounded-xl border border-violet-400 bg-violet-500/[0.07] p-2.5 shadow-[0_0_13px_0_rgba(167,139,250,0.55)]">
+    <li className="flex min-h-0 flex-col gap-1 overflow-hidden rounded-xl border border-green-400 bg-green-500/[0.07] p-2.5 shadow-[0_0_15px_1px_rgba(74,222,128,0.65)]">
       <div className="flex items-baseline justify-between gap-2">
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span className="truncate text-xl font-bold text-white">{r.name}</span>
-          <span className="shrink-0 text-[0.6rem] font-bold tracking-[0.15em] text-violet-300 uppercase">
+          <span className="shrink-0 text-[0.6rem] font-bold tracking-[0.15em] text-green-300 uppercase">
             Inspector
           </span>
         </span>
@@ -133,10 +91,10 @@ function InspectorCell({ r }: { r: InspectorRowDTO }) {
           {r.jobs.map((j, i) => (
             <span
               key={`${j.code}-${i}`}
-              className="rounded bg-violet-500/15 px-1.5 py-px font-mono text-[0.7rem] leading-tight font-medium tracking-wide text-violet-100"
+              className="rounded bg-green-500/15 px-1.5 py-px font-mono text-[0.7rem] leading-tight font-medium tracking-wide text-green-100"
             >
               {j.code}
-              {j.forRep && <span className="text-violet-300/80"> · {j.forRep}</span>}
+              {j.forRep && <span className="text-green-300/80"> · {j.forRep}</span>}
             </span>
           ))}
         </div>
@@ -172,7 +130,7 @@ function moneyCompact(n: number): string {
   return `$${v.toLocaleString()}`;
 }
 
-/** A dense ranked row (This month / Next 3 months). */
+/** A dense ranked row (Next 3 months). */
 function RankRow({ r, i, tier }: { r: BoardRowDTO; i: number; tier?: boolean }) {
   return (
     <li className="flex min-h-0 flex-1 items-center gap-2 overflow-hidden px-3">
@@ -188,6 +146,43 @@ function RankRow({ r, i, tier }: { r: BoardRowDTO; i: number; tier?: boolean }) 
       <span className="flex-1 truncate text-base font-semibold text-white">{r.name}</span>
       {tier && <TierChip count={r.count} />}
       <span className="w-9 text-right text-lg font-bold text-white tabular-nums">{r.count}</span>
+    </li>
+  );
+}
+
+/**
+ * A "This month" row: rank, name, tier chip and the monthly booking count on
+ * top, with the rep's NET revenue (emerald) on a second line. Revenue line is
+ * omitted until the Booking sheet pushes it, so the column never looks broken.
+ */
+function MonthRow({ r, i }: { r: BoardRowDTO; i: number }) {
+  const hasRev = typeof r.revenue === "number";
+  return (
+    <li className="flex min-h-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden px-3 py-1">
+      <div className="flex items-center gap-2">
+        <span
+          className={cx(
+            "w-5 text-center text-sm font-bold",
+            i === 0 ? "text-accent-400" : i < 3 ? "text-brand-200" : "text-white/40",
+          )}
+        >
+          {i + 1}
+        </span>
+        <span aria-hidden className={cx("size-2.5 shrink-0 rounded-full", glowDot(r.gender))} />
+        <span className="flex-1 truncate text-base font-semibold text-white">{r.name}</span>
+        <TierChip count={r.count} />
+        <span className="w-9 text-right text-lg font-bold text-white tabular-nums">{r.count}</span>
+      </div>
+      {hasRev && (
+        <div className="flex items-baseline gap-1.5 pl-7 leading-none">
+          <span className="text-lg font-black text-emerald-300 tabular-nums">
+            {moneyCompact(r.revenue!)}
+          </span>
+          <span className="text-[0.6rem] font-semibold tracking-[0.12em] text-emerald-300/45 uppercase">
+            revenue
+          </span>
+        </div>
+      )}
     </li>
   );
 }
@@ -342,10 +337,10 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
           {data.inspectors.length > 0 && (
             <div className="mt-3 shrink-0">
               <div className="flex items-center gap-3 px-1">
-                <span className="text-sm font-bold tracking-[0.2em] text-violet-300 uppercase">
+                <span className="text-sm font-bold tracking-[0.2em] text-green-300 uppercase">
                   Site Inspectors
                 </span>
-                <span aria-hidden className="h-px flex-1 bg-violet-400/30" />
+                <span aria-hidden className="h-px flex-1 bg-green-400/30" />
                 <span className="text-sm font-medium text-white/50">today</span>
               </div>
               <ul className="mt-2 grid grid-cols-2 gap-3 p-1 sm:grid-cols-3 [grid-auto-rows:1fr]">
@@ -357,7 +352,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
           )}
         </section>
 
-        {/* THIS MONTH — with incentive-tier gaps */}
+        {/* THIS MONTH — incentive-tier gaps + each rep's NET revenue */}
         <section className="flex min-h-0 flex-col lg:col-span-3">
           <div className="flex shrink-0 items-baseline justify-between">
             <h2 className="text-lg font-bold text-white">This month</h2>
@@ -365,7 +360,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
           </div>
           <ol className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
             {monthly.map((r, i) => (
-              <RankRow key={r.staffId} r={r} i={i} tier />
+              <MonthRow key={r.staffId} r={r} i={i} />
             ))}
           </ol>
         </section>

@@ -64,11 +64,10 @@ Alongside the booking sync, the same push sends a per-rep **monthly NET revenue*
 tally to `/api/ingest/monthly` (`revenue` field). For every row with a move date
 in the current month it sums **col AT − AK − AL − AM − BB** (the total minus the
 extra charges that don't go to the sales rep; the deposit is already part of AT),
-across done and upcoming jobs alike. The dashboard shows each rep their revenue,
-their current commission **rate** (Tier 1 1%, Tier 2 1.5%, Tier 3 1.75%, Tier 4 /
-Super Bonus 2.5%), and the resulting **estimated commission** (revenue × rate)
-inside their own box on the `/live` "Today" grid. The read range was widened to
-col BB, so re-paste `bookings.gs` and run `pushBookings` once after updating.
+across done and upcoming jobs alike. The dashboard shows each rep their NET
+revenue under their name in the `/live` "This month" column. The read range was
+widened to col BB, so re-paste `bookings.gs` and run `pushBookings` once after
+updating.
 
 ## Leads push (`leads.gs`)
 
