@@ -72,47 +72,35 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
   );
 }
 
-/** A site inspector's box — neon-green glow, today's count, and each job number
- * with the sales rep whose customer the inspection is for. */
+/** A site inspector's box — neon-green glow, name, and their today / month
+ * inspection counts. (Per-inspection job#·rep chips are intentionally not shown;
+ * the celebration still pops the job number + sales rep when one lands.) */
 function InspectorCell({ r }: { r: InspectorRowDTO }) {
   return (
-    <li className="flex min-h-0 flex-col gap-1 overflow-hidden rounded-xl border border-green-400 bg-green-500/[0.07] p-2.5 shadow-[0_0_15px_1px_rgba(74,222,128,0.65)]">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="truncate text-xl font-bold text-white">{r.name}</span>
-          <span className="shrink-0 text-[0.6rem] font-bold tracking-[0.15em] text-green-300 uppercase">
+    <li className="flex min-h-0 flex-col justify-center overflow-hidden rounded-xl border border-green-400 bg-green-500/[0.07] p-3 shadow-[0_0_15px_1px_rgba(74,222,128,0.65)]">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-2xl font-bold text-white">{r.name}</span>
+          <span className="text-[0.6rem] font-bold tracking-[0.15em] text-green-300 uppercase">
             Inspector
           </span>
         </span>
         {/* Today (white) + this month (green) */}
         <span className="flex shrink-0 items-end gap-3 leading-none">
           <span className="text-right">
-            <span className="block text-3xl font-bold text-white tabular-nums">{r.count}</span>
+            <span className="block text-4xl font-bold text-white tabular-nums">{r.count}</span>
             <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-white/40 uppercase">
               today
             </span>
           </span>
           <span className="text-right">
-            <span className="block text-3xl font-black text-green-300 tabular-nums">{r.month}</span>
+            <span className="block text-4xl font-black text-green-300 tabular-nums">{r.month}</span>
             <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-green-300/55 uppercase">
               month
             </span>
           </span>
         </span>
       </div>
-      {r.jobs.length > 0 && (
-        <div className="flex min-h-0 flex-wrap content-start gap-1 overflow-hidden">
-          {r.jobs.map((j, i) => (
-            <span
-              key={`${j.code}-${i}`}
-              className="rounded bg-green-500/15 px-1.5 py-px font-mono text-[0.7rem] leading-tight font-medium tracking-wide text-green-100"
-            >
-              {j.code}
-              {j.forRep && <span className="text-green-300/80"> · {j.forRep}</span>}
-            </span>
-          ))}
-        </div>
-      )}
     </li>
   );
 }
