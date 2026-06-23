@@ -213,6 +213,53 @@ export function audioRunning(): boolean {
   return !!ctx && ctx.state === "running";
 }
 
+// ── Real recorded applause (CC0 crowd clip) with a synth fallback ─────────
+/** Public-domain (CC0) crowd applause — Sandermotions, via Wikimedia Commons. */
+const APPLAUSE_SRC = "/sounds/applause.wav";
+let applauseBuf: AudioBuffer | null = null;
+let applauseTried = false;
+
+/** Fetch + decode the applause clip into a buffer (once). Safe to call early —
+ * decoding works on a suspended context, so it's ready before the first cheer. */
+export function preloadApplause(): void {
+  const c = getCtx();
+  if (!c || applauseBuf || applauseTried) return;
+  applauseTried = true;
+  fetch(APPLAUSE_SRC)
+    .then((r) => r.arrayBuffer())
+    .then((ab) => c.decodeAudioData(ab))
+    .then((buf) => {
+      applauseBuf = buf;
+    })
+    .catch(() => {
+      applauseTried = false; // allow a later retry
+    });
+}
+
+/**
+ * Play the real recorded crowd applause for site-inspection celebrations. Falls
+ * back to the synth only if the clip hasn't finished loading yet (so the very
+ * first cheer is never silent). Plays through the same AudioContext the gong
+ * uses, so the one "tap to enable sound" unlock covers it too.
+ */
+export function playApplause(volume = 0.9): void {
+  const c = getCtx();
+  if (!c) return;
+  if (c.state === "suspended") void c.resume();
+  if (!applauseBuf) {
+    preloadApplause();
+    playApplauseSynth(); // not ready yet — don't be silent
+    return;
+  }
+  const src = c.createBufferSource();
+  src.buffer = applauseBuf;
+  const g = c.createGain();
+  g.gain.value = volume;
+  src.connect(g);
+  g.connect(c.destination);
+  src.start();
+}
+
 /** Play a metallic gong — inharmonic partials + a struck-noise transient. */
 export function playGong(volume = 0.55): void {
   const c = getCtx();
@@ -265,13 +312,11 @@ export function playGong(volume = 0.55): void {
 }
 
 /**
- * Theatre applause + crowd cheer — synthesised so it works offline. Two layers:
- * (1) a swelling brown-noise "roar" = the body of a cheering crowd, and
- * (2) ~220 sharp broadband clap transients with random timing/pitch so each
- * reads as a real hand-clap, fed through a light room delay. Used for
- * site-inspection celebrations (instead of the gong).
+ * Synthesised applause — the FALLBACK used only until the real recorded clip
+ * (loaded by {@link playApplause}) is ready or if it fails to load. Two layers:
+ * a swelling brown-noise crowd "roar" plus ~220 sharp clap transients.
  */
-export function playApplause(volume = 0.7): void {
+function playApplauseSynth(volume = 0.7): void {
   const c = getCtx();
   if (!c) return;
   if (c.state === "suspended") void c.resume();

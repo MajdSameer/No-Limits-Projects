@@ -6,7 +6,7 @@ import { cx } from "@nlr/ui";
 
 import type { BoardRowDTO, BoardsDTO, InspectorRowDTO } from "./Board";
 import { BookingCelebration } from "./BookingCelebration";
-import { armAudio, audioRunning } from "../lib/celebrate";
+import { armAudio, audioRunning, preloadApplause } from "../lib/celebrate";
 import { cellMessage, cellTier } from "../lib/leaderboard-messages";
 import { useLiveRefresh } from "../lib/live";
 import { sydneyToday } from "../lib/sydney";
@@ -211,9 +211,11 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   // "tap to enable sound" prompt until the context is actually running — else
   // the gong/applause silently never play.
   useEffect(() => {
+    preloadApplause(); // fetch + decode the real crowd clip ahead of the first cheer
     const sync = () => setSoundLocked(!audioRunning());
     const arm = () => {
       armAudio();
+      preloadApplause();
       window.setTimeout(sync, 80); // resume() is async — re-check just after
     };
     sync();

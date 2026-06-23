@@ -1,0 +1,5 @@
+applause.wav
+  Source: "277021 sandermotions applause-2" by Sandermotions
+  Via Wikimedia Commons — License: CC0 1.0 (public domain dedication, no
+  attribution required). Downsampled to mono 24 kHz for size.
+  Used as the site-inspection celebration sound on /live.
