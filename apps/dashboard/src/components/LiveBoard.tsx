@@ -6,7 +6,7 @@ import { cx } from "@nlr/ui";
 
 import type { BoardRowDTO, BoardsDTO, InspectorRowDTO } from "./Board";
 import { BookingCelebration } from "./BookingCelebration";
-import { armAudio, audioRunning, preloadApplause } from "../lib/celebrate";
+import { armAudio, audioRunning } from "../lib/celebrate";
 import { cellMessage, cellTier } from "../lib/leaderboard-messages";
 import { useLiveRefresh } from "../lib/live";
 import { sydneyToday } from "../lib/sydney";
@@ -153,41 +153,29 @@ function RankRow({ r, i, tier }: { r: BoardRowDTO; i: number; tier?: boolean }) 
 }
 
 /**
- * A "This month" row. Two aligned baselines: rank · dot · name · monthly count
- * on top, then the tier chip and NET revenue (emerald, right-aligned under the
- * count) below. Revenue line is omitted until the sheet pushes it.
+ * A "This month" row — one clean line: rank · dot · name · tier chip, then two
+ * fixed-width right-aligned number columns (monthly count, then NET revenue in
+ * emerald). Fixed widths keep the numbers in tidy columns down the list.
  */
 function MonthRow({ r, i }: { r: BoardRowDTO; i: number }) {
   const hasRev = typeof r.revenue === "number";
   return (
-    <li className="flex min-h-0 flex-1 flex-col justify-center gap-1 overflow-hidden px-3 py-1.5">
-      {/* Top: rank · dot · name ............ monthly count */}
-      <div className="flex items-center gap-2">
-        <span
-          className={cx(
-            "w-5 shrink-0 text-center text-sm font-bold",
-            i === 0 ? "text-accent-400" : i < 3 ? "text-brand-200" : "text-white/40",
-          )}
-        >
-          {i + 1}
-        </span>
-        <span aria-hidden className={cx("size-2.5 shrink-0 rounded-full", glowDot(r.gender))} />
-        <span className="flex-1 truncate text-base font-semibold text-white">{r.name}</span>
-        <span className="shrink-0 text-lg font-bold text-white tabular-nums">{r.count}</span>
-      </div>
-      {/* Bottom: tier chip ............ revenue (aligned under the count) */}
-      <div className="flex items-center gap-2 pl-7">
-        <TierChip count={r.count} />
-        <span aria-hidden className="flex-1" />
-        {hasRev && (
-          <span className="flex shrink-0 items-baseline gap-1 tabular-nums">
-            <span className="text-base font-black text-emerald-300">{moneyCompact(r.revenue!)}</span>
-            <span className="text-[0.55rem] font-semibold tracking-[0.1em] text-emerald-300/45 uppercase">
-              rev
-            </span>
-          </span>
+    <li className="flex min-h-0 flex-1 items-center gap-2 overflow-hidden px-3">
+      <span
+        className={cx(
+          "w-5 shrink-0 text-center text-sm font-bold",
+          i === 0 ? "text-accent-400" : i < 3 ? "text-brand-200" : "text-white/40",
         )}
-      </div>
+      >
+        {i + 1}
+      </span>
+      <span aria-hidden className={cx("size-2.5 shrink-0 rounded-full", glowDot(r.gender))} />
+      <span className="min-w-0 flex-1 truncate text-base font-semibold text-white">{r.name}</span>
+      <TierChip count={r.count} />
+      <span className="w-7 shrink-0 text-right text-lg font-bold text-white tabular-nums">{r.count}</span>
+      <span className="w-[4.25rem] shrink-0 text-right text-base font-black text-emerald-300 tabular-nums">
+        {hasRev ? moneyCompact(r.revenue!) : ""}
+      </span>
     </li>
   );
 }
@@ -202,11 +190,9 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   // "tap to enable sound" prompt until the context is actually running — else
   // the gong/applause silently never play.
   useEffect(() => {
-    preloadApplause(); // fetch + decode the real crowd clip ahead of the first cheer
     const sync = () => setSoundLocked(!audioRunning());
     const arm = () => {
       armAudio();
-      preloadApplause();
       window.setTimeout(sync, 80); // resume() is async — re-check just after
     };
     sync();

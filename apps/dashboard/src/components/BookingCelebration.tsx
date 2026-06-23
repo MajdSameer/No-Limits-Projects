@@ -10,7 +10,7 @@ import {
   createCelebrateState,
   inspectorBookings,
   newBookings,
-  playApplause,
+  playDing,
   playGong,
   type BookingPop,
   type DailyCountRow,
@@ -94,7 +94,7 @@ export function BookingCelebration({
     running.current = true;
     setActive({ pop: next, out: false });
     const isInspector = next.kind === "inspector";
-    if (isInspector) playApplause();
+    if (isInspector) playDing();
     else playGong();
     if (!reducedMotion()) {
       const colors = isInspector ? INSPECTOR_BURST : BURST;
