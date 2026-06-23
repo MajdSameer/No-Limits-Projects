@@ -84,7 +84,21 @@ function InspectorCell({ r }: { r: InspectorRowDTO }) {
             Inspector
           </span>
         </span>
-        <span className="shrink-0 text-3xl leading-none font-bold text-white tabular-nums">{r.count}</span>
+        {/* Today (white) + this month (green) */}
+        <span className="flex shrink-0 items-end gap-3 leading-none">
+          <span className="text-right">
+            <span className="block text-3xl font-bold text-white tabular-nums">{r.count}</span>
+            <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-white/40 uppercase">
+              today
+            </span>
+          </span>
+          <span className="text-right">
+            <span className="block text-3xl font-black text-green-300 tabular-nums">{r.month}</span>
+            <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-green-300/55 uppercase">
+              month
+            </span>
+          </span>
+        </span>
       </div>
       {r.jobs.length > 0 && (
         <div className="flex min-h-0 flex-wrap content-start gap-1 overflow-hidden">
