@@ -1,5 +1,8 @@
-applause.wav
-  Source: "277021 sandermotions applause-2" by Sandermotions
-  Via Wikimedia Commons — License: CC0 1.0 (public domain dedication, no
-  attribution required). Downsampled to mono 24 kHz for size.
-  Used as the site-inspection celebration sound on /live.
+cheer.ogg  (in use — site-inspection celebration)
+  Source: "Hurray" by starlite, via Wikimedia Commons.
+  License: Public domain. A short crowd cheer.
+
+applause.wav  (kept as an alternative)
+  Source: "277021 sandermotions applause-2" by Sandermotions, via Wikimedia
+  Commons. License: CC0 1.0 (public domain, no attribution required).
+  Downsampled to mono 24 kHz.
