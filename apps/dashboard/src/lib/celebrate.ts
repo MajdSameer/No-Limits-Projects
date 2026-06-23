@@ -410,6 +410,43 @@ function playApplauseSynth(volume = 0.7): void {
   }
 }
 
+/**
+ * A bright, friendly "ding" — a single bell-like chime (fundamental + fifth +
+ * octave + a touch of inharmonic shimmer, fast attack, ringing exponential
+ * decay). Used for the site-inspection celebration. Pure synth, works offline.
+ */
+export function playDing(volume = 0.65): void {
+  const c = getCtx();
+  if (!c) return;
+  if (c.state === "suspended") void c.resume();
+  const now = c.currentTime;
+
+  const master = c.createGain();
+  master.gain.value = volume;
+  master.connect(c.destination);
+
+  const base = 1568; // G6 — bright and clear
+  const partials = [
+    { r: 1, g: 1.0, d: 1.8 },
+    { r: 1.5, g: 0.45, d: 1.5 }, // a fifth up
+    { r: 2.0, g: 0.28, d: 1.2 }, // octave
+    { r: 3.01, g: 0.1, d: 0.9 }, // slight shimmer
+  ];
+  for (const p of partials) {
+    const o = c.createOscillator();
+    o.type = "sine";
+    o.frequency.value = base * p.r;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(p.g, now + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + p.d);
+    o.connect(g);
+    g.connect(master);
+    o.start(now);
+    o.stop(now + p.d + 0.05);
+  }
+}
+
 const GONG_COLORS = ["#ffd42e", "#fff389", "#f472b6", "#38bdf8", "#f4f1e8"];
 
 /** Gong + a big confetti burst (confetti skipped under reduced-motion). */
