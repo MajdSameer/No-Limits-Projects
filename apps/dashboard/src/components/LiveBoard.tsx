@@ -51,10 +51,10 @@ function pctLabel(pct: number): string {
 }
 
 /**
- * Today's box — a scoreboard stat card. Top line is the hero: name + today's
- * booking count against goal. Below it a distinct emerald panel shows the rep's
- * month-to-date NET revenue, their estimated commission, and a gold pill with
- * their current commission rate. No money panel until the sheet pushes revenue.
+ * Today's box — name + today's count up top, then (once the sheet pushes
+ * revenue) a calm money block under a hairline: the month's NET revenue paired
+ * with the rep's rate, and a quiet caption row of labels beneath. Flat single
+ * surface — no nested panel — so a wall of 15 reads tidy.
  */
 function GlowCell({ r }: { r: BoardRowDTO }) {
   const tier = cellTier(r.count, r.goal);
@@ -65,7 +65,7 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
     <li
       title={cellMessage(r.staffId, sydneyToday(), tier)}
       className={cx(
-        "flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-white/[0.05] p-3",
+        "flex min-h-0 flex-col overflow-hidden rounded-xl bg-white/[0.05] p-3",
         hot ? "border-2 border-accent-400 shadow-[0_0_18px_0_rgba(255,212,46,0.65)]" : glow(r.gender),
       )}
     >
@@ -77,35 +77,34 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
         </span>
         <span className="shrink-0 leading-none font-black text-white tabular-nums">
           <span className="text-4xl">{r.count}</span>
-          <span className="text-xl font-semibold text-white/40">/{r.goal ?? "—"}</span>
+          <span className="text-xl font-semibold text-white/35">/{r.goal ?? "—"}</span>
         </span>
       </div>
 
-      {/* Money panel — revenue (hero), est. commission, and the rate pill */}
+      {/* Money block — revenue + rate on a baseline, quiet labels beneath */}
       {hasMoney && (
-        <div className="mt-auto flex items-end justify-between gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.07] px-2.5 py-1.5">
-          <div className="min-w-0">
-            <p className="text-[0.55rem] font-bold tracking-[0.16em] text-emerald-300/70 uppercase">
-              Revenue · month
-            </p>
-            <p className="text-2xl leading-none font-black text-emerald-300 tabular-nums xl:text-3xl">
+        <div className="mt-auto border-t border-white/10 pt-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-2xl leading-none font-black text-emerald-300 tabular-nums xl:text-[1.7rem]">
               {moneyCompact(r.revenue!)}
-            </p>
+            </span>
+            <span
+              className={cx(
+                "shrink-0 text-lg leading-none font-bold tabular-nums xl:text-xl",
+                pct > 0 ? "text-accent-300" : "text-white/30",
+              )}
+            >
+              {pctLabel(pct)}
+            </span>
+          </div>
+          <div className="mt-1.5 flex items-baseline justify-between gap-2 text-[0.65rem] leading-none">
+            <span className="font-semibold tracking-[0.12em] text-emerald-300/45 uppercase">Revenue</span>
             {typeof r.commission === "number" && (
-              <p className="mt-1 text-xs font-semibold text-white/55 tabular-nums">
-                ~${Math.round(r.commission).toLocaleString()}{" "}
-                <span className="font-medium text-white/35">est. comm</span>
-              </p>
+              <span className="font-medium text-white/40 tabular-nums">
+                ~${Math.round(r.commission).toLocaleString()} comm
+              </span>
             )}
           </div>
-          <span
-            className={cx(
-              "shrink-0 rounded-md px-2 py-1 leading-none font-black tabular-nums",
-              pct > 0 ? "bg-accent-400/20 text-accent-300" : "bg-white/5 text-white/40",
-            )}
-          >
-            <span className="text-xl xl:text-2xl">{pctLabel(pct)}</span>
-          </span>
         </div>
       )}
     </li>
