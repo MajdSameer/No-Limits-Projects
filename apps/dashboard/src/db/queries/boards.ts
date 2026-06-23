@@ -3,7 +3,6 @@ import { and, asc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "../client";
 import { monthRevenueKey, monthSettingKey, PIPELINE_KEY } from "../ingest-monthly";
 import { getSetting } from "../settings";
-import { commissionRate } from "../../lib/tiers";
 import {
   next3MonthsDateRange,
   sydneyDayRange,
@@ -25,14 +24,8 @@ export interface BoardRow {
    * the live board pops it up when a rep's count ticks over. */
   jobCodes?: string[];
   /** This month's NET revenue (dollars) the rep has generated — monthly board
-   * only, when the Booking sheet is pushing revenue. */
+   * only, when the Booking sheet is pushing revenue. Shown on "This month". */
   revenue?: number;
-  /** Estimated commission (dollars) = revenue × the rep's tier rate, shown in
-   * the rep's box alongside `revenue`. */
-  commission?: number;
-  /** The rep's current commission rate as a percentage (e.g. 1.75), tier-driven
-   * by their monthly sales count. Shown as the box's "%" pill. */
-  commissionPct?: number;
 }
 
 async function activeReps() {
@@ -230,13 +223,11 @@ async function liveSheetCounts(
  */
 export async function dailyBoard(now: Date = new Date()): Promise<BoardRow[]> {
   const { start, end } = sydneyDayRange(now);
-  const [reps, sheet, bookingCounts, goals, monthCounts, revenue] = await Promise.all([
+  const [reps, sheet, bookingCounts, goals] = await Promise.all([
     activeReps(),
     liveSheetCounts(now),
     countsByEnteredAt(start, end),
     currentGoals(now),
-    sheetMonthCounts(now),
-    sheetMonthRevenue(now),
   ]);
   const useSheet = sheet.size > 0;
   const counts = useSheet
@@ -248,16 +239,6 @@ export async function dailyBoard(now: Date = new Date()): Promise<BoardRow[]> {
       const codes = sheet.get(r.staffId)?.codes;
       if (codes && codes.length > 0) r.jobCodes = codes;
     }
-  }
-  // Each box also shows the rep's MONTH-to-date revenue + estimated commission.
-  // The commission rate is tier-driven by their monthly sales count (not today's).
-  for (const r of rows) {
-    const rev = revenue.get(r.staffId);
-    if (rev == null) continue;
-    const rate = commissionRate(monthCounts.get(r.staffId) ?? 0);
-    r.revenue = rev;
-    r.commission = Math.round(rev * rate);
-    r.commissionPct = Math.round(rate * 10000) / 100; // 0.0175 → 1.75
   }
   return rows;
 }
@@ -312,8 +293,7 @@ async function sheetMonthRevenue(now: Date): Promise<Map<string, number>> {
  * This Sydney calendar month per rep. Uses the live sheet tally when the
  * Booking tab is pushing (the number the floor watches); otherwise falls back
  * to bookings entered in the app this month. When the sheet also pushes per-rep
- * revenue, each row carries its NET revenue and the estimated commission (that
- * revenue × the rep's tier rate) for the board's money line.
+ * revenue, each row carries its NET revenue for the "This month" money line.
  */
 export async function monthlyBoard(now: Date = new Date()): Promise<BoardRow[]> {
   const { start, end } = sydneyMonthRange(now);
@@ -326,10 +306,7 @@ export async function monthlyBoard(now: Date = new Date()): Promise<BoardRow[]> 
   const rows = compose(reps, sheetCounts.size > 0 ? sheetCounts : appCounts, null);
   for (const r of rows) {
     const rev = revenue.get(r.staffId);
-    if (rev != null) {
-      r.revenue = rev;
-      r.commission = Math.round(rev * commissionRate(r.count));
-    }
+    if (rev != null) r.revenue = rev;
   }
   return rows;
 }

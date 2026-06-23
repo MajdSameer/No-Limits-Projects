@@ -67,23 +67,12 @@ test("yesterday window", async () => {
   expect(rows.find((r) => r.staffId === "andy")?.count).toBe(0);
 });
 
-test("daily boxes carry the rep's month revenue + tier-rate commission + %", async () => {
+test("daily boxes carry no money fields (revenue lives on the monthly board)", async () => {
   const { setSetting } = await import("../../settings");
-  const { monthSettingKey, monthRevenueKey } = await import("../../ingest-monthly");
-  await setSetting(monthSettingKey("2026-06"), JSON.stringify({ andy: 80, hanna: 30 }));
-  await setSetting(monthRevenueKey("2026-06"), JSON.stringify({ andy: 50000, hanna: 9000 }));
+  const { monthRevenueKey } = await import("../../ingest-monthly");
+  await setSetting(monthRevenueKey("2026-06"), JSON.stringify({ andy: 50000 }));
   const rows = await dailyBoard(NOW);
-  const andy = rows.find((r) => r.staffId === "andy")!;
-  const hanna = rows.find((r) => r.staffId === "hanna")!;
-  // andy: 80 monthly sales → Tier 2, 1.5% of $50k = $750.
-  expect(andy.revenue).toBe(50000);
-  expect(andy.commission).toBe(750);
-  expect(andy.commissionPct).toBe(1.5);
-  // hanna: 30 monthly sales → below Tier 1 → 0%.
-  expect(hanna.revenue).toBe(9000);
-  expect(hanna.commission).toBe(0);
-  expect(hanna.commissionPct).toBe(0);
-  await setSetting(monthSettingKey("2026-06"), "");
+  expect(rows.find((r) => r.staffId === "andy")?.revenue).toBeUndefined();
   await setSetting(monthRevenueKey("2026-06"), "");
 });
 
@@ -105,29 +94,21 @@ test("monthly uses the sheet tally (raw row count) once the Booking tab pushes",
   await setSetting(monthSettingKey("2026-06"), "");
 });
 
-test("monthly attaches the sheet's net revenue + tier-rate commission per rep", async () => {
+test("monthly attaches the sheet's net revenue per rep", async () => {
   const { setSetting } = await import("../../settings");
   const { monthSettingKey, monthRevenueKey } = await import("../../ingest-monthly");
   await setSetting(monthSettingKey("2026-06"), JSON.stringify({ andy: 158, hanna: 80 }));
   await setSetting(monthRevenueKey("2026-06"), JSON.stringify({ andy: 100000, hanna: 50000 }));
   const rows = await monthlyBoard(NOW);
-  const andy = rows.find((r) => r.staffId === "andy")!;
-  const hanna = rows.find((r) => r.staffId === "hanna")!;
-  // andy: 158 sales → Super Bonus 2.5% of $100k = $2,500.
-  expect(andy.revenue).toBe(100000);
-  expect(andy.commission).toBe(2500);
-  // hanna: 80 sales → Tier 2 1.5% of $50k = $750.
-  expect(hanna.revenue).toBe(50000);
-  expect(hanna.commission).toBe(750);
+  expect(rows.find((r) => r.staffId === "andy")?.revenue).toBe(100000);
+  expect(rows.find((r) => r.staffId === "hanna")?.revenue).toBe(50000);
   await setSetting(monthSettingKey("2026-06"), "");
   await setSetting(monthRevenueKey("2026-06"), "");
 });
 
-test("monthly omits the money fields when the sheet hasn't pushed revenue", async () => {
+test("monthly omits revenue when the sheet hasn't pushed it", async () => {
   const rows = await monthlyBoard(NOW);
-  const andy = rows.find((r) => r.staffId === "andy")!;
-  expect(andy.revenue).toBeUndefined();
-  expect(andy.commission).toBeUndefined();
+  expect(rows.find((r) => r.staffId === "andy")?.revenue).toBeUndefined();
 });
 
 test("pipeline (fallback) counts move dates from the 1st of the month, 3 months out", async () => {

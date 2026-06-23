@@ -31,8 +31,8 @@ const GAP_MS = 150; // brief beat between queued celebrations
 const MAX_QUEUE = 6; // don't black the wall out for a full minute on a big push
 
 const BURST = ["#ffd42e", "#fff389", "#f472b6", "#38bdf8", "#f4f1e8"];
-// Site-inspection celebrations get a cooler violet/teal burst to set them apart.
-const INSPECTOR_BURST = ["#a78bfa", "#22d3ee", "#5eead4", "#c4b5fd", "#f4f1e8"];
+// Site-inspection celebrations get a neon-green burst to match their boxes.
+const INSPECTOR_BURST = ["#4ade80", "#22c55e", "#86efac", "#bbf7d0", "#f4f1e8"];
 
 function reducedMotion(): boolean {
   return (
@@ -141,14 +141,14 @@ export function BookingCelebration({
         className={cx(
           "nl-glow pointer-events-none absolute inset-0",
           isInspector
-            ? "[background:radial-gradient(60%_60%_at_50%_45%,rgba(167,139,250,0.24),transparent_70%)]"
+            ? "[background:radial-gradient(60%_60%_at_50%_45%,rgba(74,222,128,0.24),transparent_70%)]"
             : "[background:radial-gradient(60%_60%_at_50%_45%,rgba(255,212,46,0.22),transparent_70%)]",
         )}
       />
       <p
         className={cx(
           "nl-pop relative font-mono text-sm font-bold tracking-[0.45em] uppercase sm:text-lg",
-          isInspector ? "text-violet-300" : "text-accent-400",
+          isInspector ? "text-green-300" : "text-accent-400",
         )}
       >
         {isInspector ? "Site inspection" : "New booking"}
@@ -161,14 +161,14 @@ export function BookingCelebration({
           className={cx(
             "nl-rise relative rounded-2xl border-2 bg-black/40 px-7 py-3",
             isInspector
-              ? "border-violet-400/70 shadow-[0_0_40px_-8px_rgba(167,139,250,0.5)]"
+              ? "border-green-400/70 shadow-[0_0_40px_-8px_rgba(74,222,128,0.5)]"
               : "border-accent-400/70 shadow-[0_0_40px_-8px_rgba(255,212,46,0.5)]",
           )}
         >
           <span
             className={cx(
               "block font-mono text-[0.6rem] tracking-[0.35em] uppercase sm:text-xs",
-              isInspector ? "text-violet-200/80" : "text-accent-200/80",
+              isInspector ? "text-green-200/80" : "text-accent-200/80",
             )}
           >
             MovePro
@@ -176,7 +176,7 @@ export function BookingCelebration({
           <span
             className={cx(
               "font-mono font-bold tracking-[0.25em] [font-size:clamp(1.3rem,4.5vw,2.6rem)]",
-              isInspector ? "text-violet-200" : "text-accent-300",
+              isInspector ? "text-green-200" : "text-accent-300",
             )}
           >
             #{pop.code}
@@ -185,7 +185,7 @@ export function BookingCelebration({
       )}
       {isInspector && pop.forRep && (
         <p className="nl-rise relative font-display text-2xl font-bold text-white/80 sm:text-3xl">
-          for <span className="text-violet-300">{pop.forRep}</span>
+          for <span className="text-green-300">{pop.forRep}</span>
         </p>
       )}
     </div>
