@@ -71,13 +71,13 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
     >
       {/* Hero line: name + today's count / goal */}
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-xl font-bold text-white">
+        <span className="truncate text-2xl font-bold text-white">
           {r.name}
           {EMOJI[tier] && <span className="ml-1">{EMOJI[tier]}</span>}
         </span>
         <span className="shrink-0 leading-none font-black text-white tabular-nums">
-          <span className="text-4xl">{r.count}</span>
-          <span className="text-xl font-semibold text-white/35">/{r.goal ?? "—"}</span>
+          <span className="text-5xl">{r.count}</span>
+          <span className="text-2xl font-semibold text-white/35">/{r.goal ?? "—"}</span>
         </span>
       </div>
 
@@ -97,11 +97,14 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
               {pctLabel(pct)}
             </span>
           </div>
-          <div className="mt-1.5 flex items-baseline justify-between gap-2 text-[0.65rem] leading-none">
-            <span className="font-semibold tracking-[0.12em] text-emerald-300/45 uppercase">Revenue</span>
+          <div className="mt-1.5 flex items-baseline justify-between gap-2 leading-none">
+            <span className="text-[0.65rem] font-semibold tracking-[0.12em] text-emerald-300/45 uppercase">
+              Revenue
+            </span>
             {typeof r.commission === "number" && (
-              <span className="font-medium text-white/40 tabular-nums">
-                ~${Math.round(r.commission).toLocaleString()} comm
+              <span className="text-sm font-semibold text-white/55 tabular-nums">
+                ~${Math.round(r.commission).toLocaleString()}{" "}
+                <span className="text-[0.6rem] font-medium tracking-wide text-white/35 uppercase">comm</span>
               </span>
             )}
           </div>
