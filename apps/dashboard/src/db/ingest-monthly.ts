@@ -25,6 +25,10 @@ export function monthSettingKey(month: string): string {
   return `rep_month:${month}`;
 }
 
+export function monthRevenueKey(month: string): string {
+  return `rep_month_rev:${month}`;
+}
+
 /** Slug the sheet's rep NAMES to staff ids and sum (variants collapse). */
 function bySlug(counts: Record<string, number>): { map: Record<string, number>; total: number } {
   const map: Record<string, number> = {};
@@ -55,6 +59,36 @@ export async function ingestMonthly(
   if (!MONTH.test(month)) throw new Error(`bad month "${month}" (want yyyy-MM)`);
   const { map, total } = bySlug(counts);
   await putSetting(db, monthSettingKey(month), JSON.stringify(map));
+  return { month, reps: Object.keys(map).length, total };
+}
+
+/**
+ * Slug the sheet's rep NAMES to staff ids and sum their net revenue (dollars).
+ * Unlike the counts, money is kept as a float and negatives/zeros are allowed
+ * (a rep's net can dip with refunds), so only non-finite values are dropped.
+ */
+function moneyBySlug(amounts: Record<string, number>): { map: Record<string, number>; total: number } {
+  const map: Record<string, number> = {};
+  let total = 0;
+  for (const [name, raw] of Object.entries(amounts ?? {})) {
+    const id = slug(String(name));
+    const n = Number(raw);
+    if (!id || !Number.isFinite(n)) continue;
+    map[id] = (map[id] ?? 0) + n;
+    total += n;
+  }
+  return { map, total };
+}
+
+/** Store a month's per-rep NET revenue under "rep_month_rev:yyyy-MM". */
+export async function ingestMonthlyRevenue(
+  db: Db,
+  month: string,
+  revenue: Record<string, number>,
+): Promise<MonthlyIngestResult> {
+  if (!MONTH.test(month)) throw new Error(`bad month "${month}" (want yyyy-MM)`);
+  const { map, total } = moneyBySlug(revenue);
+  await putSetting(db, monthRevenueKey(month), JSON.stringify(map));
   return { month, reps: Object.keys(map).length, total };
 }
 

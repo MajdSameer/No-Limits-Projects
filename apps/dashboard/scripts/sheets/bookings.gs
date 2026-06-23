@@ -36,7 +36,25 @@ var COL = {
   men: 22, // W
   notes: 26, // AA
   deposit: 27, // AB
+  // Revenue: the rep's NET take = total (AT) minus the extra charges that don't
+  // go to the sales rep (AK, AL, AM, BB).
+  total: 45, // AT
+  extra1: 36, // AK
+  extra2: 37, // AL
+  extra3: 38, // AM
+  extra4: 53, // BB
 };
+
+// We must read out to col BB (54) for the revenue maths.
+var LAST_COL = 54;
+
+/** Parse a money-ish cell (number, or "$1,234.50" text) to a number; blank → 0. */
+function bookNum_(v) {
+  if (v === "" || v == null) return 0;
+  if (typeof v === "number") return isFinite(v) ? v : 0;
+  var n = parseFloat(String(v).replace(/[^0-9.\-]/g, ""));
+  return isFinite(n) ? n : 0;
+}
 
 function pushBookings() {
   var props = PropertiesService.getScriptProperties();
@@ -52,7 +70,7 @@ function pushBookings() {
 
   var lastRow = sheet.getLastRow();
   if (lastRow <= HEADER_ROWS) return "no rows";
-  var values = sheet.getRange(HEADER_ROWS + 1, 1, lastRow - HEADER_ROWS, 28).getValues();
+  var values = sheet.getRange(HEADER_ROWS + 1, 1, lastRow - HEADER_ROWS, LAST_COL).getValues();
 
   var cutoff = new Date();
   cutoff.setHours(0, 0, 0, 0);
@@ -69,6 +87,7 @@ function pushBookings() {
   var rows = [];
   var monthCounts = {}; // sales person -> rows with a move date this month
   var pipelineCounts = {}; // sales person -> rows with a move date in the next 3 months
+  var monthRevenue = {}; // sales person -> NET revenue ($) of this month's rows
   for (var i = 0; i < values.length; i++) {
     var v = values[i];
     var job = String(v[COL.job] || "").trim();
@@ -80,7 +99,18 @@ function pushBookings() {
     var sales = String(v[COL.sales] || "").trim();
     if (sales) {
       var ym = Utilities.formatDate(date, tz, "yyyy-MM");
-      if (ym === thisMonth) monthCounts[sales] = (monthCounts[sales] || 0) + 1;
+      if (ym === thisMonth) {
+        monthCounts[sales] = (monthCounts[sales] || 0) + 1;
+        // NET revenue to the rep = AT − AK − AL − AM − BB. Counts every row in
+        // the month (done or upcoming); the deposit is already part of AT.
+        var net =
+          bookNum_(v[COL.total]) -
+          bookNum_(v[COL.extra1]) -
+          bookNum_(v[COL.extra2]) -
+          bookNum_(v[COL.extra3]) -
+          bookNum_(v[COL.extra4]);
+        monthRevenue[sales] = (monthRevenue[sales] || 0) + net;
+      }
       if (pipeMonths[ym]) pipelineCounts[sales] = (pipelineCounts[sales] || 0) + 1;
     }
 
@@ -111,7 +141,12 @@ function pushBookings() {
     method: "post",
     contentType: "application/json",
     headers: { Authorization: "Bearer " + secret },
-    payload: JSON.stringify({ month: thisMonth, counts: monthCounts, pipeline: pipelineCounts }),
+    payload: JSON.stringify({
+      month: thisMonth,
+      counts: monthCounts,
+      pipeline: pipelineCounts,
+      revenue: monthRevenue,
+    }),
     muteHttpExceptions: true,
   });
   if (monthlyRes.getResponseCode() >= 300) {

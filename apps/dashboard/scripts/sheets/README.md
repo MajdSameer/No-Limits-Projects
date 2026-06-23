@@ -60,6 +60,16 @@ or the subcontractor **Domanic** (his are flagged and shown on `/subcontractor`,
 split into **Daily** / **This month** tabs). Everything else is skipped. Upsert
 is keyed on job number, so re-pushing is idempotent.
 
+Alongside the booking sync, the same push sends a per-rep **monthly NET revenue**
+tally to `/api/ingest/monthly` (`revenue` field). For every row with a move date
+in the current month it sums **col AT − AK − AL − AM − BB** (the total minus the
+extra charges that don't go to the sales rep; the deposit is already part of AT),
+across done and upcoming jobs alike. The dashboard shows each rep their revenue
+and an **estimated commission** (revenue × their incentive-tier rate: Tier 1 1%,
+Tier 2 1.5%, Tier 3 1.75%, Tier 4 / Super Bonus 2.5%) on the `/live` "This month"
+column. The read range was widened to col BB, so re-paste `bookings.gs` and run
+`pushBookings` once after updating.
+
 ## Leads push (`leads.gs`)
 
 `leads.gs` is bound to the **Quote Leads Auto Process** spreadsheet (its own
