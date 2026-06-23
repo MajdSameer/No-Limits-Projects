@@ -165,38 +165,38 @@ function RankRow({ r, i, tier }: { r: BoardRowDTO; i: number; tier?: boolean }) 
 }
 
 /**
- * A "This month" row: rank, name, tier chip and the monthly booking count on
- * top, with the rep's NET revenue (emerald) on a second line. Revenue line is
- * omitted until the Booking sheet pushes it, so the column never looks broken.
+ * A "This month" row: rank + dot, then a name/revenue stack on the left, with
+ * the tier chip and monthly booking count vertically centred on the right. The
+ * NET revenue (emerald) tucks under the name; omitted until the sheet pushes it.
  */
 function MonthRow({ r, i }: { r: BoardRowDTO; i: number }) {
   const hasRev = typeof r.revenue === "number";
   return (
-    <li className="flex min-h-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden px-3 py-1">
-      <div className="flex items-center gap-2">
-        <span
-          className={cx(
-            "w-5 text-center text-sm font-bold",
-            i === 0 ? "text-accent-400" : i < 3 ? "text-brand-200" : "text-white/40",
-          )}
-        >
-          {i + 1}
-        </span>
-        <span aria-hidden className={cx("size-2.5 shrink-0 rounded-full", glowDot(r.gender))} />
-        <span className="flex-1 truncate text-base font-semibold text-white">{r.name}</span>
-        <TierChip count={r.count} />
-        <span className="w-9 text-right text-lg font-bold text-white tabular-nums">{r.count}</span>
+    <li className="flex min-h-0 flex-1 items-center gap-2.5 overflow-hidden px-3 py-1">
+      <span
+        className={cx(
+          "w-5 shrink-0 text-center text-sm font-bold",
+          i === 0 ? "text-accent-400" : i < 3 ? "text-brand-200" : "text-white/40",
+        )}
+      >
+        {i + 1}
+      </span>
+      <span aria-hidden className={cx("size-2.5 shrink-0 rounded-full", glowDot(r.gender))} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-base leading-tight font-semibold text-white">{r.name}</p>
+        {hasRev && (
+          <p className="mt-1 flex items-baseline gap-1.5 leading-none">
+            <span className="text-base font-black text-emerald-300 tabular-nums">
+              {moneyCompact(r.revenue!)}
+            </span>
+            <span className="text-[0.6rem] font-semibold tracking-[0.12em] text-emerald-300/45 uppercase">
+              revenue
+            </span>
+          </p>
+        )}
       </div>
-      {hasRev && (
-        <div className="flex items-baseline gap-1.5 pl-7 leading-none">
-          <span className="text-lg font-black text-emerald-300 tabular-nums">
-            {moneyCompact(r.revenue!)}
-          </span>
-          <span className="text-[0.6rem] font-semibold tracking-[0.12em] text-emerald-300/45 uppercase">
-            revenue
-          </span>
-        </div>
-      )}
+      <TierChip count={r.count} />
+      <span className="w-9 shrink-0 text-right text-lg font-bold text-white tabular-nums">{r.count}</span>
     </li>
   );
 }
