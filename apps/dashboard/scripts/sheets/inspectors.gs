@@ -124,10 +124,11 @@ function pushInspections() {
   }
 
   var today = Utilities.formatDate(new Date(), INSP_TZ, "yyyy-MM-dd");
+  var thisMonth = today.slice(0, 7); // "yyyy-MM"
   var byName = {};
   function ins(name) {
     var k = String(name).trim();
-    if (!byName[k]) byName[k] = { name: k, jobs: [] };
+    if (!byName[k]) byName[k] = { name: k, jobs: [], monthCount: 0 };
     return byName[k];
   }
 
@@ -147,29 +148,36 @@ function pushInspections() {
       var row = block[r];
       var inspector = String(cell(row, ciInsp) || "").trim();
       if (!inspector) continue;
-      ins(inspector); // always list the inspector so its box shows (even at 0)
+      var box = ins(inspector); // always list the inspector so its box shows (even at 0)
       // Counts (and celebrates) only with all three: job # + sales rep + inspector.
       var code = String(cell(row, ciJob) || "").trim();
       var forRep = String(cell(row, ciSales) || "").trim();
       if (!code || !forRep) continue;
-      // Today's board; an undated freshly-filled row counts as today, so the rep
-      // only has to fill those three fields (date optional).
+      // An undated freshly-filled row counts as today (date optional for the rep).
       var ymd = ciDate === -1 ? "" : inspYmd_(cell(row, ciDate));
-      if (ymd !== "" && ymd !== today) continue;
-      ins(inspector).jobs.push({ code: code, forRep: forRep });
+      var ym = ymd === "" ? thisMonth : ymd.slice(0, 7);
+      // Monthly total: every row dated in (or undated within) the current month.
+      if (ym === thisMonth) box.monthCount++;
+      // Today's board / celebration: only today's (or undated) rows.
+      if (ymd === "" || ymd === today) box.jobs.push({ code: code, forRep: forRep });
     }
   }
 
   var rows = Object.keys(byName).map(function (k) {
     return byName[k];
   });
+  var summary = rows
+    .map(function (x) {
+      return x.name + " (today " + x.jobs.length + ", month " + x.monthCount + ")";
+    })
+    .join(", ");
   Logger.log(
-    "tab '%s', header row %s, read %s rows in %sms, %s inspectors",
+    "tab '%s', header row %s, read %s rows in %sms — %s",
     sheet.getName(),
     headerRow,
     n,
     new Date().getTime() - t0,
-    rows.length,
+    summary || "no inspectors",
   );
 
   var res = UrlFetchApp.fetch(cfg.url.replace(/\/$/, "") + "/api/ingest/inspectors", {

@@ -109,7 +109,10 @@ job number, and the sales rep whose customer the inspection is for.
 A row counts (and celebrates) only once it has **Job Number + Sales Rep + Site
 Inspector** — the rep doesn't have to fill a date (an undated freshly-filled row
 counts as today; past/future-dated rows stay off today's board). Inspectors with
-none today still show their box at 0. Column headers are matched by name with
+none today still show their box at 0. The push also sends each inspector's
+**monthly total** (`monthCount`) — every qualifying row dated in (or undated
+within) the current Sydney month — which the box shows next to today's count and
+resets on a new month. Column headers are matched by name with
 common synonyms; if a column can't be matched, `pushInspections` throws an error
 listing the headers it saw. The header row is auto-detected (the table header,
 not a stray "Site Inspector" label box above it). The day is Sydney time.

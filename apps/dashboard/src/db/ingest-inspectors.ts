@@ -28,6 +28,8 @@ export interface InspectorJobIn {
 export interface InspectorRowIn {
   name: string;
   jobs?: InspectorJobIn[] | null;
+  /** Inspections this inspector has done so far THIS month (entry tab, by date). */
+  monthCount?: number | null;
 }
 
 export interface InspectorJob {
@@ -39,6 +41,8 @@ export interface InspectorSnapshotRow {
   id: string;
   name: string;
   jobs: InspectorJob[];
+  /** This month's running inspection total (0 if the sheet didn't send one). */
+  monthCount: number;
 }
 
 /** What we store under INSPECTORS_KEY. */
@@ -78,7 +82,7 @@ export async function ingestInspectors(
     const id = slug(name);
     if (!id) continue;
 
-    const existing = byId.get(id) ?? { id, name, jobs: [] };
+    const existing = byId.get(id) ?? { id, name, jobs: [], monthCount: 0 };
     const seen = new Set(existing.jobs.map((j) => j.code));
     for (const j of row.jobs ?? []) {
       const code = cleanStr(j?.code);
@@ -86,6 +90,8 @@ export async function ingestInspectors(
       seen.add(code);
       existing.jobs.push({ code, forRep: cleanStr(j?.forRep) });
     }
+    const m = Number(row.monthCount);
+    if (Number.isFinite(m) && m > existing.monthCount) existing.monthCount = Math.trunc(m);
     byId.set(id, existing);
   }
 

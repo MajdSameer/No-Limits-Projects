@@ -77,3 +77,29 @@ test("re-ingesting overwrites the snapshot; the fixed boxes always remain", asyn
   });
   expect(board.find((r) => r.id === "martin")).toMatchObject({ name: "Martin", count: 0, jobs: [] });
 });
+
+test("month total: pushed monthCount shows on the board, resets on a new month", async () => {
+  const today = sydneyToday();
+  await ingestInspectors(
+    db,
+    [
+      { name: "Martin", jobs: [{ code: "J1", forRep: "Ann" }], monthCount: 17 },
+      { name: "Danny", jobs: [], monthCount: 9 },
+    ],
+    today,
+  );
+  let board = await inspectorBoard();
+  // sorted by month desc → Martin (17) then Danny (9)
+  expect(board.map((r) => r.id)).toEqual(["martin", "danny"]);
+  expect(board.find((r) => r.id === "martin")).toMatchObject({ count: 1, month: 17 });
+  expect(board.find((r) => r.id === "danny")).toMatchObject({ count: 0, month: 9 });
+
+  // A snapshot from a previous month → today's count AND the month reset to 0.
+  await ingestInspectors(
+    db,
+    [{ name: "Martin", jobs: [{ code: "OLD", forRep: "Ann" }], monthCount: 99 }],
+    "2020-01-15",
+  );
+  board = await inspectorBoard();
+  expect(board.find((r) => r.id === "martin")).toMatchObject({ count: 0, month: 0 });
+});
