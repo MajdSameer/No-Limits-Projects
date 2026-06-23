@@ -45,39 +45,67 @@ function monthlyMessage(pct: number): string {
   return "Fresh month, big target — let's chase it 🚀";
 }
 
-/** Today's box — gender glow, count, and the rep's MovePro numbers for today. */
+/** Tidy percentage label: 1 → "1%", 1.5 → "1.5%", 1.75 → "1.75%". */
+function pctLabel(pct: number): string {
+  return `${Number(pct.toFixed(2))}%`;
+}
+
+/**
+ * Today's box — a scoreboard stat card. Top line is the hero: name + today's
+ * booking count against goal. Below it a distinct emerald panel shows the rep's
+ * month-to-date NET revenue, their estimated commission, and a gold pill with
+ * their current commission rate. No money panel until the sheet pushes revenue.
+ */
 function GlowCell({ r }: { r: BoardRowDTO }) {
   const tier = cellTier(r.count, r.goal);
   const hot = tier === "hit" || tier === "over" || tier === "wild";
-  const codes = (r.jobCodes ?? []).map((c) => String(c).trim()).filter(Boolean);
+  const hasMoney = typeof r.revenue === "number";
+  const pct = r.commissionPct ?? 0;
   return (
     <li
       title={cellMessage(r.staffId, sydneyToday(), tier)}
       className={cx(
-        "flex min-h-0 flex-col gap-1 overflow-hidden rounded-xl bg-white/[0.05] p-2.5",
+        "flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-white/[0.05] p-3",
         hot ? "border-2 border-accent-400 shadow-[0_0_18px_0_rgba(255,212,46,0.65)]" : glow(r.gender),
       )}
     >
+      {/* Hero line: name + today's count / goal */}
       <div className="flex items-baseline justify-between gap-2">
         <span className="truncate text-xl font-bold text-white">
           {r.name}
           {EMOJI[tier] && <span className="ml-1">{EMOJI[tier]}</span>}
         </span>
-        <span className="shrink-0 text-3xl leading-none font-bold text-white tabular-nums">
-          {r.count}
+        <span className="shrink-0 leading-none font-black text-white tabular-nums">
+          <span className="text-4xl">{r.count}</span>
           <span className="text-xl font-semibold text-white/40">/{r.goal ?? "—"}</span>
         </span>
       </div>
-      {codes.length > 0 && (
-        <div className="flex min-h-0 flex-wrap content-start gap-1 overflow-hidden">
-          {codes.map((c, i) => (
-            <span
-              key={`${c}-${i}`}
-              className="rounded bg-white/10 px-1.5 py-px font-mono text-[0.7rem] leading-tight font-medium tracking-wide text-white/85"
-            >
-              {c}
-            </span>
-          ))}
+
+      {/* Money panel — revenue (hero), est. commission, and the rate pill */}
+      {hasMoney && (
+        <div className="mt-auto flex items-end justify-between gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.07] px-2.5 py-1.5">
+          <div className="min-w-0">
+            <p className="text-[0.55rem] font-bold tracking-[0.16em] text-emerald-300/70 uppercase">
+              Revenue · month
+            </p>
+            <p className="text-2xl leading-none font-black text-emerald-300 tabular-nums xl:text-3xl">
+              {moneyCompact(r.revenue!)}
+            </p>
+            {typeof r.commission === "number" && (
+              <p className="mt-1 text-xs font-semibold text-white/55 tabular-nums">
+                ~${Math.round(r.commission).toLocaleString()}{" "}
+                <span className="font-medium text-white/35">est. comm</span>
+              </p>
+            )}
+          </div>
+          <span
+            className={cx(
+              "shrink-0 rounded-md px-2 py-1 leading-none font-black tabular-nums",
+              pct > 0 ? "bg-accent-400/20 text-accent-300" : "bg-white/5 text-white/40",
+            )}
+          >
+            <span className="text-xl xl:text-2xl">{pctLabel(pct)}</span>
+          </span>
         </div>
       )}
     </li>
@@ -140,55 +168,6 @@ function moneyCompact(n: number): string {
     return `$${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}k`;
   }
   return `$${v.toLocaleString()}`;
-}
-
-/**
- * A "This month" row: the ranked rep (rank, name, tier chip, count) plus — when
- * the Booking sheet is pushing revenue — a second line with their NET revenue
- * and estimated end-of-month commission. Falls back to the plain single line
- * (no money) when revenue isn't available, so the column never looks broken.
- */
-function MonthRow({ r, i }: { r: BoardRowDTO; i: number }) {
-  const hasMoney = typeof r.revenue === "number";
-  return (
-    <li className="flex min-h-0 flex-1 flex-col justify-center gap-1 overflow-hidden px-3 py-1">
-      <div className="flex items-center gap-2">
-        <span
-          className={cx(
-            "w-5 text-center text-sm font-bold",
-            i === 0 ? "text-accent-400" : i < 3 ? "text-brand-200" : "text-white/40",
-          )}
-        >
-          {i + 1}
-        </span>
-        <span aria-hidden className={cx("size-2.5 shrink-0 rounded-full", glowDot(r.gender))} />
-        <span className="flex-1 truncate text-base font-semibold text-white">{r.name}</span>
-        <TierChip count={r.count} />
-        <span className="w-9 text-right text-lg font-bold text-white tabular-nums">{r.count}</span>
-      </div>
-      {hasMoney && (
-        <div className="flex items-center gap-1.5 pl-7 leading-none">
-          <span className="text-sm font-bold text-emerald-300 tabular-nums">
-            {moneyCompact(r.revenue!)}
-          </span>
-          <span className="text-[0.6rem] font-semibold tracking-wide text-white/35 uppercase">rev</span>
-          {typeof r.commission === "number" && (
-            <>
-              <span aria-hidden className="text-white/20">
-                ·
-              </span>
-              <span className="text-sm font-bold text-accent-300 tabular-nums">
-                ~${Math.round(r.commission).toLocaleString()}
-              </span>
-              <span className="text-[0.6rem] font-semibold tracking-wide text-white/35 uppercase">
-                est. comm
-              </span>
-            </>
-          )}
-        </div>
-      )}
-    </li>
-  );
 }
 
 /** A dense ranked row (This month / Next 3 months). */
@@ -384,7 +363,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
           </div>
           <ol className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
             {monthly.map((r, i) => (
-              <MonthRow key={r.staffId} r={r} i={i} />
+              <RankRow key={r.staffId} r={r} i={i} tier />
             ))}
           </ol>
         </section>

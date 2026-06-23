@@ -22,10 +22,12 @@ export interface BoardRowDTO {
   team: "orange" | "blue" | null;
   /** MovePro codes behind today's count (daily board, live-sheet mode). */
   jobCodes?: string[];
-  /** This month's NET revenue ($) the rep has generated (monthly board). */
+  /** This month's NET revenue ($) the rep has generated (shown in their box). */
   revenue?: number;
-  /** Estimated commission ($) = revenue × the rep's tier rate (monthly board). */
+  /** Estimated commission ($) = revenue × the rep's tier rate. */
   commission?: number;
+  /** The rep's current commission rate as a percentage, e.g. 1.75. */
+  commissionPct?: number;
 }
 
 interface AllocSlotDTO {

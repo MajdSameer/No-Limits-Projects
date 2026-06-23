@@ -67,6 +67,26 @@ test("yesterday window", async () => {
   expect(rows.find((r) => r.staffId === "andy")?.count).toBe(0);
 });
 
+test("daily boxes carry the rep's month revenue + tier-rate commission + %", async () => {
+  const { setSetting } = await import("../../settings");
+  const { monthSettingKey, monthRevenueKey } = await import("../../ingest-monthly");
+  await setSetting(monthSettingKey("2026-06"), JSON.stringify({ andy: 80, hanna: 30 }));
+  await setSetting(monthRevenueKey("2026-06"), JSON.stringify({ andy: 50000, hanna: 9000 }));
+  const rows = await dailyBoard(NOW);
+  const andy = rows.find((r) => r.staffId === "andy")!;
+  const hanna = rows.find((r) => r.staffId === "hanna")!;
+  // andy: 80 monthly sales → Tier 2, 1.5% of $50k = $750.
+  expect(andy.revenue).toBe(50000);
+  expect(andy.commission).toBe(750);
+  expect(andy.commissionPct).toBe(1.5);
+  // hanna: 30 monthly sales → below Tier 1 → 0%.
+  expect(hanna.revenue).toBe(9000);
+  expect(hanna.commission).toBe(0);
+  expect(hanna.commissionPct).toBe(0);
+  await setSetting(monthSettingKey("2026-06"), "");
+  await setSetting(monthRevenueKey("2026-06"), "");
+});
+
 test("monthly falls back to app bookings entered this month when no sheet push", async () => {
   const rows = await monthlyBoard(NOW);
   expect(rows.find((r) => r.staffId === "hanna")?.count).toBe(3);
