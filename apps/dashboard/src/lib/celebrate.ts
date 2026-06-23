@@ -213,9 +213,9 @@ export function audioRunning(): boolean {
   return !!ctx && ctx.state === "running";
 }
 
-// ── Real recorded applause (CC0 crowd clip) with a synth fallback ─────────
-/** Public-domain (CC0) crowd applause — Sandermotions, via Wikimedia Commons. */
-const APPLAUSE_SRC = "/sounds/applause.wav";
+// ── Real recorded crowd cheer (public-domain clip) with a synth fallback ──
+/** Public-domain crowd cheer — "Hurray" by starlite, via Wikimedia Commons. */
+const APPLAUSE_SRC = "/sounds/cheer.ogg";
 let applauseBuf: AudioBuffer | null = null;
 let applauseTried = false;
 
@@ -237,12 +237,12 @@ export function preloadApplause(): void {
 }
 
 /**
- * Play the real recorded crowd applause for site-inspection celebrations. Falls
- * back to the synth only if the clip hasn't finished loading yet (so the very
- * first cheer is never silent). Plays through the same AudioContext the gong
- * uses, so the one "tap to enable sound" unlock covers it too.
+ * Play the real recorded crowd CHEER for site-inspection celebrations. Falls
+ * back to the synth applause only if the clip hasn't finished loading yet (so
+ * the very first one is never silent). Plays through the same AudioContext the
+ * gong uses, so the one "tap to enable sound" unlock covers it too.
  */
-export function playApplause(volume = 0.9): void {
+export function playApplause(volume = 1): void {
   const c = getCtx();
   if (!c) return;
   if (c.state === "suspended") void c.resume();
