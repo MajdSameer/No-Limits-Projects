@@ -6,7 +6,7 @@ import { cx } from "@nlr/ui";
 
 import type { BoardRowDTO, BoardsDTO, InspectorRowDTO } from "./Board";
 import { BookingCelebration } from "./BookingCelebration";
-import { armAudio } from "../lib/celebrate";
+import { armAudio, audioRunning } from "../lib/celebrate";
 import { cellMessage, cellTier } from "../lib/leaderboard-messages";
 import { useLiveRefresh } from "../lib/live";
 import { sydneyToday } from "../lib/sydney";
@@ -203,16 +203,27 @@ function MonthRow({ r, i }: { r: BoardRowDTO; i: number }) {
 
 export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   const [data, setData] = useState<BoardsDTO>(initial);
+  const [soundLocked, setSoundLocked] = useState(true);
   const inFlight = useRef(false);
 
-  // Enable the gong after the first interaction (browser autoplay policy).
+  // Browsers block audio until the page is interacted with. On a wall TV nobody
+  // clicks, so keep arming on ANY interaction (not just once) and surface a
+  // "tap to enable sound" prompt until the context is actually running — else
+  // the gong/applause silently never play.
   useEffect(() => {
-    const arm = () => armAudio();
-    window.addEventListener("pointerdown", arm, { once: true });
-    window.addEventListener("keydown", arm, { once: true });
+    const sync = () => setSoundLocked(!audioRunning());
+    const arm = () => {
+      armAudio();
+      window.setTimeout(sync, 80); // resume() is async — re-check just after
+    };
+    sync();
+    window.addEventListener("pointerdown", arm);
+    window.addEventListener("keydown", arm);
+    document.addEventListener("visibilitychange", sync);
     return () => {
       window.removeEventListener("pointerdown", arm);
       window.removeEventListener("keydown", arm);
+      document.removeEventListener("visibilitychange", sync);
     };
   }, []);
 
@@ -244,6 +255,16 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   return (
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
       <BookingCelebration daily={data.daily} inspectors={data.inspectors} />
+
+      {soundLocked && (
+        <button
+          type="button"
+          onClick={() => armAudio()}
+          className="fixed right-4 bottom-4 z-50 flex animate-pulse items-center gap-2 rounded-full border border-accent-400/50 bg-black/85 px-4 py-2 text-sm font-semibold text-accent-200 shadow-lg backdrop-blur"
+        >
+          <span aria-hidden>🔇</span> Tap anywhere to enable sound
+        </button>
+      )}
 
       {data.daily.length === 0 && (
         <div className="absolute inset-0 z-20 grid place-items-center bg-black/95">
