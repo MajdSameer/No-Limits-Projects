@@ -11,6 +11,12 @@ beforeAll(async () => {
   await getDb();
 });
 
+test("with nothing pushed, the wall still shows the two fixed boxes at 0", async () => {
+  const board = await inspectorBoard();
+  expect(board.map((r) => r.id)).toEqual(["danny", "martin"]); // both 0 → name order
+  expect(board.every((r) => r.count === 0 && r.jobs.length === 0)).toBe(true);
+});
+
 test("ingest stores today's inspections per inspector, with job # + sales rep", async () => {
   const today = sydneyToday();
   const res = await ingestInspectors(db, [
@@ -55,7 +61,7 @@ test("a snapshot from an earlier day shows the boxes but resets the count to 0",
   expect(martin.jobs).toEqual([]);
 });
 
-test("re-ingesting overwrites the snapshot (idempotent mirror)", async () => {
+test("re-ingesting overwrites the snapshot; the fixed boxes always remain", async () => {
   const today = sydneyToday();
   await ingestInspectors(
     db,
@@ -63,7 +69,11 @@ test("re-ingesting overwrites the snapshot (idempotent mirror)", async () => {
     today,
   );
   const board = await inspectorBoard();
-  // Martin is gone (not in the latest push); Danny now has one inspection
-  expect(board.map((r) => r.id)).toEqual(["danny"]);
-  expect(board[0]).toMatchObject({ count: 1, jobs: [{ code: "Z1", forRep: "Randee" }] });
+  // Danny now has one inspection; Martin's fixed box stays at 0 (sorted by count).
+  expect(board.map((r) => r.id)).toEqual(["danny", "martin"]);
+  expect(board.find((r) => r.id === "danny")).toMatchObject({
+    count: 1,
+    jobs: [{ code: "Z1", forRep: "Randee" }],
+  });
+  expect(board.find((r) => r.id === "martin")).toMatchObject({ name: "Martin", count: 0, jobs: [] });
 });
