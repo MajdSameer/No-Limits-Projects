@@ -27,9 +27,12 @@ export interface BoardRow {
   /** This month's NET revenue (dollars) the rep has generated — monthly board
    * only, when the Booking sheet is pushing revenue. */
   revenue?: number;
-  /** Estimated commission (dollars) = revenue × the rep's tier rate — monthly
-   * board only, alongside `revenue`. */
+  /** Estimated commission (dollars) = revenue × the rep's tier rate, shown in
+   * the rep's box alongside `revenue`. */
   commission?: number;
+  /** The rep's current commission rate as a percentage (e.g. 1.75), tier-driven
+   * by their monthly sales count. Shown as the box's "%" pill. */
+  commissionPct?: number;
 }
 
 async function activeReps() {
@@ -227,11 +230,13 @@ async function liveSheetCounts(
  */
 export async function dailyBoard(now: Date = new Date()): Promise<BoardRow[]> {
   const { start, end } = sydneyDayRange(now);
-  const [reps, sheet, bookingCounts, goals] = await Promise.all([
+  const [reps, sheet, bookingCounts, goals, monthCounts, revenue] = await Promise.all([
     activeReps(),
     liveSheetCounts(now),
     countsByEnteredAt(start, end),
     currentGoals(now),
+    sheetMonthCounts(now),
+    sheetMonthRevenue(now),
   ]);
   const useSheet = sheet.size > 0;
   const counts = useSheet
@@ -243,6 +248,16 @@ export async function dailyBoard(now: Date = new Date()): Promise<BoardRow[]> {
       const codes = sheet.get(r.staffId)?.codes;
       if (codes && codes.length > 0) r.jobCodes = codes;
     }
+  }
+  // Each box also shows the rep's MONTH-to-date revenue + estimated commission.
+  // The commission rate is tier-driven by their monthly sales count (not today's).
+  for (const r of rows) {
+    const rev = revenue.get(r.staffId);
+    if (rev == null) continue;
+    const rate = commissionRate(monthCounts.get(r.staffId) ?? 0);
+    r.revenue = rev;
+    r.commission = Math.round(rev * rate);
+    r.commissionPct = Math.round(rate * 10000) / 100; // 0.0175 → 1.75
   }
   return rows;
 }
