@@ -85,6 +85,31 @@ test("monthly uses the sheet tally (raw row count) once the Booking tab pushes",
   await setSetting(monthSettingKey("2026-06"), "");
 });
 
+test("monthly attaches the sheet's net revenue + tier-rate commission per rep", async () => {
+  const { setSetting } = await import("../../settings");
+  const { monthSettingKey, monthRevenueKey } = await import("../../ingest-monthly");
+  await setSetting(monthSettingKey("2026-06"), JSON.stringify({ andy: 158, hanna: 80 }));
+  await setSetting(monthRevenueKey("2026-06"), JSON.stringify({ andy: 100000, hanna: 50000 }));
+  const rows = await monthlyBoard(NOW);
+  const andy = rows.find((r) => r.staffId === "andy")!;
+  const hanna = rows.find((r) => r.staffId === "hanna")!;
+  // andy: 158 sales → Super Bonus 2.5% of $100k = $2,500.
+  expect(andy.revenue).toBe(100000);
+  expect(andy.commission).toBe(2500);
+  // hanna: 80 sales → Tier 2 1.5% of $50k = $750.
+  expect(hanna.revenue).toBe(50000);
+  expect(hanna.commission).toBe(750);
+  await setSetting(monthSettingKey("2026-06"), "");
+  await setSetting(monthRevenueKey("2026-06"), "");
+});
+
+test("monthly omits the money fields when the sheet hasn't pushed revenue", async () => {
+  const rows = await monthlyBoard(NOW);
+  const andy = rows.find((r) => r.staffId === "andy")!;
+  expect(andy.revenue).toBeUndefined();
+  expect(andy.commission).toBeUndefined();
+});
+
 test("pipeline (fallback) counts move dates from the 1st of the month, 3 months out", async () => {
   const rows = await pipelineBoard(NOW); // NOW = 2026-06-12 → window [2026-06-01, 2026-09-01)
   // andy: 06-20, 07-15, 08-01 (deleted 06-25 excluded) = 3

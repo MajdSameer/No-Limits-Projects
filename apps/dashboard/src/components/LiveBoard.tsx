@@ -132,6 +132,65 @@ function TierChip({ count }: { count: number }) {
   );
 }
 
+/** Compact dollars for the wall: exact under $10k ($8,450), abbreviated above ($42.3k). */
+function moneyCompact(n: number): string {
+  const v = Math.round(n);
+  if (Math.abs(v) >= 10000) {
+    const k = v / 1000;
+    return `$${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}k`;
+  }
+  return `$${v.toLocaleString()}`;
+}
+
+/**
+ * A "This month" row: the ranked rep (rank, name, tier chip, count) plus — when
+ * the Booking sheet is pushing revenue — a second line with their NET revenue
+ * and estimated end-of-month commission. Falls back to the plain single line
+ * (no money) when revenue isn't available, so the column never looks broken.
+ */
+function MonthRow({ r, i }: { r: BoardRowDTO; i: number }) {
+  const hasMoney = typeof r.revenue === "number";
+  return (
+    <li className="flex min-h-0 flex-1 flex-col justify-center gap-1 overflow-hidden px-3 py-1">
+      <div className="flex items-center gap-2">
+        <span
+          className={cx(
+            "w-5 text-center text-sm font-bold",
+            i === 0 ? "text-accent-400" : i < 3 ? "text-brand-200" : "text-white/40",
+          )}
+        >
+          {i + 1}
+        </span>
+        <span aria-hidden className={cx("size-2.5 shrink-0 rounded-full", glowDot(r.gender))} />
+        <span className="flex-1 truncate text-base font-semibold text-white">{r.name}</span>
+        <TierChip count={r.count} />
+        <span className="w-9 text-right text-lg font-bold text-white tabular-nums">{r.count}</span>
+      </div>
+      {hasMoney && (
+        <div className="flex items-center gap-1.5 pl-7 leading-none">
+          <span className="text-sm font-bold text-emerald-300 tabular-nums">
+            {moneyCompact(r.revenue!)}
+          </span>
+          <span className="text-[0.6rem] font-semibold tracking-wide text-white/35 uppercase">rev</span>
+          {typeof r.commission === "number" && (
+            <>
+              <span aria-hidden className="text-white/20">
+                ·
+              </span>
+              <span className="text-sm font-bold text-accent-300 tabular-nums">
+                ~${Math.round(r.commission).toLocaleString()}
+              </span>
+              <span className="text-[0.6rem] font-semibold tracking-wide text-white/35 uppercase">
+                est. comm
+              </span>
+            </>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
 /** A dense ranked row (This month / Next 3 months). */
 function RankRow({ r, i, tier }: { r: BoardRowDTO; i: number; tier?: boolean }) {
   return (
@@ -325,7 +384,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
           </div>
           <ol className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
             {monthly.map((r, i) => (
-              <RankRow key={r.staffId} r={r} i={i} tier />
+              <MonthRow key={r.staffId} r={r} i={i} />
             ))}
           </ol>
         </section>

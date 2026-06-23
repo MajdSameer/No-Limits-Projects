@@ -47,3 +47,19 @@ export function tierProgress(count: number): TierProgress {
     top: n >= SUPER_BONUS_AT,
   };
 }
+
+/**
+ * Commission rate (fraction of NET revenue) a rep earns, by the tier their
+ * monthly sales count puts them in. Indexed by tiers reached (0–4):
+ *   below Tier 1 → 0%, T1 → 1%, T2 → 1.5%, T3 → 1.75%,
+ *   Tier 4 / Super Bonus (158) → 2.5%.
+ * The estimated commission shown on the board is this rate × the rep's net
+ * revenue for the month. To restore a distinct 2% Tier-4 band, change the last
+ * entry and split the Super Bonus into its own threshold.
+ */
+export const COMMISSION_RATE_BY_TIER = [0, 0.01, 0.015, 0.0175, 0.025] as const;
+
+/** The commission rate for a rep with `count` sales this month (0–0.025). */
+export function commissionRate(count: number): number {
+  return COMMISSION_RATE_BY_TIER[tierProgress(count).reached] ?? 0;
+}

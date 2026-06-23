@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getDb } from "../../../../db/client";
-import { ingestMonthly, ingestPipeline } from "../../../../db/ingest-monthly";
+import { ingestMonthly, ingestMonthlyRevenue, ingestPipeline } from "../../../../db/ingest-monthly";
 
 export const dynamic = "force-dynamic";
 // Tiny write (two upserts). Fail fast on a cold-DB hang so the caller's retry
@@ -13,6 +13,8 @@ interface MonthlyBody {
   counts?: Record<string, number>;
   /** Optional "next 3 months" per-rep tally (current month + next two). */
   pipeline?: Record<string, number>;
+  /** Optional per-rep NET revenue (dollars) for the month. */
+  revenue?: Record<string, number>;
 }
 
 /**
@@ -45,7 +47,11 @@ export async function POST(request: NextRequest) {
       body.pipeline && typeof body.pipeline === "object"
         ? await ingestPipeline(db, body.pipeline)
         : undefined;
-    return NextResponse.json({ ok: true, ...result, pipeline });
+    const revenue =
+      body.revenue && typeof body.revenue === "object"
+        ? await ingestMonthlyRevenue(db, body.month, body.revenue)
+        : undefined;
+    return NextResponse.json({ ok: true, ...result, pipeline, revenue });
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }

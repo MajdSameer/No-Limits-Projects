@@ -10,9 +10,10 @@ export const maxDuration = 25;
 
 /**
  * Public by design (the wall TV has no session): first names, counts, goals,
- * gender/team tint, monthly progress and live allocation shares ONLY — never
- * customer or money data. Served from a short cache so many polling tabs don't
- * stampede the DB (see boards-snapshot).
+ * gender/team tint, monthly progress, live allocation shares, and each rep's
+ * monthly NET revenue + estimated commission (shown on /live by request) — never
+ * customer data. Served from a short cache so many polling tabs don't stampede
+ * the DB (see boards-snapshot).
  */
 export async function GET() {
   const data = await getBoardsSnapshot();
