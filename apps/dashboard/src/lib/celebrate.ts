@@ -204,6 +204,15 @@ export function armAudio(): void {
   if (c && c.state === "suspended") void c.resume();
 }
 
+/**
+ * Whether sound can actually play right now (the context exists and the browser
+ * has unlocked it). False on a fresh wall display until someone interacts —
+ * the board shows a "tap to enable sound" prompt while this is false.
+ */
+export function audioRunning(): boolean {
+  return !!ctx && ctx.state === "running";
+}
+
 /** Play a metallic gong — inharmonic partials + a struck-noise transient. */
 export function playGong(volume = 0.55): void {
   const c = getCtx();
