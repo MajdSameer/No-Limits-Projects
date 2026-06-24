@@ -50,6 +50,18 @@ export interface InspectorRowDTO {
   jobs: InspectorJobDTO[];
 }
 
+export interface SubcontractorRowDTO {
+  id: string;
+  name: string;
+  /** Jobs done today. */
+  count: number;
+  /** Jobs done so far this month. */
+  month: number;
+  /** Fixed daily target the count is shown against. */
+  target: number;
+  jobs: string[];
+}
+
 export interface BoardsDTO {
   daily: BoardRowDTO[];
   yesterday: BoardRowDTO[];
@@ -57,6 +69,8 @@ export interface BoardsDTO {
   pipeline: BoardRowDTO[];
   /** Site inspectors' boxes (Martin, Danny…) for the wall display. */
   inspectors: InspectorRowDTO[];
+  /** Subcontractor box(es) (Domanic…) for the wall display. */
+  subcontractors: SubcontractorRowDTO[];
   allocation: { eligible: AllocSlotDTO[]; nextUp: string | null; totalLeadsToday: number };
   gameDay: boolean;
   monthlyGoal: number;

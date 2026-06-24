@@ -50,8 +50,8 @@ export interface BookingPop {
   name: string;
   /** The MovePro number of the booking that just landed, if known. */
   code: string | null;
-  /** "rep" booking (default) or a site-inspection ("inspector"). */
-  kind?: "rep" | "inspector";
+  /** "rep" booking (default), a site-inspection, or a subcontractor job. */
+  kind?: "rep" | "inspector" | "subcontractor";
   /** Site inspections only: the SALES rep whose customer this inspection is for. */
   forRep?: string | null;
 }
@@ -182,6 +182,36 @@ export function inspectorBookings(
     kind: "inspector" as const,
     forRep: p.code ? (codeToRep.get(p.code) ?? null) : null,
   }));
+}
+
+// ── Subcontractor jobs: count-driven pop, no job-code label (the sheet's job
+//    column is free text, so we just pop the subcontractor's name) ───────────
+
+/** One subcontractor's live row for the celebration: today's job count. */
+export interface SubcontractorCountRow {
+  staffId: string;
+  name: string;
+  count: number;
+}
+
+/**
+ * Pure: new subcontractor jobs since we last looked. Reuses {@link newBookings}
+ * (count-driven, drop-debounced, seeded-silent) over the subcontractor's today
+ * count, then tags each pop as a subcontractor job. No MovePro code is attached
+ * (the sheet's job column is free text), so the pop just shows the name. Mutates
+ * `state`.
+ */
+export function subcontractorBookings(
+  rows: SubcontractorCountRow[],
+  state: CelebrateState,
+  seed: boolean,
+): BookingPop[] {
+  const base = newBookings(
+    rows.map((r) => ({ staffId: r.staffId, name: r.name, count: r.count })),
+    state,
+    seed,
+  );
+  return base.map((p) => ({ ...p, kind: "subcontractor" as const, code: null }));
 }
 
 // ── Web Audio gong (synthesised — no asset, works offline) ───────────────

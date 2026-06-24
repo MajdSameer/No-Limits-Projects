@@ -116,6 +116,30 @@ the script — adjust them there if the section moves.
 3. Test: run **`pushInspections`**, check the log (`Name (today N, month M)`),
    then open `/live`.
 
+## Subcontractor push (`subcontractors.gs`)
+
+The subcontractor's jobs are logged in another **section of the "Leaderboard"
+tab**, so `subcontractors.gs` is likewise an **extra file in the Follow-Up Apps
+Script project**. It reuses the same `DASHBOARD_URL` / `INGEST_SECRET` script
+properties and POSTs to `/api/ingest/subcontractors`, which drives the orange
+**Subcontractor** box on `/live` (sat to the right of the inspectors) and an
+orange celebration when the today count ticks up.
+
+Fixed cells for **Domanic**:
+
+- **Today's count** — the `Today's N / 12` cell at **AE194** (the `/ 12` target
+  is fixed in the dashboard, not pushed).
+- **Monthly total** — the `Monthly` cell at **AK194**.
+- **Job list** — **AE198** downward (free-text job refs; cosmetic, not shown on
+  the box). Columns/rows are constants at the top of the script.
+
+1. In the **Follow-Up** sheet's Apps Script project, **add a file** and paste in
+   `subcontractors.gs`, Save.
+2. Run **`installSubcontractorTriggers`** — installs **only** its own triggers (a
+   section-scoped onEdit + a 5-minute timer).
+3. Test: run **`pushSubcontractors`**, check the log
+   (`Domanic (today N, month M, jobs K)`), then open `/live`.
+
 ## Notes
 
 - The endpoint is idempotent and secret-protected; re-pushing is harmless.
