@@ -10,7 +10,6 @@ import {
   createCelebrateState,
   inspectorBookings,
   newBookings,
-  playDing,
   playGong,
   type BookingPop,
   type DailyCountRow,
@@ -20,8 +19,8 @@ import {
  * Live "someone just booked!" moment. When a new booking appears (deduped by
  * MovePro job code, so it fires exactly once even as the polled count bounces),
  * the screen blacks out and the rep's name pops in with the MovePro number
- * underneath, plus a gong and confetti. Site inspections pop the same way but
- * with theatre applause and the sales rep the inspection is for. Multiple
+ * underneath, plus a gong and confetti. Site inspections pop the same way (same
+ * gong) but with a green burst and the sales rep the inspection is for. Multiple
  * bookings queue up and play one after another. Seeded silently on mount so a
  * page load never fires.
  */
@@ -94,8 +93,7 @@ export function BookingCelebration({
     running.current = true;
     setActive({ pop: next, out: false });
     const isInspector = next.kind === "inspector";
-    if (isInspector) playDing();
-    else playGong();
+    playGong();
     if (!reducedMotion()) {
       const colors = isInspector ? INSPECTOR_BURST : BURST;
       confetti({ particleCount: 160, spread: 110, startVelocity: 45, origin: { y: 0.5 }, colors });
