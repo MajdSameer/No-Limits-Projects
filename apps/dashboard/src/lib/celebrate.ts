@@ -50,10 +50,8 @@ export interface BookingPop {
   name: string;
   /** The MovePro number of the booking that just landed, if known. */
   code: string | null;
-  /** "rep" booking (default), a site-inspection, or a subcontractor job. */
-  kind?: "rep" | "inspector" | "subcontractor";
-  /** Site inspections only: the SALES rep whose customer this inspection is for. */
-  forRep?: string | null;
+  /** "rep" booking (default) or a subcontractor job. */
+  kind?: "rep" | "subcontractor";
 }
 
 /** Mutable per-session memory for the live celebration. Create one per board. */
@@ -142,48 +140,6 @@ export function newBookings(
   return pops;
 }
 
-// ── Site inspections: same per-booking pop, but each carries the SALES rep ───
-
-/** One inspector's live row for the celebration: today's job numbers, each tied
- * to the sales rep whose customer the inspection is for. */
-export interface InspectorCountRow {
-  staffId: string;
-  name: string;
-  count: number;
-  jobs: { code: string; forRep: string | null }[];
-}
-
-/**
- * Pure: new site inspections since we last looked. Reuses {@link newBookings}
- * (count-driven, drop-debounced, seeded-silent) over the inspectors' job
- * numbers, then tags each pop as an inspection and attaches the sales rep the
- * job is for — so the celebration can show "<inspector> · #<job> · for <rep>".
- * Mutates `state`.
- */
-export function inspectorBookings(
-  rows: InspectorCountRow[],
-  state: CelebrateState,
-  seed: boolean,
-): BookingPop[] {
-  const codeToRep = new Map<string, string | null>();
-  for (const r of rows) for (const j of r.jobs) codeToRep.set(j.code, j.forRep ?? null);
-  const base = newBookings(
-    rows.map((r) => ({
-      staffId: r.staffId,
-      name: r.name,
-      count: r.count,
-      jobCodes: r.jobs.map((j) => j.code),
-    })),
-    state,
-    seed,
-  );
-  return base.map((p) => ({
-    ...p,
-    kind: "inspector" as const,
-    forRep: p.code ? (codeToRep.get(p.code) ?? null) : null,
-  }));
-}
-
 // ── Subcontractor jobs: count-driven pop, no job-code label (the sheet's job
 //    column is free text, so we just pop the subcontractor's name) ───────────
 
@@ -243,53 +199,6 @@ export function audioRunning(): boolean {
   return !!ctx && ctx.state === "running";
 }
 
-// ── Real recorded crowd cheer (public-domain clip) with a synth fallback ──
-/** Public-domain crowd cheer — "Hurray" by starlite, via Wikimedia Commons. */
-const APPLAUSE_SRC = "/sounds/cheer.ogg";
-let applauseBuf: AudioBuffer | null = null;
-let applauseTried = false;
-
-/** Fetch + decode the applause clip into a buffer (once). Safe to call early —
- * decoding works on a suspended context, so it's ready before the first cheer. */
-export function preloadApplause(): void {
-  const c = getCtx();
-  if (!c || applauseBuf || applauseTried) return;
-  applauseTried = true;
-  fetch(APPLAUSE_SRC)
-    .then((r) => r.arrayBuffer())
-    .then((ab) => c.decodeAudioData(ab))
-    .then((buf) => {
-      applauseBuf = buf;
-    })
-    .catch(() => {
-      applauseTried = false; // allow a later retry
-    });
-}
-
-/**
- * Play the real recorded crowd CHEER for site-inspection celebrations. Falls
- * back to the synth applause only if the clip hasn't finished loading yet (so
- * the very first one is never silent). Plays through the same AudioContext the
- * gong uses, so the one "tap to enable sound" unlock covers it too.
- */
-export function playApplause(volume = 1): void {
-  const c = getCtx();
-  if (!c) return;
-  if (c.state === "suspended") void c.resume();
-  if (!applauseBuf) {
-    preloadApplause();
-    playApplauseSynth(); // not ready yet — don't be silent
-    return;
-  }
-  const src = c.createBufferSource();
-  src.buffer = applauseBuf;
-  const g = c.createGain();
-  g.gain.value = volume;
-  src.connect(g);
-  g.connect(c.destination);
-  src.start();
-}
-
 /** Play a metallic gong — inharmonic partials + a struck-noise transient. */
 export function playGong(volume = 0.55): void {
   const c = getCtx();
@@ -339,142 +248,6 @@ export function playGong(volume = 0.55): void {
   ng.connect(master);
   noise.start(now);
   noise.stop(now + dur);
-}
-
-/**
- * Synthesised applause — the FALLBACK used only until the real recorded clip
- * (loaded by {@link playApplause}) is ready or if it fails to load. Two layers:
- * a swelling brown-noise crowd "roar" plus ~220 sharp clap transients.
- */
-function playApplauseSynth(volume = 0.7): void {
-  const c = getCtx();
-  if (!c) return;
-  if (c.state === "suspended") void c.resume();
-  const now = c.currentTime;
-  const sr = c.sampleRate;
-  const DUR = 3.2;
-
-  const master = c.createGain();
-  master.gain.value = volume;
-  master.connect(c.destination);
-
-  // Light room delay so the claps aren't bone dry (a hall, not a feedback wash).
-  const delay = c.createDelay(0.5);
-  delay.delayTime.value = 0.13;
-  const feedback = c.createGain();
-  feedback.gain.value = 0.22;
-  const echoTone = c.createBiquadFilter();
-  echoTone.type = "lowpass";
-  echoTone.frequency.value = 3200;
-  delay.connect(echoTone);
-  echoTone.connect(feedback);
-  feedback.connect(delay);
-  const echoLevel = c.createGain();
-  echoLevel.gain.value = 0.35;
-  delay.connect(echoLevel);
-  echoLevel.connect(master);
-
-  // ── Layer 1: crowd roar — brown noise (random walk) band-passed, swelling. ──
-  const bedBuf = c.createBuffer(1, Math.floor(sr * DUR), sr);
-  const bd = bedBuf.getChannelData(0);
-  let walk = 0;
-  for (let i = 0; i < bd.length; i++) {
-    walk += (Math.random() * 2 - 1) * 0.05;
-    if (walk > 1) walk = 1;
-    else if (walk < -1) walk = -1;
-    bd[i] = walk * 0.6;
-  }
-  const bed = c.createBufferSource();
-  bed.buffer = bedBuf;
-  const bedBp = c.createBiquadFilter();
-  bedBp.type = "bandpass";
-  bedBp.frequency.value = 950;
-  bedBp.Q.value = 0.4;
-  const bedGain = c.createGain();
-  bedGain.gain.setValueAtTime(0.0001, now);
-  bedGain.gain.exponentialRampToValueAtTime(0.4, now + 0.6);
-  bedGain.gain.setValueAtTime(0.4, now + DUR - 1.3);
-  bedGain.gain.exponentialRampToValueAtTime(0.0001, now + DUR);
-  bed.connect(bedBp);
-  bedBp.connect(bedGain);
-  bedGain.connect(master);
-  bed.start(now);
-  bed.stop(now + DUR);
-
-  // ── Layer 2: individual claps — short sharp broadband transients. ──
-  const clap = (at: number, gain: number) => {
-    const len = Math.max(1, Math.floor(sr * 0.012)); // ~12ms
-    const buf = c.createBuffer(1, len, sr);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) {
-      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); // sharp attack/decay
-    }
-    const src = c.createBufferSource();
-    src.buffer = buf;
-    const hp = c.createBiquadFilter();
-    hp.type = "highpass";
-    hp.frequency.value = 900;
-    const bp = c.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = 1300 + Math.random() * 1700; // each hand a touch different
-    bp.Q.value = 1.1;
-    const g = c.createGain();
-    g.gain.value = gain;
-    src.connect(hp);
-    hp.connect(bp);
-    bp.connect(g);
-    g.connect(master); // dry
-    g.connect(delay); // into the room
-    src.start(at);
-    src.stop(at + 0.05);
-  };
-
-  // ~220 claps spread randomly, swelling in then tailing off — reads as a crowd.
-  const claps = 220;
-  for (let i = 0; i < claps; i++) {
-    const t = Math.random() * DUR;
-    const swell = Math.min(1, t / 0.5);
-    const fade = Math.max(0, 1 - (t - (DUR - 1.5)) / 1.5);
-    const env = swell * Math.max(0.18, fade);
-    clap(now + t, (0.16 + Math.random() * 0.2) * env);
-  }
-}
-
-/**
- * A bright, friendly "ding" — a single bell-like chime (fundamental + fifth +
- * octave + a touch of inharmonic shimmer, fast attack, ringing exponential
- * decay). Used for the site-inspection celebration. Pure synth, works offline.
- */
-export function playDing(volume = 0.65): void {
-  const c = getCtx();
-  if (!c) return;
-  if (c.state === "suspended") void c.resume();
-  const now = c.currentTime;
-
-  const master = c.createGain();
-  master.gain.value = volume;
-  master.connect(c.destination);
-
-  const base = 1568; // G6 — bright and clear
-  const partials = [
-    { r: 1, g: 1.0, d: 1.8 },
-    { r: 1.5, g: 0.45, d: 1.5 }, // a fifth up
-    { r: 2.0, g: 0.28, d: 1.2 }, // octave
-    { r: 3.01, g: 0.1, d: 0.9 }, // slight shimmer
-  ];
-  for (const p of partials) {
-    const o = c.createOscillator();
-    o.type = "sine";
-    o.frequency.value = base * p.r;
-    const g = c.createGain();
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(p.g, now + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + p.d);
-    o.connect(g);
-    g.connect(master);
-    o.start(now);
-    o.stop(now + p.d + 0.05);
-  }
 }
 
 const GONG_COLORS = ["#ffd42e", "#fff389", "#f472b6", "#38bdf8", "#f4f1e8"];

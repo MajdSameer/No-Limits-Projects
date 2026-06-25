@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
-import type { BoardRowDTO, BoardsDTO, InspectorRowDTO, SubcontractorRowDTO } from "./Board";
+import type { BoardRowDTO, BoardsDTO, SubcontractorRowDTO } from "./Board";
 import { BookingCelebration } from "./BookingCelebration";
 import { armAudio, audioRunning } from "../lib/celebrate";
 import { cellMessage, cellTier } from "../lib/leaderboard-messages";
@@ -72,42 +72,9 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
   );
 }
 
-/** A site inspector's box — neon-green glow, name, and their today / month
- * inspection counts. (Per-inspection job#·rep chips are intentionally not shown;
- * the celebration still pops the job number + sales rep when one lands.) */
-function InspectorCell({ r }: { r: InspectorRowDTO }) {
-  return (
-    <li className="flex min-h-0 flex-col justify-center overflow-hidden rounded-xl border border-green-400 bg-green-500/[0.07] p-3 shadow-[0_0_15px_1px_rgba(74,222,128,0.65)]">
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 flex-col">
-          <span className="truncate text-2xl font-bold text-white">{r.name}</span>
-          <span className="text-[0.6rem] font-bold tracking-[0.15em] text-green-300 uppercase">
-            Inspector
-          </span>
-        </span>
-        {/* Today (white) + this month (green) */}
-        <span className="flex shrink-0 items-end gap-3 leading-none">
-          <span className="text-right">
-            <span className="block text-4xl font-bold text-white tabular-nums">{r.count}</span>
-            <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-white/40 uppercase">
-              today
-            </span>
-          </span>
-          <span className="text-right">
-            <span className="block text-4xl font-black text-green-300 tabular-nums">{r.month}</span>
-            <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-green-300/55 uppercase">
-              month
-            </span>
-          </span>
-        </span>
-      </div>
-    </li>
-  );
-}
-
 /** The subcontractor's box — orange glow, name, today's count against a fixed
- * target, and the running monthly total. (Like the inspectors, the per-job sheet
- * entries aren't shown — the celebration pops when the today count ticks.) */
+ * target, and the running monthly total. (The per-job sheet entries aren't
+ * shown — the celebration pops when the today count ticks.) */
 function SubcontractorCell({ r }: { r: SubcontractorRowDTO }) {
   return (
     <li className="flex min-h-0 flex-col justify-center overflow-hidden rounded-xl border border-orange-400 bg-orange-500/[0.07] p-3 shadow-[0_0_15px_1px_rgba(251,146,60,0.65)]">
@@ -269,11 +236,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
 
   return (
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
-      <BookingCelebration
-        daily={data.daily}
-        inspectors={data.inspectors}
-        subcontractors={data.subcontractors}
-      />
+      <BookingCelebration daily={data.daily} subcontractors={data.subcontractors} />
 
       {soundLocked && (
         <button
@@ -387,41 +350,22 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
             ))}
           </ul>
 
-          {/* Dedicated strips below the reps: Site Inspectors (green) and, to
-              their right, the Subcontractor (orange). */}
-          {(data.inspectors.length > 0 || data.subcontractors.length > 0) && (
+          {/* Dedicated strip below the reps: the Subcontractor (orange). */}
+          {data.subcontractors.length > 0 && (
             <div className="mt-3 flex shrink-0 items-stretch gap-3">
-              {data.inspectors.length > 0 && (
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <div className="flex items-center gap-3 px-1">
-                    <span className="text-sm font-bold tracking-[0.2em] text-green-300 uppercase">
-                      Site Inspectors
-                    </span>
-                    <span aria-hidden className="h-px flex-1 bg-green-400/30" />
-                    <span className="text-sm font-medium text-white/50">today</span>
-                  </div>
-                  <ul className="mt-2 grid flex-1 grid-cols-2 gap-3 p-1 sm:grid-cols-3 [grid-auto-rows:1fr]">
-                    {data.inspectors.map((r) => (
-                      <InspectorCell key={r.id} r={r} />
-                    ))}
-                  </ul>
+              <div className="flex w-[15rem] shrink-0 flex-col sm:w-[17rem]">
+                <div className="flex items-center gap-3 px-1">
+                  <span className="text-sm font-bold tracking-[0.2em] text-orange-300 uppercase">
+                    Subcontractor
+                  </span>
+                  <span aria-hidden className="h-px flex-1 bg-orange-400/30" />
                 </div>
-              )}
-              {data.subcontractors.length > 0 && (
-                <div className="flex w-[15rem] shrink-0 flex-col sm:w-[17rem]">
-                  <div className="flex items-center gap-3 px-1">
-                    <span className="text-sm font-bold tracking-[0.2em] text-orange-300 uppercase">
-                      Subcontractor
-                    </span>
-                    <span aria-hidden className="h-px flex-1 bg-orange-400/30" />
-                  </div>
-                  <ul className="mt-2 grid flex-1 grid-cols-1 gap-3 p-1 [grid-auto-rows:1fr]">
-                    {data.subcontractors.map((r) => (
-                      <SubcontractorCell key={r.id} r={r} />
-                    ))}
-                  </ul>
-                </div>
-              )}
+                <ul className="mt-2 grid flex-1 grid-cols-1 gap-3 p-1 [grid-auto-rows:1fr]">
+                  {data.subcontractors.map((r) => (
+                    <SubcontractorCell key={r.id} r={r} />
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
         </section>

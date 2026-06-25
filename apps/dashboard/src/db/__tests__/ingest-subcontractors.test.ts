@@ -29,7 +29,7 @@ test("ingest stores today's count + month total, jobs deduped", async () => {
 
   const board = await subcontractorBoard();
   expect(board[0]).toMatchObject({ id: "domanic", count: 6, month: 128, target: 12 });
-  expect(board[0].jobs).toEqual(["313", "movera", "madi ck"]); // deduped, blanks dropped
+  expect(board[0]!.jobs).toEqual(["313", "movera", "madi ck"]); // deduped, blanks dropped
 });
 
 test("a snapshot from an earlier day shows the box but resets today's count to 0", async () => {

@@ -5,10 +5,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
-import type { InspectorRowDTO, SubcontractorRowDTO } from "./Board";
+import type { SubcontractorRowDTO } from "./Board";
 import {
   createCelebrateState,
-  inspectorBookings,
   newBookings,
   playGong,
   subcontractorBookings,
@@ -20,10 +19,10 @@ import {
  * Live "someone just booked!" moment. When a new booking appears (deduped by
  * MovePro job code, so it fires exactly once even as the polled count bounces),
  * the screen blacks out and the rep's name pops in with the MovePro number
- * underneath, plus a gong and confetti. Site inspections pop the same way (same
- * gong) but with a green burst and the sales rep the inspection is for, and the
- * subcontractor's jobs pop with an orange burst. Multiple bookings queue up and
- * play one after another. Seeded silently on mount so a page load never fires.
+ * underneath, plus a gong and confetti. The subcontractor's jobs pop the same
+ * way (same gong) but with an orange burst and no MovePro number. Multiple
+ * bookings queue up and play one after another. Seeded silently on mount so a
+ * page load never fires.
  */
 const HOLD_MS = 6500; // how long one celebration stays up (matches the long gong)
 const FADE_MS = 500; // fade-out tail at the end of HOLD_MS
@@ -31,8 +30,6 @@ const GAP_MS = 150; // brief beat between queued celebrations
 const MAX_QUEUE = 6; // don't black the wall out for a full minute on a big push
 
 const BURST = ["#ffd42e", "#fff389", "#f472b6", "#38bdf8", "#f4f1e8"];
-// Site-inspection celebrations get a neon-green burst to match their boxes.
-const INSPECTOR_BURST = ["#4ade80", "#22c55e", "#86efac", "#bbf7d0", "#f4f1e8"];
 // Subcontractor celebrations get an orange burst to match their box.
 const SUBCONTRACTOR_BURST = ["#fb923c", "#f97316", "#fdba74", "#fed7aa", "#f4f1e8"];
 
@@ -45,17 +42,13 @@ function reducedMotion(): boolean {
 
 export function BookingCelebration({
   daily,
-  inspectors,
   subcontractors,
 }: {
   daily: DailyCountRow[];
-  inspectors?: InspectorRowDTO[];
   subcontractors?: SubcontractorRowDTO[];
 }) {
   const state = useRef(createCelebrateState());
   const seeded = useRef(false);
-  const inspState = useRef(createCelebrateState());
-  const inspSeeded = useRef(false);
   const subState = useRef(createCelebrateState());
   const subSeeded = useRef(false);
   const queue = useRef<BookingPop[]>([]);
@@ -71,17 +64,6 @@ export function BookingCelebration({
       seeded.current = true;
     }
 
-    if (inspectors && inspectors.length > 0) {
-      const rows = inspectors.map((i) => ({
-        staffId: i.id,
-        name: i.name,
-        count: i.count,
-        jobs: i.jobs,
-      }));
-      pops.push(...inspectorBookings(rows, inspState.current, !inspSeeded.current));
-      inspSeeded.current = true;
-    }
-
     if (subcontractors && subcontractors.length > 0) {
       const rows = subcontractors.map((s) => ({ staffId: s.id, name: s.name, count: s.count }));
       pops.push(...subcontractorBookings(rows, subState.current, !subSeeded.current));
@@ -94,7 +76,7 @@ export function BookingCelebration({
     }
     drain();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [daily, inspectors, subcontractors]);
+  }, [daily, subcontractors]);
 
   // Clear any pending timers on unmount.
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
@@ -107,12 +89,7 @@ export function BookingCelebration({
     setActive({ pop: next, out: false });
     playGong();
     if (!reducedMotion()) {
-      const colors =
-        next.kind === "inspector"
-          ? INSPECTOR_BURST
-          : next.kind === "subcontractor"
-            ? SUBCONTRACTOR_BURST
-            : BURST;
+      const colors = next.kind === "subcontractor" ? SUBCONTRACTOR_BURST : BURST;
       confetti({ particleCount: 160, spread: 110, startVelocity: 45, origin: { y: 0.5 }, colors });
       timers.current.push(
         window.setTimeout(
@@ -140,25 +117,18 @@ export function BookingCelebration({
 
   if (!active) return null;
   const { pop, out } = active;
-  const isInspector = pop.kind === "inspector";
   const isSub = pop.kind === "subcontractor";
-  const theme = isInspector
+  const theme = isSub
     ? {
-        glow: "[background:radial-gradient(60%_60%_at_50%_45%,rgba(74,222,128,0.24),transparent_70%)]",
-        label: "Site inspection",
-        labelColor: "text-green-300",
+        glow: "[background:radial-gradient(60%_60%_at_50%_45%,rgba(251,146,60,0.24),transparent_70%)]",
+        label: "Subcontractor job",
+        labelColor: "text-orange-300",
       }
-    : isSub
-      ? {
-          glow: "[background:radial-gradient(60%_60%_at_50%_45%,rgba(251,146,60,0.24),transparent_70%)]",
-          label: "Subcontractor job",
-          labelColor: "text-orange-300",
-        }
-      : {
-          glow: "[background:radial-gradient(60%_60%_at_50%_45%,rgba(255,212,46,0.22),transparent_70%)]",
-          label: "New booking",
-          labelColor: "text-accent-400",
-        };
+    : {
+        glow: "[background:radial-gradient(60%_60%_at_50%_45%,rgba(255,212,46,0.22),transparent_70%)]",
+        label: "New booking",
+        labelColor: "text-accent-400",
+      };
 
   return (
     <div
@@ -182,36 +152,14 @@ export function BookingCelebration({
         {pop.name}
       </p>
       {pop.code && (
-        <div
-          className={cx(
-            "nl-rise relative rounded-2xl border-2 bg-black/40 px-7 py-3",
-            isInspector
-              ? "border-green-400/70 shadow-[0_0_40px_-8px_rgba(74,222,128,0.5)]"
-              : "border-accent-400/70 shadow-[0_0_40px_-8px_rgba(255,212,46,0.5)]",
-          )}
-        >
-          <span
-            className={cx(
-              "block font-mono text-[0.6rem] tracking-[0.35em] uppercase sm:text-xs",
-              isInspector ? "text-green-200/80" : "text-accent-200/80",
-            )}
-          >
+        <div className="nl-rise relative rounded-2xl border-2 border-accent-400/70 bg-black/40 px-7 py-3 shadow-[0_0_40px_-8px_rgba(255,212,46,0.5)]">
+          <span className="block font-mono text-[0.6rem] tracking-[0.35em] text-accent-200/80 uppercase sm:text-xs">
             MovePro
           </span>
-          <span
-            className={cx(
-              "font-mono font-bold tracking-[0.25em] [font-size:clamp(1.3rem,4.5vw,2.6rem)]",
-              isInspector ? "text-green-200" : "text-accent-300",
-            )}
-          >
+          <span className="font-mono font-bold tracking-[0.25em] text-accent-300 [font-size:clamp(1.3rem,4.5vw,2.6rem)]">
             #{pop.code}
           </span>
         </div>
-      )}
-      {isInspector && pop.forRep && (
-        <p className="nl-rise relative font-display text-2xl font-bold text-white/80 sm:text-3xl">
-          for <span className="text-green-300">{pop.forRep}</span>
-        </p>
       )}
     </div>
   );

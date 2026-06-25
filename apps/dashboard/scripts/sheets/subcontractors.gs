@@ -2,9 +2,9 @@
  * No Limits — Subcontractor jobs → dashboard live push (Google Apps Script).
  *
  * The subcontractor's jobs are logged in a section of the "Leaderboard" tab (the
- * same Follow-Up spreadsheet that runs leaderboard.gs / inspectors.gs). A
- * spreadsheet has only ONE Apps Script project, so this lives as an extra FILE
- * in that project alongside the others.
+ * same Follow-Up spreadsheet that runs leaderboard.gs). A spreadsheet has only
+ * ONE Apps Script project, so this lives as an extra FILE in that project
+ * alongside the others.
  *
  * Layout (fixed cells), for "Domanic":
  *   Today's count : AE194   (the "Today's N / 12" cell — N)
@@ -123,8 +123,8 @@ function onSubcontractorEdit(e) {
   pushSubcontractors();
 }
 
-/** Installs ONLY the subcontractor triggers (leaves the leaderboard / inspector
- * / roster ones alone). Safe to re-run. */
+/** Installs ONLY the subcontractor triggers (leaves the leaderboard / roster
+ * ones alone). Safe to re-run. */
 function installSubcontractorTriggers() {
   var mine = { onSubcontractorEdit: true, pushSubcontractors: true };
   ScriptApp.getProjectTriggers().forEach(function (t) {

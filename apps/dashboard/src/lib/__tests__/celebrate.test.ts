@@ -4,7 +4,6 @@ import {
   createCelebrateState,
   crossedThreshold,
   GONG_THRESHOLD,
-  inspectorBookings,
   newBookings,
 } from "../celebrate";
 
@@ -117,43 +116,4 @@ test("the new day's fresh codes fire (old codes already labelled)", () => {
   expect(
     newBookings([{ staffId: "a", name: "Andy", count: 1, jobCodes: ["NEW1"] }], s, false),
   ).toEqual([{ staffId: "a", name: "Andy", code: "NEW1" }]);
-});
-
-// ── inspectorBookings: per-inspection pop, tagged with the sales rep ──
-
-test("a new site inspection fires once, tagged inspector + the sales rep it's for", () => {
-  const s = createCelebrateState();
-  inspectorBookings(
-    [{ staffId: "martin", name: "Martin", count: 1, jobs: [{ code: "J1", forRep: "Hadeel" }] }],
-    s,
-    true, // seed — silent
-  );
-  expect(
-    inspectorBookings(
-      [
-        {
-          staffId: "martin",
-          name: "Martin",
-          count: 2,
-          jobs: [
-            { code: "J1", forRep: "Hadeel" },
-            { code: "J2", forRep: "Jenifer" },
-          ],
-        },
-      ],
-      s,
-      false,
-    ),
-  ).toEqual([{ staffId: "martin", name: "Martin", code: "J2", kind: "inspector", forRep: "Jenifer" }]);
-});
-
-test("a site inspection with no known sales rep still fires (forRep null)", () => {
-  const s = createCelebrateState();
-  expect(
-    inspectorBookings(
-      [{ staffId: "danny", name: "Danny", count: 1, jobs: [{ code: "K9", forRep: null }] }],
-      s,
-      false,
-    ),
-  ).toEqual([{ staffId: "danny", name: "Danny", code: "K9", kind: "inspector", forRep: null }]);
 });
