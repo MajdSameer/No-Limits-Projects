@@ -246,3 +246,190 @@ dialog::backdrop {
   background-size: 22px 22px;
   background-attachment: fixed;
 }
+
+/* ── Game Day wall (/live/game-day) ───────────────────────────────── */
+
+/* The opening title slams in from huge + blurred, overshoots, settles. */
+@keyframes gd-slam {
+  0% {
+    opacity: 0;
+    transform: scale(2.6);
+    filter: blur(10px);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.92);
+    filter: blur(0);
+  }
+  75% {
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.gd-slam {
+  animation: gd-slam 0.7s cubic-bezier(0.18, 1.3, 0.4, 1) both;
+  will-change: transform, opacity, filter;
+}
+
+/* The two teams charge in from opposite sides to "clash" in the middle. */
+@keyframes gd-charge-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-65vw) skewX(-10deg);
+  }
+  70% {
+    opacity: 1;
+    transform: translateX(2vw) skewX(-10deg);
+  }
+  100% {
+    transform: translateX(0) skewX(-10deg);
+  }
+}
+.gd-charge-left {
+  animation: gd-charge-left 0.65s 0.25s cubic-bezier(0.2, 1.1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+@keyframes gd-charge-right {
+  0% {
+    opacity: 0;
+    transform: translateX(65vw) skewX(-10deg);
+  }
+  70% {
+    opacity: 1;
+    transform: translateX(-2vw) skewX(-10deg);
+  }
+  100% {
+    transform: translateX(0) skewX(-10deg);
+  }
+}
+.gd-charge-right {
+  animation: gd-charge-right 0.65s 0.25s cubic-bezier(0.2, 1.1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+/* White flash at the moment of the clash. */
+@keyframes gd-flash {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  6% {
+    opacity: 0.85;
+  }
+  45% {
+    opacity: 0;
+  }
+}
+.gd-flash {
+  animation: gd-flash 0.9s 0.55s ease-out both;
+}
+
+/* Fade-up used by the intro subtitle / prize line. */
+@keyframes gd-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.gd-fade-up {
+  animation: gd-fade-up 0.5s 0.95s ease-out both;
+}
+
+/* Whole intro veil fades out at the end. */
+.gd-intro-out {
+  animation: nl-overlay-out 0.55s ease-in both;
+}
+
+/* Flames over the leading team flicker. */
+@keyframes gd-flame {
+  0%,
+  100% {
+    transform: scale(1) rotate(-3deg);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.22) rotate(3deg);
+    opacity: 1;
+  }
+}
+.gd-flame {
+  animation: gd-flame 0.7s ease-in-out infinite;
+  transform-origin: bottom center;
+  will-change: transform;
+}
+
+/* Aura glow behind the winning team breathes. */
+@keyframes gd-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: var(--gd-pulse-lo, 0.35);
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: var(--gd-pulse-hi, 0.6);
+  }
+}
+.gd-pulse {
+  animation: gd-pulse 2.2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* A score that just changed gives a quick bump. */
+@keyframes gd-bump {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.28);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.gd-bump {
+  animation: gd-bump 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
+}
+
+/* Sweeping sheen across the prize ribbon. */
+@keyframes gd-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.gd-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 212, 46, 0.55) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: gd-shimmer 3.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gd-slam,
+  .gd-charge-left,
+  .gd-charge-right,
+  .gd-flash,
+  .gd-fade-up,
+  .gd-intro-out,
+  .gd-flame,
+  .gd-pulse,
+  .gd-bump,
+  .gd-shimmer {
+    animation: none;
+  }
+}
