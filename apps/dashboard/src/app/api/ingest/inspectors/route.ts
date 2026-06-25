@@ -1,25 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getDb } from "../../../../db/client";
-import {
-  ingestSubcontractors,
-  type SubcontractorRowIn,
-} from "../../../../db/ingest-subcontractors";
+import { ingestInspectors, type InspectorRowIn } from "../../../../db/ingest-inspectors";
 import { notify } from "../../../../lib/notify";
 
 export const dynamic = "force-dynamic";
 
 interface IngestBody {
-  rows?: SubcontractorRowIn[];
+  rows?: InspectorRowIn[];
   /** Optional Sydney date ("yyyy-MM-dd") the snapshot is for; defaults to today. */
   asOfDate?: string;
 }
 
 /**
- * Receives the subcontractor's daily/monthly tally pushed by the Follow-Up
- * sheet's Apps Script and mirrors it into app_settings. Protected by the shared
- * INGEST_SECRET bearer token. Idempotent — safe to re-send (overwrites the
- * snapshot).
+ * Receives the day's site inspections pushed by the bookings sheet's Apps Script
+ * and mirrors them into app_settings. Protected by the shared INGEST_SECRET
+ * bearer token. Idempotent — safe to re-send (overwrites the snapshot).
  */
 export async function POST(request: NextRequest) {
   const secret = process.env.INGEST_SECRET;
@@ -41,7 +37,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await ingestSubcontractors(await getDb(), body.rows, body.asOfDate);
+    const result = await ingestInspectors(await getDb(), body.rows, body.asOfDate);
     notify("bookings"); // nudge live boards to refetch right away (not just on poll)
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
