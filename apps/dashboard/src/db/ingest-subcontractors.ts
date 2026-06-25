@@ -5,7 +5,7 @@
  * "Today's N / 12" and a running "Monthly" total in a section of the
  * Leaderboard tab.
  *
- * Like the inspectors mirror, this is volatile floor data, so it lives as a
+ * This is volatile floor data, so it lives as a
  * single JSON blob in app_settings ("subcontractors_live") — no schema change,
  * and each push overwrites it. The board resets the daily count to 0 on a new
  * day (the snapshot's asOfDate no longer matches), while the box stays.

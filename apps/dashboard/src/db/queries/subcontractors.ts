@@ -4,7 +4,7 @@
  * "subcontractors_live" snapshot the Follow-Up sheet pushes
  * (ingest-subcontractors).
  *
- * Like the inspector boxes, the subcontractor BOX persists day to day (so the
+ * The subcontractor BOX persists day to day (so the
  * wall always shows it), but the COUNT resets when the snapshot is for an older
  * day — a fresh morning starts back at 0 until the sheet pushes today's first
  * job.

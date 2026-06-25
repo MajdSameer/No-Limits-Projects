@@ -109,7 +109,7 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
 
   return (
     <main className="ink-grain flex h-dvh flex-col overflow-hidden bg-ink-950 text-manila-100">
-      <BookingCelebration daily={data.daily} inspectors={data.inspectors} />
+      <BookingCelebration daily={data.daily} />
       <header className="flex items-center justify-between border-b-2 border-accent-400 px-8 py-4">
         <p className="font-display text-2xl font-bold tracking-wide uppercase">
           No Limits <span className="text-accent-400">Ops</span>
