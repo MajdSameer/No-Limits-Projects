@@ -169,21 +169,31 @@ export function GameDayView({
           <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">🏆 Game Day</p>
           <h1 className="mt-1 text-4xl font-bold tracking-tight text-brand-900">Orange vs Blue</h1>
         </div>
-        {isManager && (
-          <button
-            type="button"
-            onClick={toggle}
-            disabled={pending}
-            className={cx(
-              "min-h-10 rounded-full px-5 text-sm font-semibold shadow-sm transition-all",
-              on
-                ? "bg-gradient-to-r from-orange-700 to-sky-700 text-white"
-                : "border border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-900",
-            )}
+        <div className="flex items-center gap-3">
+          <a
+            href="/live/game-day"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-brand-700 shadow-sm transition-all hover:border-brand-300 hover:text-brand-900"
           >
-            {on ? "End Game Day" : "Start Game Day"}
-          </button>
-        )}
+            Open wall display ↗
+          </a>
+          {isManager && (
+            <button
+              type="button"
+              onClick={toggle}
+              disabled={pending}
+              className={cx(
+                "min-h-10 rounded-full px-5 text-sm font-semibold shadow-sm transition-all",
+                on
+                  ? "bg-gradient-to-r from-orange-700 to-sky-700 text-white"
+                  : "border border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-900",
+              )}
+            >
+              {on ? "End Game Day" : "Start Game Day"}
+            </button>
+          )}
+        </div>
       </div>
 
       {!on ? (
