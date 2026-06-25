@@ -7,23 +7,42 @@ import { cx } from "@nlr/ui";
 
 import type { BoardRowDTO, BoardsDTO } from "./Board";
 import { BookingCelebration } from "./BookingCelebration";
-import { armAudio, audioRunning, playApplause, playDing } from "../lib/celebrate";
+import {
+  armAudio,
+  audioRunning,
+  playApplause,
+  playChaChing,
+  playDing,
+  playFanfare,
+  playWhoosh,
+} from "../lib/celebrate";
 import { useLiveRefresh } from "../lib/live";
+import { tierProgress } from "../lib/tiers";
 
 /**
  * Full-screen DARK "Game Day" wall board for /live/game-day — a 7-v-8 Orange vs
  * Blue battle. Opens with a hype CEREMONY: a slam-in title, then every rostered
- * rep is introduced one-by-one (name, team, bookings this month + revenue +
- * a tagline, each with a "ding"), then "LET THE GAMES BEGIN" with a triple ding
- * and crowd cheer — and only then the live scoreboard. The board's flames + aura
- * grow the further ahead the leading team is, and the day's top scorer is crowned
- * for the $100. Every booking still fires the shared gong + celebration. Polls
- * /api/boards and replays the ceremony whenever a manager flips Game Day on.
+ * rep is introduced one-by-one (name rises in, with a soft whoosh — or a
+ * cha-ching + money splash for the big earners, or a fanfare + shout-out for the
+ * Tier 3 club), then "LET THE GAMES BEGIN" with a triple ding and crowd cheer,
+ * and only then the live scoreboard. The board has real CSS flames + an aura that
+ * grow the further ahead the leading team is, a live countdown to the 7 PM final
+ * whistle, and the day's top scorer crowned for the $100. Every booking still
+ * fires the shared gong + celebration. Polls /api/boards and replays the ceremony
+ * whenever a manager flips Game Day on.
  */
 
 // Prize money — edit these two numbers to change what's on the line.
 const TOP_SCORER_PRIZE = 100; // day's single highest individual scorer
 const TEAM_PRIZE = 50; // every member of the winning team
+
+// Roll-call thresholds.
+const MONEY_THRESHOLD = 80000; // revenue ($) that earns the cha-ching + money splash
+
+// Game Day runs until 7 PM on the floor's clock.
+const GAME_END_HOUR = 19;
+const SYDNEY_TZ = "Australia/Sydney";
+const URGENT_S = 30 * 60; // countdown turns red inside the last 30 min
 
 // Ceremony timing (ms).
 const TITLE_MS = 3500; // opening "GAME DAY" slam
@@ -39,6 +58,7 @@ const TEAM: Record<
     label: string;
     emoji: string;
     rgb: string; // "r, g, b" for building rgba() glows/auras
+    fire: { core: string; mid: string; edge: string };
     box: string;
     name: string;
     num: string;
@@ -51,6 +71,7 @@ const TEAM: Record<
     label: "Orange",
     emoji: "🟠",
     rgb: "249, 115, 22",
+    fire: { core: "#fff3d6", mid: "#ff9d2e", edge: "#ff4d1f" },
     box: "border-orange-500/70 bg-orange-500/10",
     name: "text-orange-200",
     num: "text-orange-300",
@@ -62,6 +83,7 @@ const TEAM: Record<
     label: "Blue",
     emoji: "🔵",
     rgb: "34, 211, 238",
+    fire: { core: "#e8ffff", mid: "#54e6ff", edge: "#2f7dff" },
     box: "border-cyan-400/70 bg-cyan-400/10",
     name: "text-cyan-100",
     num: "text-cyan-200",
@@ -115,6 +137,41 @@ function reducedMotion(): boolean {
   );
 }
 
+/** Seconds until the 7 PM final whistle on the Sydney clock (negative once past). */
+function secsUntilGameEnd(): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: SYDNEY_TZ,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date());
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  let h = get("hour");
+  if (h === 24) h = 0; // some engines render midnight as 24
+  return GAME_END_HOUR * 3600 - (h * 3600 + get("minute") * 60 + get("second"));
+}
+
+// Money-emoji confetti shapes, built once on first use (needs the browser).
+type ConfettiShape = ReturnType<typeof confetti.shapeFromText>;
+let moneyShapes: ConfettiShape[] | null = null;
+
+/** A splash of cash — money emojis burst up from the floor. Big earners only. */
+function moneySplash(): void {
+  if (reducedMotion()) return;
+  if (moneyShapes === null) {
+    try {
+      moneyShapes = ["💵", "💰", "🤑", "💸"].map((text) => confetti.shapeFromText({ text, scalar: 3 }));
+    } catch {
+      moneyShapes = [];
+    }
+  }
+  const base = moneyShapes.length ? { shapes: moneyShapes, scalar: 3 } : {};
+  confetti({ particleCount: 26, spread: 75, startVelocity: 38, origin: { y: 0.62 }, ticks: 220, ...base });
+  confetti({ particleCount: 12, angle: 60, spread: 55, origin: { x: 0.08, y: 0.7 }, ticks: 200, ...base });
+  confetti({ particleCount: 12, angle: 120, spread: 55, origin: { x: 0.92, y: 0.7 }, ticks: 200, ...base });
+}
+
 interface RosterCard {
   staffId: string;
   name: string;
@@ -146,27 +203,152 @@ function buildRoster(daily: BoardRowDTO[], monthly: BoardRowDTO[]): RosterCard[]
   return [...byId.values()].sort((a, b) => a.month - b.month || a.name.localeCompare(b.name));
 }
 
+/** Real CSS fire over the leading team's score — soft gradient tongues, a molten
+ * base glow, and rising embers. Team-coloured (warm for Orange, plasma for Blue)
+ * and scaled by `heat` (more, taller tongues + more embers the bigger the lead). */
+function Flames({ side, heat }: { side: Side; heat: number }) {
+  if (heat <= 0) return null;
+  const { core, mid, edge } = TEAM[side].fire;
+  const tongues = 2 + heat; // 3..6
+  const baseH = 26 + heat * 9; // px
+  const centre = (tongues - 1) / 2;
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 items-end justify-center gap-[3px]"
+      style={{
+        bottom: "calc(100% - 10px)",
+        ["--fc" as string]: core,
+        ["--fm" as string]: mid,
+        ["--fe" as string]: edge,
+      }}
+    >
+      <span
+        className="gd-fire-base left-1/2 -translate-x-1/2"
+        style={{ width: `${30 + heat * 14}px` }}
+      />
+      {Array.from({ length: tongues }).map((_, i) => {
+        const dist = Math.abs(i - centre);
+        const h = Math.round(baseH * (1 - dist * 0.16));
+        const w = Math.round(h * 0.6);
+        return (
+          <span
+            key={i}
+            className={cx("gd-fire-tongue", i % 2 ? "gd-flicker-b" : "gd-flicker-a")}
+            style={{ width: `${w}px`, height: `${h}px`, animationDelay: `${i * 0.09}s` }}
+          />
+        );
+      })}
+      {heat >= 2 &&
+        Array.from({ length: heat }).map((_, i) => (
+          <span
+            key={`e${i}`}
+            className="gd-ember"
+            style={{
+              width: `${3 + (i % 2)}px`,
+              height: `${3 + (i % 2)}px`,
+              left: `${18 + i * 14}%`,
+              bottom: 0,
+              ["--ed" as string]: `${1.4 + i * 0.25}s`,
+              ["--ex" as string]: `${i % 2 ? 7 : -7}px`,
+              animationDelay: `${i * 0.28}s`,
+            }}
+          />
+        ))}
+    </div>
+  );
+}
+
+/** Live countdown to the 7 PM final whistle — the time left to swing the score. */
+function Countdown() {
+  const [secs, setSecs] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setSecs(secsUntilGameEnd());
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  if (secs === null) return null; // avoid SSR/client mismatch — render after mount
+
+  const over = secs <= 0;
+  const urgent = !over && secs <= URGENT_S;
+  const hh = Math.floor(secs / 3600);
+  const mm = Math.floor((secs % 3600) / 60);
+  const ss = secs % 60;
+  return (
+    <div
+      className={cx(
+        "flex items-center gap-2.5 rounded-full border px-4 py-1.5",
+        over
+          ? "border-white/15 bg-white/[0.04]"
+          : urgent
+            ? "border-red-400/60 bg-red-500/10"
+            : "border-accent-400/40 bg-white/[0.04]",
+      )}
+    >
+      <span className={cx("text-xl", urgent && "animate-pulse")} aria-hidden>
+        {over ? "🏁" : "⏳"}
+      </span>
+      {over ? (
+        <span className="font-display text-lg font-black tracking-wide text-white/70 uppercase">
+          Full time
+        </span>
+      ) : (
+        <span className="flex items-baseline gap-2">
+          <span
+            className={cx(
+              "font-display text-2xl font-black tabular-nums sm:text-3xl",
+              urgent ? "text-red-300" : "text-white",
+            )}
+          >
+            {hh}:{String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
+          </span>
+          <span className="text-[0.65rem] font-semibold tracking-wider text-white/45 uppercase">
+            left · ends 7 PM
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** One rep's introduction screen during the roll-call. */
 function RosterIntroCard({ card, index, total }: { card: RosterCard; index: number; total: number }) {
   const t = TEAM[card.team];
+  const tier3 = tierProgress(card.month).reached >= 3;
+  const rich = card.revenue != null && card.revenue >= MONEY_THRESHOLD;
   return (
-    <div className="relative flex flex-col items-center gap-5 text-center">
+    <div className="relative flex flex-col items-center gap-4 text-center">
       <p
-        className="gd-fade-up font-mono text-sm font-bold tracking-[0.5em] uppercase sm:text-lg"
+        className="gd-rise-1 font-mono text-sm font-bold tracking-[0.5em] uppercase sm:text-lg"
         style={{ color: `rgb(${t.rgb})` }}
       >
         Now introducing · {t.emoji} Team {t.label}
       </p>
-      <h2 className="gd-slam font-display leading-none font-black text-white uppercase [font-size:clamp(3rem,13vw,9rem)]">
+      <h2 className="gd-name-in font-display leading-none font-black text-white uppercase [font-size:clamp(3rem,13vw,9rem)]">
         {card.name}
       </h2>
-      <div className="gd-fade-up flex flex-col items-center gap-2">
-        <p className="text-2xl font-bold text-white/85 sm:text-4xl">
-          📋 <span className="font-black text-white">{card.month}</span> bookings this month
-        </p>
-        {card.revenue != null && card.revenue >= 1000 && (
+
+      {tier3 && (
+        <div className="gd-rise-2 flex flex-col items-center gap-1">
+          <span className="rounded-full border border-accent-400 bg-accent-400/15 px-5 py-1.5 text-lg font-black tracking-[0.18em] text-accent-200 uppercase shadow-[0_0_28px_-4px_rgba(255,212,46,0.75)]">
+            ✦ Tier 3 Club ✦
+          </span>
+          <span className="text-base font-semibold text-accent-300/85 sm:text-lg">
+            Elite — <span className="font-black text-accent-200">{card.month}</span> booked this month
+          </span>
+        </div>
+      )}
+
+      <div className="gd-rise-3 flex flex-col items-center gap-2">
+        {!tier3 && (
+          <p className="text-2xl font-bold text-white/85 sm:text-4xl">
+            📋 <span className="font-black text-white">{card.month}</span> bookings this month
+          </p>
+        )}
+        {rich && (
           <p className="text-2xl font-black text-accent-300 sm:text-4xl">
-            💰 cha-ching — over <span className="text-accent-200">{overMoney(card.revenue)}</span>{" "}
+            💰 cha-ching — over <span className="text-accent-200">{overMoney(card.revenue!)}</span>{" "}
             generated
           </p>
         )}
@@ -174,7 +356,8 @@ function RosterIntroCard({ card, index, total }: { card: RosterCard; index: numb
           {taglineFor(card.staffId)}
         </p>
       </div>
-      <p className="mt-2 font-mono text-sm font-semibold tracking-[0.3em] text-white/30">
+
+      <p className="gd-rise-3 mt-2 font-mono text-sm font-semibold tracking-[0.3em] text-white/30">
         {index + 1} / {total}
       </p>
     </div>
@@ -269,7 +452,7 @@ function TeamColumn({
   );
 }
 
-/** Centre score plate for one team, with flames over the leader scaled by heat. */
+/** Centre score plate for one team, with real CSS flames when it's leading. */
 function ScorePlate({
   side,
   total,
@@ -286,25 +469,21 @@ function ScorePlate({
   const spread = isLeader ? -6 + heat * 2 : -10;
   return (
     <div className="relative flex flex-col items-center">
-      {isLeader && heat > 0 && (
-        <div aria-hidden className="absolute -top-8 flex gap-0.5 text-3xl sm:-top-9 sm:text-4xl">
-          {Array.from({ length: heat }).map((_, i) => (
-            <span key={i} className="gd-flame" style={{ animationDelay: `${i * 0.1}s` }}>
-              🔥
-            </span>
-          ))}
-        </div>
-      )}
-      <div
-        className={cx("grid size-28 place-items-center rounded-3xl border-2 sm:size-36", t.box)}
-        style={isLeader && heat > 0 ? { boxShadow: `0 0 ${blur}px ${spread}px rgba(${t.rgb}, 0.8)` } : undefined}
-      >
-        <span
-          key={total}
-          className={cx("gd-bump font-display text-6xl font-black tabular-nums sm:text-7xl", t.num)}
+      <div className="relative">
+        {isLeader && heat > 0 && <Flames side={side} heat={heat} />}
+        <div
+          className={cx("grid size-28 place-items-center rounded-3xl border-2 sm:size-36", t.box)}
+          style={
+            isLeader && heat > 0 ? { boxShadow: `0 0 ${blur}px ${spread}px rgba(${t.rgb}, 0.8)` } : undefined
+          }
         >
-          {total}
-        </span>
+          <span
+            key={total}
+            className={cx("gd-bump font-display text-6xl font-black tabular-nums sm:text-7xl", t.num)}
+          >
+            {total}
+          </span>
+        </div>
       </div>
       <span className={cx("mt-2 text-sm font-bold tracking-[0.2em] uppercase sm:text-base", t.heading)}>
         {t.emoji} {t.label}
@@ -366,12 +545,18 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     setIntro({ phase: "title", idx: 0, out: false });
     let t = TITLE_MS;
 
-    // Each rep gets their moment, with a bright "ding".
-    roster.forEach((_, i) => {
+    // Each rep gets their moment: a soft whoosh by default, a cha-ching + money
+    // splash for the big earners, a fanfare for the Tier 3 club.
+    roster.forEach((card, i) => {
       introTimers.current.push(
         window.setTimeout(() => {
           setIntro({ phase: "roster", idx: i, out: false });
-          playDing();
+          const tier3 = tierProgress(card.month).reached >= 3;
+          const rich = card.revenue != null && card.revenue >= MONEY_THRESHOLD;
+          if (tier3) playFanfare();
+          else if (rich) playChaChing();
+          else playWhoosh();
+          if (rich) moneySplash();
         }, t),
       );
       t += CARD_MS;
@@ -600,7 +785,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
         </div>
       ) : (
         <>
-          {/* ── Header band: title + live prize ribbon ── */}
+          {/* ── Header band: title + countdown + prize ribbon ── */}
           <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
             <div className="flex items-baseline gap-3">
               <span className="text-3xl">🏆</span>
@@ -611,13 +796,16 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                 Orange vs Blue
               </span>
             </div>
-            <div className="relative overflow-hidden rounded-full border border-accent-400/40 bg-white/[0.04] px-4 py-1.5">
-              <span aria-hidden className="pointer-events-none absolute inset-0 gd-shimmer" />
-              <p className="relative flex items-center gap-3 text-sm font-bold whitespace-nowrap sm:text-base">
-                <span className="text-accent-200">👑 Top scorer ${TOP_SCORER_PRIZE}</span>
-                <span aria-hidden className="text-white/20">|</span>
-                <span className="text-accent-200">🏆 Winning team ${TEAM_PRIZE} each</span>
-              </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Countdown />
+              <div className="relative overflow-hidden rounded-full border border-accent-400/40 bg-white/[0.04] px-4 py-1.5">
+                <span aria-hidden className="pointer-events-none absolute inset-0 gd-shimmer" />
+                <p className="relative flex items-center gap-3 text-sm font-bold whitespace-nowrap sm:text-base">
+                  <span className="text-accent-200">👑 Top scorer ${TOP_SCORER_PRIZE}</span>
+                  <span aria-hidden className="text-white/20">|</span>
+                  <span className="text-accent-200">🏆 Winning team ${TEAM_PRIZE} each</span>
+                </p>
+              </div>
             </div>
           </header>
 

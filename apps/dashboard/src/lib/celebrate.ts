@@ -447,6 +447,121 @@ export function playDing(volume = 0.65): void {
   }
 }
 
+/**
+ * A soft airy "whoosh" — band-passed noise sweeping up in pitch, with a gentle
+ * swell. Used as the understated entrance for each rep in the Game Day roll-call
+ * (a repeated bell would grate over 15 reps; this just lifts the name in).
+ */
+export function playWhoosh(volume = 0.3): void {
+  const c = getCtx();
+  if (!c) return;
+  if (c.state === "suspended") void c.resume();
+  const now = c.currentTime;
+  const dur = 0.5;
+
+  const master = c.createGain();
+  master.gain.value = volume;
+  master.connect(c.destination);
+
+  const buf = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const src = c.createBufferSource();
+  src.buffer = buf;
+
+  const bp = c.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 0.9;
+  bp.frequency.setValueAtTime(280, now);
+  bp.frequency.exponentialRampToValueAtTime(2600, now + dur * 0.85);
+
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(1, now + 0.13);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+  src.connect(bp);
+  bp.connect(g);
+  g.connect(master);
+  src.start(now);
+  src.stop(now + dur);
+}
+
+/**
+ * A bright two-note "cha-CHING" cash-register chime — for the roll-call's big
+ * earners. Two struck triangle-wave bells, the second up a fourth.
+ */
+export function playChaChing(volume = 0.5): void {
+  const c = getCtx();
+  if (!c) return;
+  if (c.state === "suspended") void c.resume();
+  const now = c.currentTime;
+
+  const master = c.createGain();
+  master.gain.value = volume;
+  master.connect(c.destination);
+
+  const strike = (at: number, base: number) => {
+    const partials = [
+      { r: 1, g: 1 },
+      { r: 2.01, g: 0.5 },
+      { r: 3.0, g: 0.26 },
+      { r: 5.1, g: 0.12 },
+    ];
+    for (const p of partials) {
+      const o = c.createOscillator();
+      o.type = "triangle";
+      o.frequency.value = base * p.r;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(p.g, at + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+      o.connect(g);
+      g.connect(master);
+      o.start(at);
+      o.stop(at + 0.55);
+    }
+  };
+  strike(now, 1318); // E6 — "cha"
+  strike(now + 0.1, 1760); // A6 — "ching"
+}
+
+/**
+ * A short triumphant 3-note rising fanfare — for reps who've already hit Tier 3.
+ * Saw waves through a low-pass so it's bright but not harsh.
+ */
+export function playFanfare(volume = 0.45): void {
+  const c = getCtx();
+  if (!c) return;
+  if (c.state === "suspended") void c.resume();
+  const now = c.currentTime;
+
+  const master = c.createGain();
+  master.gain.value = volume;
+  master.connect(c.destination);
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 4200;
+  lp.connect(master);
+
+  const note = (at: number, freq: number, dur: number) => {
+    const o = c.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.value = freq;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.5, at + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g);
+    g.connect(lp);
+    o.start(at);
+    o.stop(at + dur + 0.05);
+  };
+  note(now, 523, 0.18); // C5
+  note(now + 0.12, 659, 0.18); // E5
+  note(now + 0.24, 784, 0.5); // G5 (held)
+}
+
 const GONG_COLORS = ["#ffd42e", "#fff389", "#f472b6", "#38bdf8", "#f4f1e8"];
 
 /** Gong + a big confetti burst (confetti skipped under reduced-motion). */
