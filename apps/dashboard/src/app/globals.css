@@ -347,22 +347,124 @@ dialog::backdrop {
   animation: nl-overlay-out 0.55s ease-in both;
 }
 
-/* Flames over the leading team flicker. */
-@keyframes gd-flame {
+/* Real fire over the leading team — soft screen-blended gradient "tongues" that
+   lick upward, plus a molten base glow and rising embers. Colour comes from
+   --fc (white-hot core) / --fm (mid) / --fe (edge), set per team. */
+.gd-fire-tongue {
+  background: radial-gradient(
+    50% 62% at 50% 82%,
+    #fff 0%,
+    var(--fc, #fff3d6) 20%,
+    var(--fm, #ff9d2e) 48%,
+    var(--fe, #ff4d1f) 66%,
+    transparent 78%
+  );
+  border-radius: 46% 46% 40% 40% / 64% 64% 36% 36%;
+  filter: blur(2.2px);
+  mix-blend-mode: screen;
+  transform-origin: bottom center;
+  will-change: transform, opacity;
+}
+.gd-fire-base {
+  position: absolute;
+  bottom: -2px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(50% 100% at 50% 100%, var(--fm, #ff9d2e), transparent 72%);
+  filter: blur(5px);
+  mix-blend-mode: screen;
+}
+.gd-ember {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--fm, #ff9d2e);
+  filter: blur(0.5px);
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+  animation: gd-ember-rise var(--ed, 1.8s) ease-out infinite;
+}
+
+@keyframes gd-flicker-a {
   0%,
   100% {
-    transform: scale(1) rotate(-3deg);
-    opacity: 0.92;
+    transform: translateY(0) scaleY(1) scaleX(1) skewX(0deg);
+    opacity: 0.9;
   }
-  50% {
-    transform: scale(1.22) rotate(3deg);
+  30% {
+    transform: translateY(-6%) scaleY(1.18) scaleX(0.9) skewX(-3deg);
+    opacity: 1;
+  }
+  55% {
+    transform: translateY(-2%) scaleY(0.95) scaleX(1.07) skewX(2deg);
+    opacity: 0.82;
+  }
+  78% {
+    transform: translateY(-7%) scaleY(1.12) scaleX(0.93) skewX(3deg);
     opacity: 1;
   }
 }
-.gd-flame {
-  animation: gd-flame 0.7s ease-in-out infinite;
-  transform-origin: bottom center;
-  will-change: transform;
+@keyframes gd-flicker-b {
+  0%,
+  100% {
+    transform: translateY(-2%) scaleY(1.08) scaleX(0.96) skewX(2deg);
+    opacity: 0.95;
+  }
+  35% {
+    transform: translateY(-7%) scaleY(0.92) scaleX(1.08) skewX(-3deg);
+    opacity: 0.8;
+  }
+  62% {
+    transform: translateY(-3%) scaleY(1.2) scaleX(0.88) skewX(2deg);
+    opacity: 1;
+  }
+}
+.gd-flicker-a {
+  animation: gd-flicker-a 0.62s ease-in-out infinite;
+}
+.gd-flicker-b {
+  animation: gd-flicker-b 0.72s ease-in-out infinite;
+}
+@keyframes gd-ember-rise {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-150%) translateX(var(--ex, 0)) scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* A rep's name in the roll-call rises + sharpens into focus (no slam). */
+@keyframes gd-name-in {
+  0% {
+    opacity: 0;
+    transform: translateY(48px);
+    filter: blur(7px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.gd-name-in {
+  animation: gd-name-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity, filter;
+}
+
+/* Staggered rise for the roll-call's supporting lines (badge / stats / counter). */
+.gd-rise-1 {
+  animation: gd-fade-up 0.55s 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.gd-rise-2 {
+  animation: gd-fade-up 0.55s 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.gd-rise-3 {
+  animation: gd-fade-up 0.55s 0.46s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Aura glow behind the winning team breathes. */
@@ -426,10 +528,19 @@ dialog::backdrop {
   .gd-flash,
   .gd-fade-up,
   .gd-intro-out,
-  .gd-flame,
+  .gd-flicker-a,
+  .gd-flicker-b,
+  .gd-name-in,
+  .gd-rise-1,
+  .gd-rise-2,
+  .gd-rise-3,
   .gd-pulse,
   .gd-bump,
   .gd-shimmer {
     animation: none;
+  }
+  /* Embers are pure motion — hide them rather than freeze a stray dot. */
+  .gd-ember {
+    display: none;
   }
 }
