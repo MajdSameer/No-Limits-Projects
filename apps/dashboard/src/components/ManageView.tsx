@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { startTransition as lowPriority, useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 
 import { cx } from "@nlr/ui";
 
@@ -63,32 +62,50 @@ export function ManageView({
   monthlyGoal: number;
   shifts: ShiftRow[];
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
-  // Run a mutation, then refresh server data in the BACKGROUND. The refresh is
-  // its own low-priority transition so `pending` clears the moment the write
-  // returns — buttons re-enable immediately instead of staying frozen through a
-  // full server re-fetch (which is what made clicks feel dropped).
-  const run = (fn: () => Promise<{ error?: string }>) => {
+  // Optimistic staff list: an edit (team, gender, goal, status…) shows instantly,
+  // then reconciles when the server action's revalidate refreshes the page —
+  // mirrors the on-shift toggles below, and keeps the controlled <select>s from
+  // snapping back to their old value while the write is in flight.
+  const [optimisticStaff, patchStaff] = useOptimistic(
+    staff,
+    (cur, u: { id: string; patch: Partial<StaffRow> }) =>
+      cur.map((s) => (s.id === u.id ? { ...s, ...u.patch } : s)),
+  );
+
+  // Run a mutation inside a transition, applying an optional optimistic patch
+  // first so the UI updates immediately. The server action's revalidatePath
+  // refreshes the page data when it returns, so there's no need for a manual
+  // router.refresh() — that was a second full server re-render, and disabling the
+  // controls through it is what made the page freeze on every change.
+  const run = (fn: () => Promise<{ error?: string }>, optimistic?: () => void) => {
     setMessage(null);
     startTransition(async () => {
+      if (optimistic) optimistic();
       const r = await fn();
       if (r.error) setMessage(r.error);
-      lowPriority(() => router.refresh());
     });
   };
 
   const promptGoal = (s: StaffRow) => {
     const raw = window.prompt(`Daily goal for ${s.name}:`, String(s.goal ?? 5));
     if (raw === null) return;
-    run(() => setGoal(s.id, Number(raw)));
+    const g = Number(raw);
+    run(
+      () => setGoal(s.id, g),
+      Number.isFinite(g) ? () => patchStaff({ id: s.id, patch: { goal: g } }) : undefined,
+    );
   };
   const promptWeight = (s: StaffRow) => {
     const raw = window.prompt(`Lead intake weight for ${s.name} (0–3):`, String(s.intakeWeight));
     if (raw === null) return;
-    run(() => setIntakeWeight(s.id, Number(raw)));
+    const w = Number(raw);
+    run(
+      () => setIntakeWeight(s.id, w),
+      Number.isFinite(w) ? () => patchStaff({ id: s.id, patch: { intakeWeight: w } }) : undefined,
+    );
   };
   const promptPin = (s: StaffRow) => {
     const raw = window.prompt(`New PIN for ${s.name} (4–6 digits):`);
@@ -119,7 +136,6 @@ export function ManageView({
       applyShift({ staffId: s.staffId, val });
       const r = await setOnShift(s.staffId, val);
       if (r.error) setMessage(r.error);
-      lowPriority(() => router.refresh());
     });
   };
 
@@ -211,7 +227,6 @@ export function ManageView({
             const raw = window.prompt("Team monthly booking goal:", String(monthlyGoal));
             if (raw !== null) run(() => setMonthlyGoal(Number(raw)));
           }}
-          disabled={pending}
           className={cx(btn, "shadow-sm")}
         >
           Monthly goal: {monthlyGoal.toLocaleString()} ✎
@@ -242,7 +257,7 @@ export function ManageView({
             </tr>
           </thead>
           <tbody>
-            {staff.map((s) => (
+            {optimisticStaff.map((s) => (
               <tr key={s.id} className={cx("border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50", !s.active && "opacity-50")}>
                 <th scope="row" className="px-3 py-2 text-left font-bold">{s.name}</th>
                 <td className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase">{s.role}</td>
@@ -250,12 +265,12 @@ export function ManageView({
                   {!s.active ? "inactive" : s.locked ? <span className="rounded-full bg-accent-100 px-2 py-0.5 font-bold text-brand-900">LOCKED</span> : "active"}
                 </td>
                 <td className="px-3 py-2">
-                  <button type="button" onClick={() => promptGoal(s)} disabled={pending} className={btn}>
+                  <button type="button" onClick={() => promptGoal(s)} className={btn}>
                     {s.goal ?? "—"} ✎
                   </button>
                 </td>
                 <td className="px-3 py-2">
-                  <button type="button" onClick={() => promptWeight(s)} disabled={pending} className={btn}>
+                  <button type="button" onClick={() => promptWeight(s)} className={btn}>
                     {s.intakeWeight.toFixed(1)} ✎
                   </button>
                 </td>
@@ -264,8 +279,10 @@ export function ManageView({
                   <select
                     id={`gender-${s.id}`}
                     value={s.gender}
-                    disabled={pending}
-                    onChange={(e) => run(() => setGender(s.id, e.target.value as "f" | "m" | "x"))}
+                    onChange={(e) => {
+                      const gender = e.target.value as "f" | "m" | "x";
+                      run(() => setGender(s.id, gender), () => patchStaff({ id: s.id, patch: { gender } }));
+                    }}
                     className="min-h-9 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                   >
                     <option value="f">Pink ♀</option>
@@ -278,10 +295,10 @@ export function ManageView({
                   <select
                     id={`team-${s.id}`}
                     value={s.team ?? ""}
-                    disabled={pending}
-                    onChange={(e) =>
-                      run(() => setTeam(s.id, (e.target.value || null) as "orange" | "blue" | null))
-                    }
+                    onChange={(e) => {
+                      const team = (e.target.value || null) as "orange" | "blue" | null;
+                      run(() => setTeam(s.id, team), () => patchStaff({ id: s.id, patch: { team } }));
+                    }}
                     className="min-h-9 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                   >
                     <option value="">—</option>
@@ -291,11 +308,21 @@ export function ManageView({
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-1">
-                    <button type="button" onClick={() => promptPin(s)} disabled={pending} className={btn}>Reset PIN</button>
+                    <button type="button" onClick={() => promptPin(s)} className={btn}>Reset PIN</button>
                     {s.locked && (
-                      <button type="button" onClick={() => run(() => unlockStaff(s.id))} disabled={pending} className={btn}>Unlock</button>
+                      <button
+                        type="button"
+                        onClick={() => run(() => unlockStaff(s.id), () => patchStaff({ id: s.id, patch: { locked: false } }))}
+                        className={btn}
+                      >
+                        Unlock
+                      </button>
                     )}
-                    <button type="button" onClick={() => run(() => setActive(s.id, !s.active))} disabled={pending} className={btn}>
+                    <button
+                      type="button"
+                      onClick={() => run(() => setActive(s.id, !s.active), () => patchStaff({ id: s.id, patch: { active: !s.active } }))}
+                      className={btn}
+                    >
                       {s.active ? "Deactivate" : "Reactivate"}
                     </button>
                   </div>
@@ -318,7 +345,7 @@ export function ManageView({
           <option value="rep">Rep</option>
           <option value="manager">Manager</option>
         </select>
-        <button type="submit" disabled={pending} className="min-h-11 rounded-full bg-brand-900 px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-800 motion-safe:hover:-translate-y-0.5">
+        <button type="submit" className="min-h-11 rounded-full bg-brand-900 px-5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-800 motion-safe:hover:-translate-y-0.5">
           Add
         </button>
         <p className="basis-full text-xs text-slate-500">
