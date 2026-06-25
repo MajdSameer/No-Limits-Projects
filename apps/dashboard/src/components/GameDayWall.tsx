@@ -46,9 +46,13 @@ const URGENT_S = 30 * 60; // countdown turns red inside the last 30 min
 
 // Ceremony timing (ms).
 const TITLE_MS = 3500; // opening "GAME DAY" slam
-const CARD_MS = 2700; // each rep's introduction
+const ROSTER_TOTAL_MS = 44000; // the rep roll-call lasts EXACTLY this long (44s)
 const GO_MS = 3000; // "LET THE GAMES BEGIN"
 const FADE_MS = 550; // veil fade-out tail
+
+// Background music for the roll-call (FIFA World Cup 26 theme, in public/sounds).
+const MUSIC_SRC = "/sounds/worldcup26-theme.mp3";
+const MUSIC_VOL = 0.55;
 
 type Side = "orange" | "blue";
 
@@ -506,10 +510,60 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const firstRun = useRef(true);
   const introTimers = useRef<number[]>([]);
   const rosterRef = useRef<RosterCard[]>([]);
+  const musicRef = useRef<HTMLAudioElement | null>(null);
+  const musicFade = useRef<number | null>(null);
+  const musicWanted = useRef(false);
   // Always-current data so the ceremony can snapshot the roster without
   // re-running on every poll.
   const latest = useRef({ daily, monthly });
   latest.current = { daily, monthly };
+
+  // ── Roll-call background music (World Cup theme) ──
+  const startMusic = useCallback(() => {
+    const el = musicRef.current;
+    if (!el) return;
+    if (musicFade.current) {
+      window.clearInterval(musicFade.current);
+      musicFade.current = null;
+    }
+    try {
+      el.currentTime = 0;
+    } catch {
+      /* not seekable yet — fine, it'll start from 0 anyway */
+    }
+    el.volume = MUSIC_VOL;
+    void el.play().catch(() => undefined); // blocked until a gesture — retried on tap
+  }, []);
+
+  const fadeMusic = useCallback((ms: number) => {
+    const el = musicRef.current;
+    if (!el) return;
+    if (musicFade.current) window.clearInterval(musicFade.current);
+    const steps = 24;
+    const v0 = el.volume;
+    let k = 0;
+    musicFade.current = window.setInterval(
+      () => {
+        k += 1;
+        el.volume = Math.max(0, v0 * (1 - k / steps));
+        if (k >= steps) {
+          if (musicFade.current) window.clearInterval(musicFade.current);
+          musicFade.current = null;
+          el.pause();
+        }
+      },
+      Math.max(16, ms / steps),
+    );
+  }, []);
+
+  const stopMusic = useCallback(() => {
+    if (musicFade.current) {
+      window.clearInterval(musicFade.current);
+      musicFade.current = null;
+    }
+    musicWanted.current = false;
+    if (musicRef.current) musicRef.current.pause();
+  }, []);
 
   // ── Sound: browsers block audio until interaction. On a wall nobody clicks,
   // so keep arming on any interaction and show a prompt until it's running. ──
@@ -517,6 +571,9 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     const sync = () => setSoundLocked(!audioRunning());
     const arm = () => {
       armAudio();
+      // If the roll-call is up but the browser blocked autoplay, the first tap
+      // also kicks off the theme.
+      if (musicWanted.current && musicRef.current?.paused) startMusic();
       window.setTimeout(sync, 80);
     };
     sync();
@@ -528,7 +585,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
       window.removeEventListener("keydown", arm);
       document.removeEventListener("visibilitychange", sync);
     };
-  }, []);
+  }, [startMusic]);
 
   const clearIntroTimers = () => {
     introTimers.current.forEach((t) => window.clearTimeout(t));
@@ -543,29 +600,36 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     clearIntroTimers();
 
     setIntro({ phase: "title", idx: 0, out: false });
-    let t = TITLE_MS;
+    const n = roster.length;
 
-    // Each rep gets their moment: a soft whoosh by default, a cha-ching + money
-    // splash for the big earners, a fanfare for the Tier 3 club.
+    // The roll-call spans EXACTLY ROSTER_TOTAL_MS (44s) end-to-end, under the
+    // World Cup theme — card i lands at its fraction of that window no matter how
+    // many reps there are. Each rep: a soft whoosh by default, a cha-ching +
+    // money splash for the big earners, a fanfare for the Tier 3 club.
+    if (n > 0) musicWanted.current = true;
     roster.forEach((card, i) => {
+      const at = TITLE_MS + Math.round((i * ROSTER_TOTAL_MS) / n);
       introTimers.current.push(
         window.setTimeout(() => {
           setIntro({ phase: "roster", idx: i, out: false });
+          if (i === 0) startMusic();
           const tier3 = tierProgress(card.month).reached >= 3;
           const rich = card.revenue != null && card.revenue >= MONEY_THRESHOLD;
           if (tier3) playFanfare();
           else if (rich) playChaChing();
           else playWhoosh();
           if (rich) moneySplash();
-        }, t),
+        }, at),
       );
-      t += CARD_MS;
     });
 
-    // "LET THE GAMES BEGIN" — ding ding ding + a crowd cheer + confetti.
+    // "LET THE GAMES BEGIN" — duck the music out, ding ding ding + crowd cheer.
+    const goAt = TITLE_MS + (n > 0 ? ROSTER_TOTAL_MS : 0);
     introTimers.current.push(
       window.setTimeout(() => {
         setIntro({ phase: "go", idx: 0, out: false });
+        musicWanted.current = false;
+        fadeMusic(1100);
         playDing();
         introTimers.current.push(
           window.setTimeout(() => playDing(), 230),
@@ -577,23 +641,30 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
         if (!reducedMotion()) {
           confetti({ particleCount: 220, spread: 130, startVelocity: 50, origin: { y: 0.5 } });
         }
-      }, t),
+      }, goAt),
     );
-    t += GO_MS;
 
+    const endAt = goAt + GO_MS;
     introTimers.current.push(
-      window.setTimeout(() => setIntro((a) => (a ? { ...a, out: true } : a)), t - FADE_MS),
-      window.setTimeout(() => setIntro(null), t),
+      window.setTimeout(() => setIntro((a) => (a ? { ...a, out: true } : a)), endAt - FADE_MS),
+      window.setTimeout(() => setIntro(null), endAt),
     );
-  }, []);
+  }, [startMusic, fadeMusic]);
 
   const skipIntro = () => {
     clearIntroTimers();
+    stopMusic();
     setIntro((a) => (a ? { ...a, out: true } : a));
     introTimers.current.push(window.setTimeout(() => setIntro(null), FADE_MS));
   };
 
-  useEffect(() => () => clearIntroTimers(), []);
+  useEffect(
+    () => () => {
+      clearIntroTimers();
+      stopMusic();
+    },
+    [stopMusic],
+  );
 
   // Play the ceremony on first load (if already on) and whenever it flips on.
   useEffect(() => {
@@ -677,6 +748,9 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
       {/* Bookings still gong + celebrate — only team members appear on this wall. */}
       <BookingCelebration daily={teamed} />
+
+      {/* Roll-call background music (World Cup theme). Hidden; driven by the ceremony. */}
+      <audio ref={musicRef} src={MUSIC_SRC} preload="auto" className="hidden" aria-hidden />
 
       {/* ── Opening ceremony ── */}
       {intro && (

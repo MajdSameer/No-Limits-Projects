@@ -488,10 +488,11 @@ export function playWhoosh(volume = 0.3): void {
 }
 
 /**
- * A bright two-note "cha-CHING" cash-register chime — for the roll-call's big
- * earners. Two struck triangle-wave bells, the second up a fourth.
+ * A proper cash-register "cha-CHING" — a short metallic noise burst (the drawer
+ * "cha") followed by two bright ringing bells (the "ching"). For the roll-call's
+ * big earners. Pure synth, works offline.
  */
-export function playChaChing(volume = 0.5): void {
+export function playChaChing(volume = 0.55): void {
   const c = getCtx();
   if (!c) return;
   if (c.state === "suspended") void c.resume();
@@ -501,29 +502,51 @@ export function playChaChing(volume = 0.5): void {
   master.gain.value = volume;
   master.connect(c.destination);
 
-  const strike = (at: number, base: number) => {
+  // "cha" — a short, bright metallic noise click (the register mechanism).
+  const chDur = 0.07;
+  const nb = c.createBuffer(1, Math.floor(c.sampleRate * chDur), c.sampleRate);
+  const nd = nb.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) {
+    nd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nd.length, 2);
+  }
+  const noise = c.createBufferSource();
+  noise.buffer = nb;
+  const nbp = c.createBiquadFilter();
+  nbp.type = "bandpass";
+  nbp.frequency.value = 2700;
+  nbp.Q.value = 0.7;
+  const ng = c.createGain();
+  ng.gain.value = 0.7;
+  noise.connect(nbp);
+  nbp.connect(ng);
+  ng.connect(master);
+  noise.start(now);
+  noise.stop(now + chDur);
+
+  // "ching" — two bright bells ringing in quick succession, second up a tone.
+  const bell = (at: number, base: number, vol: number) => {
     const partials = [
-      { r: 1, g: 1 },
-      { r: 2.01, g: 0.5 },
-      { r: 3.0, g: 0.26 },
-      { r: 5.1, g: 0.12 },
+      { r: 1, g: 1, d: 0.75 },
+      { r: 2.0, g: 0.6, d: 0.6 },
+      { r: 2.76, g: 0.4, d: 0.5 }, // inharmonic — gives the metallic "bell" sheen
+      { r: 5.4, g: 0.16, d: 0.32 },
     ];
     for (const p of partials) {
       const o = c.createOscillator();
-      o.type = "triangle";
+      o.type = "sine";
       o.frequency.value = base * p.r;
       const g = c.createGain();
       g.gain.setValueAtTime(0.0001, at);
-      g.gain.exponentialRampToValueAtTime(p.g, at + 0.005);
-      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+      g.gain.exponentialRampToValueAtTime(p.g * vol, at + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + p.d);
       o.connect(g);
       g.connect(master);
       o.start(at);
-      o.stop(at + 0.55);
+      o.stop(at + p.d + 0.05);
     }
   };
-  strike(now, 1318); // E6 — "cha"
-  strike(now + 0.1, 1760); // A6 — "ching"
+  bell(now + 0.05, 2349, 1); // D7
+  bell(now + 0.15, 2637, 0.9); // E7 — the up-tick that lands the "-ching"
 }
 
 /**
