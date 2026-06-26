@@ -375,6 +375,25 @@ dialog::backdrop {
   mix-blend-mode: screen;
 }
 
+/* A single flame column of the bonfire behind a winning team's box. Heavy blur
+   + screen blend means many overlapping columns merge into one continuous fire
+   instead of separate tongues. Colour rises hot-core → mid → edge → out. */
+.gd-flame-col {
+  position: absolute;
+  background: linear-gradient(
+    to top,
+    var(--fc, #fff3d6) 0%,
+    var(--fm, #ff9d2e) 34%,
+    var(--fe, #ff4d1f) 66%,
+    transparent 94%
+  );
+  border-radius: 45% 45% 48% 48% / 55% 55% 100% 100%;
+  filter: blur(7px);
+  mix-blend-mode: screen;
+  transform-origin: bottom center;
+  will-change: transform, opacity;
+}
+
 /* Enveloping fire halo around a winning team's score box. */
 @keyframes gd-fire-aura {
   0%,
@@ -593,6 +612,7 @@ dialog::backdrop {
   .gd-flicker-a,
   .gd-flicker-b,
   .gd-fire-aura,
+  .gd-flame-col,
   .gd-name-in,
   .gd-rise-1,
   .gd-rise-2,
