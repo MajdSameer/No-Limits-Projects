@@ -221,31 +221,37 @@ function buildRoster(daily: BoardRowDTO[], monthly: BoardRowDTO[]): RosterCard[]
 function Flames({ side, heat }: { side: Side; heat: number }) {
   if (heat <= 0) return null;
   const { core, mid, edge } = TEAM[side].fire;
-  const cols = 16 + heat * 3; // thin overlapping columns (19..28)
-  const baseH = 110 + heat * 15; // how high the flames lick (px)
+  const cols = 22 + heat * 4; // overlapping columns (26..38)
+  const baseH = 120 + heat * 16; // how high the centre flames lick (px)
   return (
-    // Bottom sits WELL above the box's base (bottom-12) so the flame roots stay
-    // hidden behind the opaque box — only the tips lick up over the top edge.
+    // Roots sit AT the box base (bottom-0) and the curtain reaches a touch past
+    // each side (−left/right-4) so the fire rises from the bottom and licks up
+    // the sides + over the top — the opaque box keeps the number clear.
     <div
       aria-hidden
-      className="pointer-events-none absolute -top-20 right-0 bottom-12 left-0 z-0"
+      className="pointer-events-none absolute -top-16 -right-4 bottom-0 -left-4 z-0"
       style={{ ["--fc" as string]: core, ["--fm" as string]: mid, ["--fe" as string]: edge }}
     >
       {Array.from({ length: cols }).map((_, i) => {
-        const leftPct = (i / (cols - 1)) * 100;
-        const h = Math.round(baseH * (0.7 + 0.35 * Math.abs(Math.sin(i * 1.7 + 0.5))));
-        const w = 9 + (i % 3) * 3; // thin
+        const t = i / (cols - 1); // 0..1 across the width
+        // Mound: tallest in the middle, tapering at the edges (a real fire bed),
+        // multiplied by a per-column jitter so no two tongues match.
+        const mound = 0.4 + 0.6 * Math.sin(t * Math.PI);
+        const jitter = 0.6 + 0.4 * Math.abs(Math.sin(i * 2.7 + 1.3));
+        const h = Math.round(baseH * mound * jitter);
+        const w = 10 + (i % 4) * 4;
+        const xJit = ((i * 37) % 11) - 5; // small deterministic horizontal wobble
         return (
           <span
             key={i}
             className={cx("gd-flame-col", i % 2 ? "gd-flicker-b" : "gd-flicker-a")}
             style={{
-              left: `calc(${leftPct}% - ${w / 2}px)`,
+              left: `calc(${t * 100}% - ${w / 2}px + ${xJit}px)`,
               bottom: 0,
               width: `${w}px`,
               height: `${h}px`,
-              animationDelay: `${(i % 6) * 0.08}s`,
-              animationDuration: `${0.55 + (i % 4) * 0.12}s`,
+              animationDelay: `${(i % 7) * 0.07}s`,
+              animationDuration: `${0.5 + (i % 5) * 0.1}s`,
             }}
           />
         );

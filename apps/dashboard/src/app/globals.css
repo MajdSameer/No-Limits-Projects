@@ -387,9 +387,19 @@ dialog::backdrop {
     var(--fe, #ff4d1f) 62%,
     transparent 92%
   );
-  /* Tapered flame: pointed tip, fuller body, narrow base — softened by the blur. */
-  clip-path: polygon(50% 0%, 70% 22%, 90% 55%, 78% 100%, 22% 100%, 10% 55%, 30% 22%);
-  filter: blur(3px);
+  /* Leaf-shaped flame: pointed tip, fuller belly, narrow root — softened by blur. */
+  clip-path: polygon(
+    50% 0%,
+    63% 16%,
+    82% 42%,
+    88% 70%,
+    72% 100%,
+    28% 100%,
+    12% 70%,
+    18% 42%,
+    37% 16%
+  );
+  filter: blur(2.5px);
   mix-blend-mode: screen;
   transform-origin: bottom center;
   will-change: transform, opacity;
