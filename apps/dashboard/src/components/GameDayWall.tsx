@@ -222,11 +222,13 @@ function Flames({ side, heat }: { side: Side; heat: number }) {
   if (heat <= 0) return null;
   const { core, mid, edge } = TEAM[side].fire;
   const cols = 16 + heat * 3; // thin overlapping columns (19..28)
-  const baseH = 150 + heat * 22; // how high the flames lick (px)
+  const baseH = 110 + heat * 15; // how high the flames lick (px)
   return (
+    // Bottom sits WELL above the box's base (bottom-12) so the flame roots stay
+    // hidden behind the opaque box — only the tips lick up over the top edge.
     <div
       aria-hidden
-      className="pointer-events-none absolute -top-14 -right-4 -bottom-2 -left-4 z-0"
+      className="pointer-events-none absolute -top-20 right-0 bottom-12 left-0 z-0"
       style={{ ["--fc" as string]: core, ["--fm" as string]: mid, ["--fe" as string]: edge }}
     >
       {Array.from({ length: cols }).map((_, i) => {
