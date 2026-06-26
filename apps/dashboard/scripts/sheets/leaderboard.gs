@@ -17,6 +17,21 @@
 var TAB = "Leaderboard";
 var ROSTER_RANGE = "A5:J25"; // weight,name,goal, … ,clockName,timeIn,breakStart,breakEnd,timeOut,hours
 var COUNTS_RANGE = "A39:Y60"; // flag,name,count, then job codes across (D–Y; col Z holds an unrelated helper list, so stop at Y)
+var MONTH_TOTAL_RANGE = "O1:O400"; // scan this column for the "Total bookings: N" grand-total cell
+
+/** The floor's authoritative monthly grand total, read from the displayed
+ * "Total bookings: N" cell (col O on the Leaderboard tab). null if not found. */
+function monthTotal_(sheet) {
+  var col = sheet.getRange(MONTH_TOTAL_RANGE).getDisplayValues();
+  for (var i = 0; i < col.length; i++) {
+    var m = String(col[i][0] || "").match(/total\s*bookings\s*:?\s*([\d,]+)/i);
+    if (m) {
+      var n = parseInt(m[1].replace(/,/g, ""), 10);
+      if (isFinite(n)) return n;
+    }
+  }
+  return null;
+}
 
 function pushLeaderboard() {
   var props = PropertiesService.getScriptProperties();
@@ -73,11 +88,15 @@ function pushLeaderboard() {
     return byName[k];
   });
 
+  var payload = { rows: rows };
+  var mt = monthTotal_(sheet); // authoritative "Total bookings: N" → /live headline
+  if (mt != null) payload.monthTotal = mt;
+
   var res = UrlFetchApp.fetch(url.replace(/\/$/, "") + "/api/ingest/leaderboard", {
     method: "post",
     contentType: "application/json",
     headers: { Authorization: "Bearer " + secret },
-    payload: JSON.stringify({ rows: rows }),
+    payload: JSON.stringify(payload),
     muteHttpExceptions: true,
   });
   var code = res.getResponseCode();
