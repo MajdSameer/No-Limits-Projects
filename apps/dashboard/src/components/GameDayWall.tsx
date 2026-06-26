@@ -503,7 +503,7 @@ function PlayerBox({ r, side, isTop }: { r: BoardRowDTO; side: Side; isTop: bool
       )}
       <p
         className={cx(
-          "w-full truncate text-base font-bold sm:text-lg",
+          "w-full truncate text-lg font-black tracking-wide uppercase sm:text-2xl",
           isTop ? "text-accent-100" : t.name,
         )}
       >
