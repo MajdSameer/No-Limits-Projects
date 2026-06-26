@@ -388,7 +388,7 @@ dialog::backdrop {
     transparent 94%
   );
   border-radius: 45% 45% 48% 48% / 55% 55% 100% 100%;
-  filter: blur(7px);
+  filter: blur(4px);
   mix-blend-mode: screen;
   transform-origin: bottom center;
   will-change: transform, opacity;
