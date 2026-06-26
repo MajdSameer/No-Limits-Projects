@@ -214,36 +214,25 @@ function buildRoster(daily: BoardRowDTO[], monthly: BoardRowDTO[]): RosterCard[]
   return [...byId.values()].sort((a, b) => a.month - b.month || a.name.localeCompare(b.name));
 }
 
-/** A continuous bonfire BEHIND the leading team's score box — many heavily
- * blurred, overlapping flame columns that merge into one organic sheet of fire
- * rising upward and wrapping the box's edges (not separate tongues). Team-
- * coloured (warm Orange / plasma Blue), scaled by `heat`. Sits behind the box. */
+/** Thin flames rising up BEHIND the leading team's score box — a curtain of thin,
+ * lightly-blurred flame columns that merge into a thin wavering fire, visible
+ * licking above the top edge and up the sides (the box itself is opaque, so the
+ * fire never covers the number). Team-coloured, scaled by `heat`. */
 function Flames({ side, heat }: { side: Side; heat: number }) {
   if (heat <= 0) return null;
   const { core, mid, edge } = TEAM[side].fire;
-  const rgb = TEAM[side].rgb;
-  const cols = 13 + heat * 3; // overlapping flame columns (16..25)
-  const baseH = 130 + heat * 22; // tallest-flame scale (px)
+  const cols = 16 + heat * 3; // thin overlapping columns (19..28)
+  const baseH = 150 + heat * 22; // how high the flames lick (px)
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute -top-16 -right-7 -bottom-3 -left-7 z-0"
+      className="pointer-events-none absolute -top-14 -right-4 -bottom-2 -left-4 z-0"
       style={{ ["--fc" as string]: core, ["--fm" as string]: mid, ["--fe" as string]: edge }}
     >
-      {/* Glowing ember bed at the base. */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-3/4"
-        style={{
-          background: `radial-gradient(65% 85% at 50% 100%, rgba(${rgb}, ${0.5 + 0.12 * heat}), transparent 72%)`,
-          filter: "blur(9px)",
-          mixBlendMode: "screen",
-        }}
-      />
-      {/* Overlapping, blurred flame columns — merge into one continuous fire. */}
       {Array.from({ length: cols }).map((_, i) => {
         const leftPct = (i / (cols - 1)) * 100;
-        const h = Math.round(baseH * (0.5 + 0.5 * Math.abs(Math.sin(i * 1.3 + 0.7))));
-        const w = 36 + (i % 3) * 12;
+        const h = Math.round(baseH * (0.7 + 0.35 * Math.abs(Math.sin(i * 1.7 + 0.5))));
+        const w = 9 + (i % 3) * 3; // thin
         return (
           <span
             key={i}
@@ -253,8 +242,8 @@ function Flames({ side, heat }: { side: Side; heat: number }) {
               bottom: 0,
               width: `${w}px`,
               height: `${h}px`,
-              animationDelay: `${(i % 6) * 0.09}s`,
-              animationDuration: `${0.6 + (i % 4) * 0.13}s`,
+              animationDelay: `${(i % 6) * 0.08}s`,
+              animationDuration: `${0.55 + (i % 4) * 0.12}s`,
             }}
           />
         );
@@ -597,7 +586,14 @@ function ScorePlate({
             t.box,
           )}
           style={
-            isLeader && heat > 0 ? { boxShadow: `0 0 ${blur}px ${spread}px rgba(${t.rgb}, 0.8)` } : undefined
+            isLeader && heat > 0
+              ? {
+                  // Opaque while on fire so flames frame the box but never wash
+                  // over the number.
+                  backgroundColor: "#0a0d16",
+                  boxShadow: `0 0 ${blur}px ${spread}px rgba(${t.rgb}, 0.8)`,
+                }
+              : undefined
           }
         >
           <span
