@@ -469,32 +469,58 @@ function RosterIntroCard({ card, index, total }: { card: RosterCard; index: numb
 }
 
 /** One player's box on the board — name + today's count. The day's top scorer
- * gets a gold crown pill (for the prize), ring and glow. */
-function PlayerBox({ r, side, isTop }: { r: BoardRowDTO; side: Side; isTop: boolean }) {
+ * gets a gold crown pill, and the manager-picked top-revenue-job winner gets an
+ * amber money pill (both stack if it's the same rep), each with a matching ring
+ * and glow. */
+function PlayerBox({
+  r,
+  side,
+  isTop,
+  isTopJob,
+}: {
+  r: BoardRowDTO;
+  side: Side;
+  isTop: boolean;
+  isTopJob: boolean;
+}) {
   const t = TEAM[side];
+  const highlight = isTop || isTopJob;
   return (
     <li
       className={cx(
         "relative flex min-h-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 px-2 py-2 text-center",
         t.box,
         isTop && "border-accent-400 ring-2 ring-accent-400/70",
+        !isTop && isTopJob && "border-amber-400 ring-2 ring-amber-400/70",
       )}
-      // Fluorescent tube glow in the team colour (gold for the day's top scorer).
+      // Fluorescent tube glow: gold for the top scorer, amber for the top-revenue
+      // job winner, otherwise the team colour.
       style={{
         boxShadow: isTop
           ? `0 0 26px -3px rgba(255, 212, 46, 0.85)`
-          : `0 0 14px 0 rgba(${t.rgb}, 0.55)`,
+          : isTopJob
+            ? `0 0 26px -3px rgba(251, 191, 36, 0.85)`
+            : `0 0 14px 0 rgba(${t.rgb}, 0.55)`,
       }}
     >
-      {isTop && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-accent-300 to-accent-500 px-2.5 py-0.5 text-[0.7rem] leading-none font-black tracking-wide text-brand-950 uppercase shadow-sm">
-          <span aria-hidden>👑</span> Top · ${TOP_SCORER_PRIZE}
-        </span>
+      {highlight && (
+        <div className="flex flex-wrap items-center justify-center gap-1">
+          {isTop && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-accent-300 to-accent-500 px-2.5 py-0.5 text-[0.7rem] leading-none font-black tracking-wide text-brand-950 uppercase shadow-sm">
+              <span aria-hidden>👑</span> Top · ${TOP_SCORER_PRIZE}
+            </span>
+          )}
+          {isTopJob && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-300 to-amber-500 px-2.5 py-0.5 text-[0.7rem] leading-none font-black tracking-wide text-brand-950 uppercase shadow-sm">
+              <span aria-hidden>💰</span> Job · ${JOB_REVENUE_PRIZE}
+            </span>
+          )}
+        </div>
       )}
       <p
         className={cx(
           "w-full truncate text-lg font-black tracking-wide uppercase sm:text-2xl",
-          isTop ? "text-accent-100" : t.name,
+          isTop ? "text-accent-100" : isTopJob ? "text-amber-100" : t.name,
         )}
       >
         {r.name}
@@ -503,7 +529,7 @@ function PlayerBox({ r, side, isTop }: { r: BoardRowDTO; side: Side; isTop: bool
         key={r.count}
         className={cx(
           "gd-bump font-display text-4xl leading-none font-black tabular-nums sm:text-5xl",
-          isTop ? "text-accent-300" : t.num,
+          isTop ? "text-accent-300" : isTopJob ? "text-amber-300" : t.num,
         )}
       >
         {r.count}
@@ -520,6 +546,7 @@ function TeamColumn({
   isLeader,
   heat,
   topIds,
+  topJobId,
 }: {
   side: Side;
   reps: BoardRowDTO[];
@@ -527,6 +554,7 @@ function TeamColumn({
   isLeader: boolean;
   heat: number;
   topIds: Set<string>;
+  topJobId: string | null;
 }) {
   const t = TEAM[side];
   const sorted = [...reps].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
@@ -561,7 +589,13 @@ function TeamColumn({
       ) : (
         <ul className="mt-2 grid min-h-0 flex-1 grid-cols-2 gap-2.5 p-1 [grid-auto-rows:1fr] sm:gap-3">
           {sorted.map((r) => (
-            <PlayerBox key={r.staffId} r={r} side={side} isTop={topIds.has(r.staffId)} />
+            <PlayerBox
+              key={r.staffId}
+              r={r}
+              side={side}
+              isTop={topIds.has(r.staffId)}
+              isTopJob={r.staffId === topJobId}
+            />
           ))}
         </ul>
       )}
@@ -913,6 +947,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   // Day's top scorer(s) — the single highest count; ties all share the crown.
   const maxCount = teamed.reduce((m, r) => Math.max(m, r.count), 0);
   const topIds = new Set(teamed.filter((r) => r.count > 0 && r.count === maxCount).map((r) => r.staffId));
+  const topJobId = topJob?.staffId ?? null;
 
   // Confetti when the lead changes hands.
   useEffect(() => {
@@ -1149,6 +1184,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
               isLeader={leader === "orange"}
               heat={heat}
               topIds={topIds}
+              topJobId={topJobId}
             />
             <TeamColumn
               side="blue"
@@ -1157,6 +1193,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
               isLeader={leader === "blue"}
               heat={heat}
               topIds={topIds}
+              topJobId={topJobId}
             />
           </div>
         </>
