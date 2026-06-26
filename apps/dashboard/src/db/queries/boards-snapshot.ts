@@ -19,13 +19,18 @@ import {
   dailyTeamGoal,
   monthlyBoard,
   pipelineBoard,
-  sheetMonthGrandTotal,
   yesterdayBoard,
   type BoardRow,
 } from "./boards";
 import { inspectorBoard, type InspectorRow } from "./inspectors";
 import { liveAllocation } from "./allocation";
-import { getMonthlyGoal, getTopRevenueJob, isGameDay, type TopRevenueJob } from "../settings";
+import {
+  getMonthlyGoal,
+  getSheetMonthTotal,
+  getTopRevenueJob,
+  isGameDay,
+  type TopRevenueJob,
+} from "../settings";
 
 interface AllocSlot {
   staffId: string;
@@ -79,11 +84,11 @@ async function compute(): Promise<BoardsSnapshot> {
   const topRevenueJob = await getTopRevenueJob();
   const monthlyGoal = await getMonthlyGoal();
   const { target: dailyTarget, active: activeToday } = await dailyTeamGoal(now);
-  // Headline total = the whole floor's sheet tally (managers + ex-reps included),
-  // not just the active-rep leaderboard rows — so it matches the Follow-Up sheet.
-  // Fall back to the board sum when the sheet hasn't pushed this month.
-  const grandTotal = await sheetMonthGrandTotal(now);
-  const monthlyTotal = grandTotal > 0 ? grandTotal : monthly.reduce((s, r) => s + r.count, 0);
+  // Headline total = the Follow-Up sheet's own curated grand total when it's
+  // pushed it (counts managers + tracked ex-reps that the active-rep leaderboard
+  // below omits). Fall back to the active-rep board sum when the sheet hasn't.
+  const sheetTotal = await getSheetMonthTotal(now);
+  const monthlyTotal = sheetTotal ?? monthly.reduce((s, r) => s + r.count, 0);
   return {
     daily,
     yesterday,
