@@ -57,6 +57,17 @@ function cleanStr(v: unknown): string | null {
   return s === "" ? null : s;
 }
 
+/**
+ * A MovePro job number is always exactly 5 alphanumeric characters with a mix of
+ * letters AND digits (e.g. "AY3VA", "3KZ3P"). The sheet's job-number column
+ * occasionally gets a stray value typed into it — a name ("Andy") or a loose
+ * number ("1") — which would otherwise be counted as a phantom inspection. This
+ * guard drops anything that isn't a real job code so the daily count stays true.
+ */
+export function isJobCode(code: string): boolean {
+  return /^[A-Za-z0-9]{5}$/.test(code) && /[A-Za-z]/.test(code) && /[0-9]/.test(code);
+}
+
 export interface InspectorIngestResult {
   asOfDate: string;
   inspectors: number;
@@ -66,8 +77,10 @@ export interface InspectorIngestResult {
 /**
  * Overwrite the inspectors snapshot with today's push. Inspectors with no
  * job-numbered inspections today are kept (with an empty job list) so their box
- * still shows on the board. Jobs without a MovePro number are dropped — a site
- * inspection only counts once it has a job number to celebrate.
+ * still shows on the board. Jobs without a valid MovePro job number (a 5-char
+ * alphanumeric code, see isJobCode) are dropped — a site inspection only counts
+ * once it has a real job number to celebrate, so stray cell values don't inflate
+ * the daily tally.
  */
 export async function ingestInspectors(
   db: Db,
@@ -86,7 +99,7 @@ export async function ingestInspectors(
     const seen = new Set(existing.jobs.map((j) => j.code));
     for (const j of row.jobs ?? []) {
       const code = cleanStr(j?.code);
-      if (!code || seen.has(code)) continue; // job number required; dedupe
+      if (!code || !isJobCode(code) || seen.has(code)) continue; // valid job #; dedupe
       seen.add(code);
       existing.jobs.push({ code, forRep: cleanStr(j?.forRep) });
     }
