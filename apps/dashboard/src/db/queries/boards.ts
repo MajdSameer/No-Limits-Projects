@@ -273,6 +273,22 @@ async function sheetMonthCounts(now: Date): Promise<Map<string, number>> {
 }
 
 /**
+ * The whole floor's booking count for this month — the sum of EVERY ingested
+ * per-rep count, including managers and anyone not on the active-rep leaderboard
+ * (e.g. ex-reps like Jessica/Hermez, or Max as a manager). This is the
+ * authoritative "total bookings this month" the floor watches (it matches the
+ * Follow-Up sheet's grand total); the per-rep board below it lists only active
+ * reps, so that list can sum to LESS than this headline. Returns 0 when the
+ * sheet hasn't pushed this month — callers then fall back to the app-entered sum.
+ */
+export async function sheetMonthGrandTotal(now: Date = new Date()): Promise<number> {
+  const counts = await sheetMonthCounts(now);
+  let total = 0;
+  for (const n of counts.values()) total += n;
+  return total;
+}
+
+/**
  * This month's per-rep NET revenue (dollars) as the Booking sheet tallies it
  * (col AT minus the extra-charge cols AK/AL/AM/BB, which don't go to the rep),
  * pushed via api/ingest/monthly. Empty until the sheet pushes — the board then

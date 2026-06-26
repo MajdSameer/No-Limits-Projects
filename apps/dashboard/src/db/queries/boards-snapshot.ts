@@ -19,6 +19,7 @@ import {
   dailyTeamGoal,
   monthlyBoard,
   pipelineBoard,
+  sheetMonthGrandTotal,
   yesterdayBoard,
   type BoardRow,
 } from "./boards";
@@ -78,7 +79,11 @@ async function compute(): Promise<BoardsSnapshot> {
   const topRevenueJob = await getTopRevenueJob();
   const monthlyGoal = await getMonthlyGoal();
   const { target: dailyTarget, active: activeToday } = await dailyTeamGoal(now);
-  const monthlyTotal = monthly.reduce((s, r) => s + r.count, 0);
+  // Headline total = the whole floor's sheet tally (managers + ex-reps included),
+  // not just the active-rep leaderboard rows — so it matches the Follow-Up sheet.
+  // Fall back to the board sum when the sheet hasn't pushed this month.
+  const grandTotal = await sheetMonthGrandTotal(now);
+  const monthlyTotal = grandTotal > 0 ? grandTotal : monthly.reduce((s, r) => s + r.count, 0);
   return {
     daily,
     yesterday,
