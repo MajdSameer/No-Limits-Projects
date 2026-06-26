@@ -467,6 +467,49 @@ dialog::backdrop {
   animation: gd-fade-up 0.55s 0.46s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Final-30-minutes "last push": a pulsing red-alert screen vignette + banner. */
+@keyframes gd-alert-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+.gd-alert {
+  box-shadow: inset 0 0 130px 6px rgba(239, 68, 68, 0.3);
+  animation: gd-alert-pulse 1.5s ease-in-out infinite;
+}
+@keyframes gd-lastpush-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+  50% {
+    box-shadow: 0 0 30px -2px rgba(239, 68, 68, 0.65);
+  }
+}
+.gd-lastpush {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.2), rgba(249, 115, 22, 0.16));
+  animation: gd-lastpush-pulse 1.3s ease-in-out infinite;
+}
+
+/* Scoreboard "fun fact" callout slides down + glows in. */
+@keyframes gd-fact-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.gd-fact {
+  animation: gd-fact-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Aura glow behind the winning team breathes. */
 @keyframes gd-pulse {
   0%,
@@ -534,6 +577,9 @@ dialog::backdrop {
   .gd-rise-1,
   .gd-rise-2,
   .gd-rise-3,
+  .gd-alert,
+  .gd-lastpush,
+  .gd-fact,
   .gd-pulse,
   .gd-bump,
   .gd-shimmer {

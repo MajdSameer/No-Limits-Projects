@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
-import type { BoardRowDTO, BoardsDTO } from "./Board";
+import type { BoardRowDTO, BoardsDTO, InspectorRowDTO } from "./Board";
 import { BookingCelebration } from "./BookingCelebration";
 import {
   armAudio,
@@ -14,6 +14,7 @@ import {
   playChaChing,
   playDing,
   playFanfare,
+  playGong,
   playWhoosh,
 } from "../lib/celebrate";
 import { useLiveRefresh } from "../lib/live";
@@ -27,17 +28,23 @@ import { tierProgress } from "../lib/tiers";
  * Tier 3 club), then "LET THE GAMES BEGIN" with a triple ding and crowd cheer,
  * and only then the live scoreboard. The board has real CSS flames + an aura that
  * grow the further ahead the leading team is, a live countdown to the 7 PM final
- * whistle, and the day's top scorer crowned for the $100. Every booking still
- * fires the shared gong + celebration. Polls /api/boards and replays the ceremony
- * whenever a manager flips Game Day on.
+ * whistle (with an escalating "last push" inside the final 30 min), periodic
+ * scoreboard "fun facts", and the day's top scorer crowned for the prize. Every
+ * booking still fires the shared gong + celebration (site inspections included),
+ * and it polls /api/boards, replaying the ceremony whenever Game Day flips on.
  */
 
-// Prize money — edit these two numbers to change what's on the line.
-const TOP_SCORER_PRIZE = 100; // day's single highest individual scorer
+// Prize money — edit these to change what's on the line.
+const TOP_SCORER_PRIZE = 50; // day's single highest individual scorer (most bookings)
+const JOB_REVENUE_PRIZE = 50; // highest-revenue single job booked today
 const TEAM_PRIZE = 50; // every member of the winning team
 
 // Roll-call thresholds.
 const MONEY_THRESHOLD = 80000; // revenue ($) that earns the cha-ching + money splash
+
+// Periodic scoreboard "fun facts".
+const FACT_INTERVAL_MS = 30 * 60 * 1000; // surface a fresh fact about this often
+const FACT_HOLD_MS = 9000; // how long each fact banner stays up
 
 // Game Day runs until 7 PM on the floor's clock.
 const GAME_END_HOUR = 19;
@@ -264,15 +271,8 @@ function Flames({ side, heat }: { side: Side; heat: number }) {
 }
 
 /** Live countdown to the 7 PM final whistle — the time left to swing the score. */
-function Countdown() {
-  const [secs, setSecs] = useState<number | null>(null);
-  useEffect(() => {
-    const tick = () => setSecs(secsUntilGameEnd());
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  if (secs === null) return null; // avoid SSR/client mismatch — render after mount
+function Countdown({ secs }: { secs: number | null }) {
+  if (secs === null) return null; // computed in the parent; render only after mount
 
   const over = secs <= 0;
   const urgent = !over && secs <= URGENT_S;
@@ -313,6 +313,116 @@ function Countdown() {
         </span>
       )}
     </div>
+  );
+}
+
+/** Attention-grabbing "fun facts" from the live scoreboard — returns candidate
+ * one-liners for the current standings; the caller picks one to flash up. */
+function buildFacts(daily: BoardRowDTO[]): string[] {
+  const teamed = daily.filter((r) => r.team === "orange" || r.team === "blue");
+  if (teamed.length === 0) return [];
+  const orange = teamed.filter((r) => r.team === "orange");
+  const blue = teamed.filter((r) => r.team === "blue");
+  const oT = orange.reduce((s, r) => s + r.count, 0);
+  const bT = blue.reduce((s, r) => s + r.count, 0);
+  const total = oT + bT;
+  const facts: string[] = [];
+
+  // Floor-wide top scorer.
+  const top = [...teamed].sort((a, b) => b.count - a.count)[0];
+  if (top && top.count > 0) {
+    facts.push(`🔥 ${top.name} is leading the whole floor with ${top.count} today — somebody catch them!`);
+  }
+
+  // Someone carrying their team (≥40% of a multi-rep team's total).
+  for (const side of ["orange", "blue"] as const) {
+    const reps = side === "orange" ? orange : blue;
+    const tot = side === "orange" ? oT : bT;
+    if (reps.length >= 2 && tot >= 3) {
+      const star = [...reps].sort((a, b) => b.count - a.count)[0];
+      if (star && star.count > 0 && star.count / tot >= 0.4) {
+        facts.push(
+          `💪 ${star.name} is carrying ${TEAM[side].label} right now — ${star.count} of their ${tot}. Keep pushing, ${TEAM[side].label}!`,
+        );
+      }
+    }
+  }
+
+  // The state of the scoreline.
+  if (total > 0 && oT !== bT) {
+    const leadSide = oT > bT ? "orange" : "blue";
+    const trailSide = oT > bT ? "blue" : "orange";
+    const margin = Math.abs(oT - bT);
+    if (margin >= 4) {
+      facts.push(
+        `${TEAM[leadSide].emoji} ${TEAM[leadSide].label} are pulling away — up by ${margin}. ${TEAM[trailSide].label}, time to respond! 🚀`,
+      );
+    } else {
+      facts.push(
+        `👀 Just ${margin} in it — ${TEAM[trailSide].label} are right on ${TEAM[leadSide].label}'s heels.`,
+      );
+    }
+  } else if (total > 0) {
+    facts.push(`🤝 Dead heat at ${oT}–${bT} — the next booking takes the lead!`);
+  }
+
+  // A one-booking individual chase for the crown.
+  const ranked = [...teamed].filter((r) => r.count > 0).sort((a, b) => b.count - a.count);
+  const first = ranked[0];
+  const second = ranked[1];
+  if (first && second && first.count - second.count === 1) {
+    facts.push(
+      `🎯 ${second.name} is one booking behind ${first.name} for top scorer — and that $${TOP_SCORER_PRIZE}!`,
+    );
+  }
+
+  if (total > 0) {
+    facts.push(`📈 ${total} bookings on the board today — let's run it up before 7 PM!`);
+  }
+  return facts;
+}
+
+// Escalating "last push" messaging through the closing stretch (most urgent last).
+const FINAL_PUSH_TIERS = [
+  { at: 1800, label: "Final 30 minutes", sub: "Last push — every booking counts" },
+  { at: 600, label: "Final 10 minutes", sub: "Leave nothing on the table" },
+  { at: 300, label: "Final 5 minutes", sub: "Every call counts now" },
+  { at: 60, label: "Final minute", sub: "Go go go — finish strong!" },
+] as const;
+
+/** The most urgent push tier we're currently inside, or null if outside the window. */
+function pushTier(secs: number): (typeof FINAL_PUSH_TIERS)[number] | null {
+  let chosen: (typeof FINAL_PUSH_TIERS)[number] | null = null;
+  for (const t of FINAL_PUSH_TIERS) if (secs <= t.at) chosen = t;
+  return chosen;
+}
+
+/** Final-stretch motivator: a pulsing red-alert banner (+ a screen vignette) that
+ * appears inside the last 30 minutes and escalates as the 7 PM whistle nears. */
+function LastPush({ secs }: { secs: number | null }) {
+  if (secs === null || secs <= 0) return null;
+  const tier = pushTier(secs);
+  if (!tier) return null;
+  const mm = Math.floor(secs / 60);
+  const ss = secs % 60;
+  return (
+    <>
+      <div aria-hidden className="gd-alert pointer-events-none fixed inset-0 z-[55]" />
+      <div className="gd-lastpush relative flex shrink-0 items-center justify-center gap-3 overflow-hidden rounded-2xl border border-red-400/50 px-5 py-2.5 text-center">
+        <span aria-hidden className="pointer-events-none absolute inset-0 gd-shimmer opacity-60" />
+        <span className="relative text-2xl sm:text-3xl">⚡</span>
+        <span className="relative font-display text-xl font-black tracking-wide text-white uppercase sm:text-3xl">
+          {tier.label} — last push!
+        </span>
+        <span className="relative hidden text-base font-semibold text-red-100/80 sm:inline">
+          {tier.sub}
+        </span>
+        <span className="relative font-display text-xl font-black tabular-nums text-red-200 sm:text-2xl">
+          {mm}:{String(ss).padStart(2, "0")}
+        </span>
+        <span aria-hidden className="relative text-2xl sm:text-3xl">⚡</span>
+      </div>
+    </>
   );
 }
 
@@ -368,24 +478,31 @@ function RosterIntroCard({ card, index, total }: { card: RosterCard; index: numb
   );
 }
 
-/** One player's box on the board — name + today's count. Crowned (gold ring +
- * $100) when they're the day's top scorer. */
+/** One player's box on the board — name + today's count. The day's top scorer
+ * gets a gold crown pill (for the prize), ring and glow. */
 function PlayerBox({ r, side, isTop }: { r: BoardRowDTO; side: Side; isTop: boolean }) {
   const t = TEAM[side];
   return (
     <li
       className={cx(
-        "relative flex min-h-0 flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-2 py-2 text-center",
+        "relative flex min-h-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 px-2 py-2 text-center",
         t.box,
-        isTop && "border-accent-400 shadow-[0_0_22px_-2px_rgba(255,212,46,0.75)] ring-2 ring-accent-400",
+        isTop && "border-accent-400 shadow-[0_0_26px_-3px_rgba(255,212,46,0.85)] ring-2 ring-accent-400/70",
       )}
     >
       {isTop && (
-        <span className="absolute -top-3 -right-1 rotate-3 rounded-full bg-accent-400 px-2 py-0.5 text-xs font-black whitespace-nowrap text-brand-950 shadow-md">
-          👑 ${TOP_SCORER_PRIZE}
+        <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-accent-300 to-accent-500 px-2.5 py-0.5 text-[0.7rem] leading-none font-black tracking-wide text-brand-950 uppercase shadow-sm">
+          <span aria-hidden>👑</span> Top · ${TOP_SCORER_PRIZE}
         </span>
       )}
-      <p className={cx("w-full truncate text-base font-bold sm:text-lg", t.name)}>{r.name}</p>
+      <p
+        className={cx(
+          "w-full truncate text-base font-bold sm:text-lg",
+          isTop ? "text-accent-100" : t.name,
+        )}
+      >
+        {r.name}
+      </p>
       <p
         key={r.count}
         className={cx(
@@ -501,22 +618,93 @@ type IntroState = { phase: "title" | "roster" | "go"; idx: number; out: boolean 
 export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const [daily, setDaily] = useState<BoardRowDTO[]>(initial.daily);
   const [monthly, setMonthly] = useState<BoardRowDTO[]>(initial.monthly);
+  const [inspectors, setInspectors] = useState<InspectorRowDTO[]>(initial.inspectors);
   const [on, setOn] = useState(initial.gameDay);
   const [soundLocked, setSoundLocked] = useState(true);
   const [intro, setIntro] = useState<IntroState | null>(null);
+  const [secsLeft, setSecsLeft] = useState<number | null>(null);
+  const [fact, setFact] = useState<string | null>(null);
   const inFlight = useRef(false);
   const prevLeader = useRef<Side | null>(null);
   const wasOn = useRef(initial.gameDay);
   const firstRun = useRef(true);
+  const prevSecs = useRef<number | null>(null);
   const introTimers = useRef<number[]>([]);
   const rosterRef = useRef<RosterCard[]>([]);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const musicFade = useRef<number | null>(null);
   const musicWanted = useRef(false);
+  const factTimer = useRef<number | null>(null);
+  const lastFact = useRef<string | null>(null);
   // Always-current data so the ceremony can snapshot the roster without
   // re-running on every poll.
   const latest = useRef({ daily, monthly });
   latest.current = { daily, monthly };
+
+  // ── Countdown to the 7 PM whistle, ticking once a second (shared by the header
+  // clock and the final-stretch "last push"). ──
+  useEffect(() => {
+    const tick = () => setSecsLeft(secsUntilGameEnd());
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // One-time hype the moment we cross into each final-push tier (30/10/5/1 min).
+  useEffect(() => {
+    if (secsLeft === null) return;
+    const prev = prevSecs.current;
+    prevSecs.current = secsLeft;
+    if (!on || prev === null || secsLeft <= 0) return;
+    for (const t of FINAL_PUSH_TIERS) {
+      if (prev > t.at && secsLeft <= t.at) {
+        playGong();
+        if (!reducedMotion()) {
+          confetti({
+            particleCount: 170,
+            spread: 120,
+            startVelocity: 48,
+            origin: { y: 0.35 },
+            colors: ["#ef4444", "#f97316", "#fca5a5", "#fde68a"],
+          });
+        }
+      }
+    }
+  }, [secsLeft, on]);
+
+  // Every so often, flash up an attention-grabbing fact about the scoreboard
+  // ("X is carrying Orange right now…"), with a fanfare + a little confetti.
+  useEffect(() => {
+    if (!on) return;
+    const fire = () => {
+      const candidates = buildFacts(latest.current.daily);
+      if (candidates.length === 0) return;
+      const fresh = candidates.filter((f) => f !== lastFact.current);
+      const pool = fresh.length ? fresh : candidates;
+      const choice = pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
+      if (!choice) return;
+      lastFact.current = choice;
+      if (factTimer.current) window.clearTimeout(factTimer.current);
+      setFact(choice);
+      playFanfare();
+      if (!reducedMotion()) {
+        confetti({
+          particleCount: 70,
+          spread: 75,
+          startVelocity: 40,
+          origin: { y: 0.15 },
+          colors: ["#ffd42e", "#fff389", "#fb923c", "#22d3ee"],
+        });
+      }
+      factTimer.current = window.setTimeout(() => setFact(null), FACT_HOLD_MS);
+    };
+    const id = window.setInterval(fire, FACT_INTERVAL_MS);
+    return () => {
+      window.clearInterval(id);
+      if (factTimer.current) window.clearTimeout(factTimer.current);
+      setFact(null);
+    };
+  }, [on]);
 
   // ── Roll-call background music (World Cup theme) ──
   const startMusic = useCallback(() => {
@@ -691,6 +879,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           setDaily(d.daily);
           if (Array.isArray(d.monthly)) setMonthly(d.monthly);
         }
+        if (Array.isArray(d.inspectors)) setInspectors(d.inspectors);
         setOn(d.gameDay);
       })
       .catch(() => undefined)
@@ -746,8 +935,10 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
 
   return (
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
-      {/* Bookings still gong + celebrate — only team members appear on this wall. */}
-      <BookingCelebration daily={teamed} />
+      {/* Bookings gong + celebrate (team members only on the board), and site
+          inspections still pop their green celebration + gong — inspectors just
+          don't get a box on the game-day leaderboard. */}
+      <BookingCelebration daily={teamed} inspectors={inspectors} />
 
       {/* Roll-call background music (World Cup theme). Hidden; driven by the ceremony. */}
       <audio ref={musicRef} src={MUSIC_SRC} preload="auto" className="hidden" aria-hidden />
@@ -800,9 +991,10 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                     Blue 🔵
                   </span>
                 </div>
-                <p className="mt-8 max-w-2xl text-base font-semibold text-white/70 gd-fade-up sm:text-xl">
-                  👑 Top scorer wins{" "}
-                  <span className="font-black text-accent-300">${TOP_SCORER_PRIZE}</span> · 🏆 Winning
+                <p className="mt-8 max-w-3xl text-base font-semibold text-white/70 gd-fade-up sm:text-xl">
+                  👑 Top scorer <span className="font-black text-accent-300">${TOP_SCORER_PRIZE}</span>{" "}
+                  · 💰 Top revenue job{" "}
+                  <span className="font-black text-accent-300">${JOB_REVENUE_PRIZE}</span> · 🏆 Winning
                   team <span className="font-black text-accent-300">${TEAM_PRIZE} each</span>
                 </p>
                 <p className="mt-6 text-sm font-semibold tracking-[0.3em] text-white/40 uppercase gd-fade-up">
@@ -832,6 +1024,19 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                 </p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Periodic scoreboard "fun fact" — flashes in at the top for a few seconds. */}
+      {fact && (
+        <div
+          aria-live="polite"
+          className="gd-fact pointer-events-none fixed inset-x-0 top-4 z-[58] flex justify-center px-4"
+        >
+          <div className="flex max-w-3xl items-center gap-3 rounded-2xl border border-accent-400/60 bg-ink-950/90 px-6 py-3 shadow-2xl shadow-black/50 backdrop-blur">
+            <span aria-hidden className="text-2xl sm:text-3xl">📣</span>
+            <span className="font-display text-lg font-black text-white sm:text-2xl">{fact}</span>
           </div>
         </div>
       )}
@@ -871,17 +1076,22 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Countdown />
+              <Countdown secs={secsLeft} />
               <div className="relative overflow-hidden rounded-full border border-accent-400/40 bg-white/[0.04] px-4 py-1.5">
                 <span aria-hidden className="pointer-events-none absolute inset-0 gd-shimmer" />
                 <p className="relative flex items-center gap-3 text-sm font-bold whitespace-nowrap sm:text-base">
                   <span className="text-accent-200">👑 Top scorer ${TOP_SCORER_PRIZE}</span>
+                  <span aria-hidden className="text-white/20">|</span>
+                  <span className="text-accent-200">💰 Top revenue job ${JOB_REVENUE_PRIZE}</span>
                   <span aria-hidden className="text-white/20">|</span>
                   <span className="text-accent-200">🏆 Winning team ${TEAM_PRIZE} each</span>
                 </p>
               </div>
             </div>
           </header>
+
+          {/* Final-30-minutes motivator (escalates toward 7 PM). */}
+          <LastPush secs={secsLeft} />
 
           {/* ── Scoreboard: Orange total · tug-of-war · Blue total ── */}
           <section className="flex shrink-0 items-center gap-4 rounded-3xl border border-white/10 bg-white/[0.03] px-5 py-4 sm:gap-8 sm:px-8">
