@@ -487,8 +487,14 @@ function PlayerBox({ r, side, isTop }: { r: BoardRowDTO; side: Side; isTop: bool
       className={cx(
         "relative flex min-h-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 px-2 py-2 text-center",
         t.box,
-        isTop && "border-accent-400 shadow-[0_0_26px_-3px_rgba(255,212,46,0.85)] ring-2 ring-accent-400/70",
+        isTop && "border-accent-400 ring-2 ring-accent-400/70",
       )}
+      // Fluorescent tube glow in the team colour (gold for the day's top scorer).
+      style={{
+        boxShadow: isTop
+          ? `0 0 26px -3px rgba(255, 212, 46, 0.85)`
+          : `0 0 14px 0 rgba(${t.rgb}, 0.55)`,
+      }}
     >
       {isTop && (
         <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-accent-300 to-accent-500 px-2.5 py-0.5 text-[0.7rem] leading-none font-black tracking-wide text-brand-950 uppercase shadow-sm">
