@@ -625,6 +625,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const [daily, setDaily] = useState<BoardRowDTO[]>(initial.daily);
   const [monthly, setMonthly] = useState<BoardRowDTO[]>(initial.monthly);
   const [inspectors, setInspectors] = useState<InspectorRowDTO[]>(initial.inspectors);
+  const [topJob, setTopJob] = useState(initial.topRevenueJob);
   const [on, setOn] = useState(initial.gameDay);
   const [soundLocked, setSoundLocked] = useState(true);
   const [intro, setIntro] = useState<IntroState | null>(null);
@@ -886,6 +887,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           if (Array.isArray(d.monthly)) setMonthly(d.monthly);
         }
         if (Array.isArray(d.inspectors)) setInspectors(d.inspectors);
+        setTopJob(d.topRevenueJob ?? null);
         setOn(d.gameDay);
       })
       .catch(() => undefined)
@@ -1000,8 +1002,14 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                 <p className="mt-8 max-w-3xl text-base font-semibold text-white/70 gd-fade-up sm:text-xl">
                   👑 Top scorer <span className="font-black text-accent-300">${TOP_SCORER_PRIZE}</span>{" "}
                   · 💰 Top revenue job{" "}
-                  <span className="font-black text-accent-300">${JOB_REVENUE_PRIZE}</span> · 🏆 Winning
-                  team <span className="font-black text-accent-300">${TEAM_PRIZE} each</span>
+                  <span className="font-black text-accent-300">${JOB_REVENUE_PRIZE}</span>
+                  {topJob && (
+                    <>
+                      {" "}
+                      (<span className="font-black text-amber-300">{topJob.name}</span>)
+                    </>
+                  )}{" "}
+                  · 🏆 Winning team <span className="font-black text-accent-300">${TEAM_PRIZE} each</span>
                 </p>
                 <p className="mt-6 text-sm font-semibold tracking-[0.3em] text-white/40 uppercase gd-fade-up">
                   Introducing the players…
@@ -1088,7 +1096,16 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                 <p className="relative flex items-center gap-3 text-sm font-bold whitespace-nowrap sm:text-base">
                   <span className="text-accent-200">👑 Top scorer ${TOP_SCORER_PRIZE}</span>
                   <span aria-hidden className="text-white/20">|</span>
-                  <span className="text-accent-200">💰 Top revenue job ${JOB_REVENUE_PRIZE}</span>
+                  <span className="text-accent-200">
+                    💰 Top revenue job ${JOB_REVENUE_PRIZE}
+                    {topJob && (
+                      <>
+                        {" — "}
+                        <span className="font-black text-amber-300">{topJob.name.toUpperCase()}</span>{" "}
+                        🏅
+                      </>
+                    )}
+                  </span>
                   <span aria-hidden className="text-white/20">|</span>
                   <span className="text-accent-200">🏆 Winning team ${TEAM_PRIZE} each</span>
                 </p>

@@ -59,6 +59,8 @@ export interface BoardsDTO {
   inspectors: InspectorRowDTO[];
   allocation: { eligible: AllocSlotDTO[]; nextUp: string | null; totalLeadsToday: number };
   gameDay: boolean;
+  /** Manager-picked winner of today's "top revenue job" prize (null if unset). */
+  topRevenueJob: { staffId: string; name: string } | null;
   monthlyGoal: number;
   monthlyTotal: number;
   /** Combined daily target = sum of goals of reps clocked in today. */

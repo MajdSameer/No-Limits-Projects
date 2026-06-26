@@ -6,8 +6,10 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { cx } from "@nlr/ui";
 
 import type { BoardRowDTO } from "./Board";
-import { setGameDay } from "../app/actions/manage";
+import { setGameDay, setTopRevenueJob } from "../app/actions/manage";
 import { useLiveRefresh } from "../lib/live";
+
+type TopJob = { staffId: string; name: string } | null;
 
 const TEAM = {
   orange: {
@@ -100,21 +102,23 @@ export function GameDayView({
   initial,
   isManager,
 }: {
-  initial: { daily: BoardRowDTO[]; gameDay: boolean };
+  initial: { daily: BoardRowDTO[]; gameDay: boolean; topRevenueJob: TopJob };
   isManager: boolean;
 }) {
   const [daily, setDaily] = useState(initial.daily);
   const [on, setOn] = useState(initial.gameDay);
+  const [topJob, setTopJob] = useState<TopJob>(initial.topRevenueJob);
   const [pending, startTransition] = useTransition();
   const prevLeader = useRef<string | null>(null);
 
   const refetch = useCallback(() => {
     fetch("/api/boards", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { daily: BoardRowDTO[]; gameDay: boolean } | null) => {
+      .then((d: { daily: BoardRowDTO[]; gameDay: boolean; topRevenueJob: TopJob } | null) => {
         if (d) {
           setDaily(d.daily);
           setOn(d.gameDay);
+          setTopJob(d.topRevenueJob ?? null);
         }
       })
       .catch(() => undefined);
@@ -162,6 +166,14 @@ export function GameDayView({
       refetch();
     });
 
+  const pickTopJob = (staffId: string) =>
+    startTransition(async () => {
+      const id = staffId || null;
+      const rep = id ? (daily.find((r) => r.staffId === id) ?? null) : null;
+      await setTopRevenueJob(id);
+      setTopJob(id && rep ? { staffId: rep.staffId, name: rep.name } : null);
+    });
+
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -195,6 +207,30 @@ export function GameDayView({
           )}
         </div>
       </div>
+
+      {isManager && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <span className="text-sm font-semibold text-brand-900">💰 Top revenue job winner</span>
+          <select
+            value={topJob?.staffId ?? ""}
+            disabled={pending}
+            onChange={(e) => pickTopJob(e.target.value)}
+            className="min-h-10 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-brand-800 shadow-sm transition-all hover:border-brand-300 disabled:opacity-60"
+          >
+            <option value="">— None set —</option>
+            {[...daily]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((r) => (
+                <option key={r.staffId} value={r.staffId}>
+                  {r.name}
+                </option>
+              ))}
+          </select>
+          <span className="text-xs text-slate-500">
+            Shows on the wall’s prize ribbon · resets daily
+          </span>
+        </div>
+      )}
 
       {!on ? (
         <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
