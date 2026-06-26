@@ -214,48 +214,66 @@ function buildRoster(daily: BoardRowDTO[], monthly: BoardRowDTO[]): RosterCard[]
   return [...byId.values()].sort((a, b) => a.month - b.month || a.name.localeCompare(b.name));
 }
 
-/** A real fire AURA around the leading team's score box — a flickering, blurred
- * halo enveloping the box on every side, plus a full ring of flame tongues
- * licking outward from each edge. Team-coloured (warm for Orange, plasma for
- * Blue) and scaled by `heat` (brighter halo + more, taller flames as the lead
- * grows). Sits BEHIND the box, so the flames wrap it. */
+/** Real flames lining every edge of the leading team's score box — a dense strip
+ * of flame tongues on the top, right, bottom and left, all licking outward, so
+ * the box looks framed in fire. A soft glow fills the corners behind. Team-
+ * coloured (warm Orange / plasma Blue) and scaled by `heat`. Sits BEHIND the box. */
 function Flames({ side, heat }: { side: Side; heat: number }) {
   if (heat <= 0) return null;
   const { core, mid, edge } = TEAM[side].fire;
   const rgb = TEAM[side].rgb;
-  const count = 10 + heat * 3; // 13..22 flames around the box
-  const radius = 66; // px from box centre to each flame (box ≈ 144px on the TV)
+  const per = 7 + heat * 2; // tongues per edge (9..15)
+  const H = 38 + heat * 9; // flame height (px)
+  const SIZE = 152; // strip length ≈ box side + a touch, so corners overlap
+  const push = 70 + H / 2; // box half (~70px) + half strip → flame bases on the edge
+
+  // One edge's worth of flames: a strip of upward tongues, rotated to its side.
+  const strip = (deg: number, key: string) => (
+    <div
+      key={key}
+      className="absolute top-1/2 left-1/2 flex items-end justify-between"
+      style={{
+        width: `${SIZE}px`,
+        height: `${H}px`,
+        transform: `translate(-50%, -50%) rotate(${deg}deg) translateY(-${push}px)`,
+      }}
+    >
+      {Array.from({ length: per }).map((_, i) => {
+        const h = Math.round(H * (0.55 + 0.45 * Math.abs(Math.sin(i * 1.7 + deg))));
+        const w = Math.round(h * 0.58);
+        return (
+          <span
+            key={i}
+            className={cx("gd-fire-tongue block", i % 2 ? "gd-flicker-b" : "gd-flicker-a")}
+            style={{
+              width: `${w}px`,
+              height: `${h}px`,
+              animationDelay: `${(i % 5) * 0.06}s`,
+              animationDuration: `${0.5 + (i % 3) * 0.12}s`,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+
   return (
     <div
       aria-hidden
       className="pointer-events-none absolute inset-0 z-0"
       style={{ ["--fc" as string]: core, ["--fm" as string]: mid, ["--fe" as string]: edge }}
     >
-      {/* Enveloping, flickering fire halo all around the box. */}
+      {/* Soft fire glow filling the corners + behind the box. */}
       <div
-        className="gd-fire-aura absolute -inset-7 rounded-[2.6rem]"
+        className="gd-fire-aura absolute -inset-6 rounded-[2.4rem]"
         style={{
-          background: `radial-gradient(closest-side, rgba(${rgb}, ${0.42 + 0.12 * heat}), rgba(${rgb}, 0.15) 56%, transparent 76%)`,
+          background: `radial-gradient(closest-side, rgba(${rgb}, ${0.4 + 0.12 * heat}), rgba(${rgb}, 0.14) 58%, transparent 78%)`,
         }}
       />
-      {/* A full ring of flame tongues licking outward from every edge. */}
-      {Array.from({ length: count }).map((_, i) => {
-        const angle = (360 / count) * i;
-        const h = 34 + heat * 8 + (i % 3) * 6;
-        const w = Math.round(h * 0.5);
-        return (
-          <span
-            key={i}
-            className="absolute top-1/2 left-1/2"
-            style={{ transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-${radius}px)` }}
-          >
-            <span
-              className={cx("gd-fire-tongue block", i % 2 ? "gd-flicker-b" : "gd-flicker-a")}
-              style={{ width: `${w}px`, height: `${h}px`, animationDelay: `${(i % 5) * 0.07}s` }}
-            />
-          </span>
-        );
-      })}
+      {strip(0, "top")}
+      {strip(90, "right")}
+      {strip(180, "bottom")}
+      {strip(270, "left")}
     </div>
   );
 }
