@@ -24,7 +24,7 @@ import {
 } from "./boards";
 import { inspectorBoard, type InspectorRow } from "./inspectors";
 import { liveAllocation } from "./allocation";
-import { getMonthlyGoal, isGameDay } from "../settings";
+import { getMonthlyGoal, getTopRevenueJob, isGameDay, type TopRevenueJob } from "../settings";
 
 interface AllocSlot {
   staffId: string;
@@ -42,6 +42,8 @@ export interface BoardsSnapshot {
   inspectors: InspectorRow[];
   allocation: { eligible: AllocSlot[]; nextUp: string | null; totalLeadsToday: number };
   gameDay: boolean;
+  /** Manager-picked winner of today's "top revenue job" prize (null if unset). */
+  topRevenueJob: TopRevenueJob | null;
   monthlyGoal: number;
   monthlyTotal: number;
   /** Combined daily target = sum of goals of reps clocked in today. */
@@ -73,6 +75,7 @@ async function compute(): Promise<BoardsSnapshot> {
   const inspectors = await inspectorBoard(now);
   const allocation = await liveAllocation(now);
   const gameDay = await isGameDay();
+  const topRevenueJob = await getTopRevenueJob();
   const monthlyGoal = await getMonthlyGoal();
   const { target: dailyTarget, active: activeToday } = await dailyTeamGoal(now);
   const monthlyTotal = monthly.reduce((s, r) => s + r.count, 0);
@@ -84,6 +87,7 @@ async function compute(): Promise<BoardsSnapshot> {
     inspectors,
     allocation,
     gameDay,
+    topRevenueJob,
     monthlyGoal,
     monthlyTotal,
     dailyTarget,
@@ -102,6 +106,7 @@ function emptySnapshot(): BoardsSnapshot {
     inspectors: [],
     allocation: { eligible: [], nextUp: null, totalLeadsToday: 0 },
     gameDay: false,
+    topRevenueJob: null,
     monthlyGoal: 1995,
     monthlyTotal: 0,
     dailyTarget: 0,

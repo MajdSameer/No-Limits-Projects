@@ -200,6 +200,37 @@ export async function setOnShift(
   return {};
 }
 
+/**
+ * Pick (or clear) the day's "top revenue job" prize winner for the Game Day
+ * board. Per-job revenue isn't tracked in the pipeline, so a manager sets the
+ * winning rep by hand; it's stored with today's date so it auto-clears tomorrow.
+ * Pass null to clear. Manager-only.
+ */
+export async function setTopRevenueJob(staffId: string | null): Promise<ActionState> {
+  const manager = await requireManager();
+  if (staffId === null) {
+    await setSetting("top_revenue_job", "");
+  } else {
+    const db = await getDb();
+    const [rep] = await db.select().from(schema.staff).where(eq(schema.staff.id, staffId));
+    if (!rep) return { error: "Unknown rep." };
+    await setSetting(
+      "top_revenue_job",
+      JSON.stringify({ date: sydneyToday(), staffId: rep.id, name: rep.name }),
+    );
+  }
+  await logAudit({
+    staffId: manager.staffId,
+    action: "settings.top_revenue_job",
+    entity: "app_settings",
+    entityId: "top_revenue_job",
+    diff: { staffId },
+  });
+  notify("bookings"); // wall boards show the winner in the prize ribbon
+  revalidatePath("/game-day");
+  return {};
+}
+
 /** Flip Game Day mode for the whole floor. Manager-only. */
 export async function setGameDay(on: boolean): Promise<ActionState> {
   const manager = await requireManager();
