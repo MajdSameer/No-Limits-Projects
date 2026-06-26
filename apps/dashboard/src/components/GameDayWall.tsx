@@ -214,58 +214,48 @@ function buildRoster(daily: BoardRowDTO[], monthly: BoardRowDTO[]): RosterCard[]
   return [...byId.values()].sort((a, b) => a.month - b.month || a.name.localeCompare(b.name));
 }
 
-/** Real CSS fire over the leading team's score — soft gradient tongues, a molten
- * base glow, and rising embers. Team-coloured (warm for Orange, plasma for Blue)
- * and scaled by `heat` (more, taller tongues + more embers the bigger the lead). */
+/** A real fire AURA around the leading team's score box — a flickering, blurred
+ * halo enveloping the box on every side, plus a full ring of flame tongues
+ * licking outward from each edge. Team-coloured (warm for Orange, plasma for
+ * Blue) and scaled by `heat` (brighter halo + more, taller flames as the lead
+ * grows). Sits BEHIND the box, so the flames wrap it. */
 function Flames({ side, heat }: { side: Side; heat: number }) {
   if (heat <= 0) return null;
   const { core, mid, edge } = TEAM[side].fire;
-  const tongues = 2 + heat; // 3..6
-  const baseH = 26 + heat * 9; // px
-  const centre = (tongues - 1) / 2;
+  const rgb = TEAM[side].rgb;
+  const count = 10 + heat * 3; // 13..22 flames around the box
+  const radius = 66; // px from box centre to each flame (box ≈ 144px on the TV)
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 items-end justify-center gap-[3px]"
-      style={{
-        bottom: "calc(100% - 10px)",
-        ["--fc" as string]: core,
-        ["--fm" as string]: mid,
-        ["--fe" as string]: edge,
-      }}
+      className="pointer-events-none absolute inset-0 z-0"
+      style={{ ["--fc" as string]: core, ["--fm" as string]: mid, ["--fe" as string]: edge }}
     >
-      <span
-        className="gd-fire-base left-1/2 -translate-x-1/2"
-        style={{ width: `${30 + heat * 14}px` }}
+      {/* Enveloping, flickering fire halo all around the box. */}
+      <div
+        className="gd-fire-aura absolute -inset-7 rounded-[2.6rem]"
+        style={{
+          background: `radial-gradient(closest-side, rgba(${rgb}, ${0.42 + 0.12 * heat}), rgba(${rgb}, 0.15) 56%, transparent 76%)`,
+        }}
       />
-      {Array.from({ length: tongues }).map((_, i) => {
-        const dist = Math.abs(i - centre);
-        const h = Math.round(baseH * (1 - dist * 0.16));
-        const w = Math.round(h * 0.6);
+      {/* A full ring of flame tongues licking outward from every edge. */}
+      {Array.from({ length: count }).map((_, i) => {
+        const angle = (360 / count) * i;
+        const h = 34 + heat * 8 + (i % 3) * 6;
+        const w = Math.round(h * 0.5);
         return (
           <span
             key={i}
-            className={cx("gd-fire-tongue", i % 2 ? "gd-flicker-b" : "gd-flicker-a")}
-            style={{ width: `${w}px`, height: `${h}px`, animationDelay: `${i * 0.09}s` }}
-          />
+            className="absolute top-1/2 left-1/2"
+            style={{ transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-${radius}px)` }}
+          >
+            <span
+              className={cx("gd-fire-tongue block", i % 2 ? "gd-flicker-b" : "gd-flicker-a")}
+              style={{ width: `${w}px`, height: `${h}px`, animationDelay: `${(i % 5) * 0.07}s` }}
+            />
+          </span>
         );
       })}
-      {heat >= 2 &&
-        Array.from({ length: heat }).map((_, i) => (
-          <span
-            key={`e${i}`}
-            className="gd-ember"
-            style={{
-              width: `${3 + (i % 2)}px`,
-              height: `${3 + (i % 2)}px`,
-              left: `${18 + i * 14}%`,
-              bottom: 0,
-              ["--ed" as string]: `${1.4 + i * 0.25}s`,
-              ["--ex" as string]: `${i % 2 ? 7 : -7}px`,
-              animationDelay: `${i * 0.28}s`,
-            }}
-          />
-        ))}
     </div>
   );
 }
@@ -599,7 +589,10 @@ function ScorePlate({
       <div className="relative">
         {isLeader && heat > 0 && <Flames side={side} heat={heat} />}
         <div
-          className={cx("grid size-28 place-items-center rounded-3xl border-2 sm:size-36", t.box)}
+          className={cx(
+            "relative z-10 grid size-28 place-items-center rounded-3xl border-2 sm:size-36",
+            t.box,
+          )}
           style={
             isLeader && heat > 0 ? { boxShadow: `0 0 ${blur}px ${spread}px rgba(${t.rgb}, 0.8)` } : undefined
           }

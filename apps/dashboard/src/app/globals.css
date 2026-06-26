@@ -374,6 +374,25 @@ dialog::backdrop {
   filter: blur(5px);
   mix-blend-mode: screen;
 }
+
+/* Enveloping fire halo around a winning team's score box. */
+@keyframes gd-fire-aura {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+.gd-fire-aura {
+  mix-blend-mode: screen;
+  filter: blur(7px);
+  animation: gd-fire-aura 1.1s ease-in-out infinite;
+  will-change: opacity, transform;
+}
 .gd-ember {
   position: absolute;
   border-radius: 50%;
@@ -573,6 +592,7 @@ dialog::backdrop {
   .gd-intro-out,
   .gd-flicker-a,
   .gd-flicker-b,
+  .gd-fire-aura,
   .gd-name-in,
   .gd-rise-1,
   .gd-rise-2,
