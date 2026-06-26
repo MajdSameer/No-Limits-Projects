@@ -49,6 +49,32 @@ test("ingest stores today's inspections per inspector, with job # + sales rep", 
   expect(board.find((r) => r.id === "danny")).toMatchObject({ name: "Danny", count: 0, jobs: [] });
 });
 
+test("stray non-job-number cell values are dropped, not counted", async () => {
+  const today = sydneyToday();
+  const res = await ingestInspectors(
+    db,
+    [
+      {
+        name: "Martin",
+        jobs: [
+          { code: "AY3VA", forRep: "Luka" }, // real
+          { code: "AY5YM", forRep: "Ann" }, // real
+          { code: "3KZ3P", forRep: "francis" }, // real
+          { code: "Andy", forRep: "Luka" }, // a name in the job# cell — dropped
+          { code: "1", forRep: "Anthony" }, // a loose number — dropped
+        ],
+      },
+    ],
+    today,
+  );
+
+  expect(res.jobs).toBe(3); // only the three real 5-char job codes count
+  const board = await inspectorBoard();
+  const martin = board.find((r) => r.id === "martin")!;
+  expect(martin.count).toBe(3);
+  expect(martin.jobs.map((j) => j.code)).toEqual(["AY3VA", "AY5YM", "3KZ3P"]);
+});
+
 test("a snapshot from an earlier day shows the boxes but resets the count to 0", async () => {
   await ingestInspectors(
     db,
@@ -65,7 +91,7 @@ test("re-ingesting overwrites the snapshot; the fixed boxes always remain", asyn
   const today = sydneyToday();
   await ingestInspectors(
     db,
-    [{ name: "Danny", jobs: [{ code: "Z1", forRep: "Randee" }] }],
+    [{ name: "Danny", jobs: [{ code: "Z1B7K", forRep: "Randee" }] }],
     today,
   );
   const board = await inspectorBoard();
@@ -73,7 +99,7 @@ test("re-ingesting overwrites the snapshot; the fixed boxes always remain", asyn
   expect(board.map((r) => r.id)).toEqual(["danny", "martin"]);
   expect(board.find((r) => r.id === "danny")).toMatchObject({
     count: 1,
-    jobs: [{ code: "Z1", forRep: "Randee" }],
+    jobs: [{ code: "Z1B7K", forRep: "Randee" }],
   });
   expect(board.find((r) => r.id === "martin")).toMatchObject({ name: "Martin", count: 0, jobs: [] });
 });
@@ -83,7 +109,7 @@ test("month total: pushed monthCount shows on the board, resets on a new month",
   await ingestInspectors(
     db,
     [
-      { name: "Martin", jobs: [{ code: "J1", forRep: "Ann" }], monthCount: 17 },
+      { name: "Martin", jobs: [{ code: "J1X2M", forRep: "Ann" }], monthCount: 17 },
       { name: "Danny", jobs: [], monthCount: 9 },
     ],
     today,

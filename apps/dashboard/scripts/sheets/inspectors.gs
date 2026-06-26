@@ -56,6 +56,13 @@ function inspSheet_() {
   return null;
 }
 
+/** A MovePro job number is always exactly 5 alphanumeric chars with a mix of
+ * letters AND digits (e.g. "AY3VA"). Guards against a stray name/number typed
+ * into the job# column being counted as a phantom inspection. */
+function inspIsJobCode_(code) {
+  return /^[A-Za-z0-9]{5}$/.test(code) && /[A-Za-z]/.test(code) && /[0-9]/.test(code);
+}
+
 /** Parse a number from a cell (number, or "16" / "$16" text); blank → 0. */
 function inspNum_(v) {
   if (v === "" || v == null) return 0;
@@ -87,9 +94,9 @@ function pushInspections() {
         var code = String(jobVals[i][0] || "").trim();
         var forRep = String(repVals[i][0] || "").trim();
         if (!code || !forRep) continue;
-        var lc = code.toLowerCase(),
-          lr = forRep.toLowerCase();
-        if (lc === "job number" || lc === "job" || lr === "sales rep") continue; // header guard
+        if (!inspIsJobCode_(code)) continue; // stray name/number in the job# cell
+        var lr = forRep.toLowerCase();
+        if (lr === "sales rep") continue; // header guard
         jobs.push({ code: code, forRep: forRep });
       }
     }
