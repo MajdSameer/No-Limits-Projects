@@ -56,11 +56,12 @@ function inspSheet_() {
   return null;
 }
 
-/** A MovePro job number is always exactly 5 alphanumeric chars with a mix of
- * letters AND digits (e.g. "AY3VA"). Guards against a stray name/number typed
- * into the job# column being counted as a phantom inspection. */
+/** A MovePro job number is always exactly 5 alphanumeric chars (e.g. "AY3VA",
+ * or all letters like "EDPAG"). The length is what guards against a stray
+ * name/number typed into the job# column being counted as a phantom inspection.
+ * Don't require a digit — real codes can be all letters. */
 function inspIsJobCode_(code) {
-  return /^[A-Za-z0-9]{5}$/.test(code) && /[A-Za-z]/.test(code) && /[0-9]/.test(code);
+  return /^[A-Za-z0-9]{5}$/.test(code);
 }
 
 /** Parse a number from a cell (number, or "16" / "$16" text); blank → 0. */
