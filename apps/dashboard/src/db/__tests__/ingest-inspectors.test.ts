@@ -57,22 +57,23 @@ test("stray non-job-number cell values are dropped, not counted", async () => {
       {
         name: "Martin",
         jobs: [
-          { code: "AY3VA", forRep: "Luka" }, // real
+          { code: "AY3VA", forRep: "Luka" }, // real (letters + digits)
           { code: "AY5YM", forRep: "Ann" }, // real
           { code: "3KZ3P", forRep: "francis" }, // real
-          { code: "Andy", forRep: "Luka" }, // a name in the job# cell — dropped
-          { code: "1", forRep: "Anthony" }, // a loose number — dropped
+          { code: "EDPAG", forRep: "Francis" }, // real — all letters, must still count
+          { code: "Andy", forRep: "Luka" }, // a name in the job# cell — dropped (4 chars)
+          { code: "1", forRep: "Anthony" }, // a loose number — dropped (1 char)
         ],
       },
     ],
     today,
   );
 
-  expect(res.jobs).toBe(3); // only the three real 5-char job codes count
+  expect(res.jobs).toBe(4); // the four real 5-char job codes count (incl. all-letter EDPAG)
   const board = await inspectorBoard();
   const martin = board.find((r) => r.id === "martin")!;
-  expect(martin.count).toBe(3);
-  expect(martin.jobs.map((j) => j.code)).toEqual(["AY3VA", "AY5YM", "3KZ3P"]);
+  expect(martin.count).toBe(4);
+  expect(martin.jobs.map((j) => j.code)).toEqual(["AY3VA", "AY5YM", "3KZ3P", "EDPAG"]);
 });
 
 test("a snapshot from an earlier day shows the boxes but resets the count to 0", async () => {

@@ -58,14 +58,16 @@ function cleanStr(v: unknown): string | null {
 }
 
 /**
- * A MovePro job number is always exactly 5 alphanumeric characters with a mix of
- * letters AND digits (e.g. "AY3VA", "3KZ3P"). The sheet's job-number column
+ * A MovePro job number is always exactly 5 alphanumeric characters (e.g.
+ * "AY3VA", "3KZ3P", or all letters like "EDPAG"). The sheet's job-number column
  * occasionally gets a stray value typed into it — a name ("Andy") or a loose
- * number ("1") — which would otherwise be counted as a phantom inspection. This
- * guard drops anything that isn't a real job code so the daily count stays true.
+ * number ("1") — which would otherwise be counted as a phantom inspection. The
+ * 5-char length is what separates a real code from those strays. We deliberately
+ * do NOT require a mix of letters and digits: real codes can be all letters
+ * (EDPAG was dropped by that stricter rule and never counted/celebrated).
  */
 export function isJobCode(code: string): boolean {
-  return /^[A-Za-z0-9]{5}$/.test(code) && /[A-Za-z]/.test(code) && /[0-9]/.test(code);
+  return /^[A-Za-z0-9]{5}$/.test(code);
 }
 
 export interface InspectorIngestResult {
