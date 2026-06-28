@@ -1,11 +1,13 @@
 /**
- * Site-inspector board: today's inspections per inspector (Martin, Danny…),
+ * Site-inspector board: this month's inspections per inspector (Martin, Danny…),
  * each job number tagged with the SALES rep whose customer it's for. Read from
  * the "inspectors_live" snapshot the bookings sheet pushes (ingest-inspectors).
  *
- * The inspector BOXES persist day to day (so the wall always shows them), but
- * the COUNT resets when the snapshot is for an older day — a fresh morning
- * starts everyone back at 0 until the sheet pushes today's first inspection.
+ * The count is intentionally NOT scoped to "today": the wall just celebrates
+ * whenever an inspector enters a new job number (count-driven on the client), so
+ * the day an inspection is booked for doesn't matter. The inspector BOXES
+ * persist (so the wall always shows them); the COUNT resets only when the
+ * snapshot is from a previous month.
  */
 import { getDb } from "../client";
 import { readInspectorSnapshot } from "../ingest-inspectors";
@@ -21,10 +23,8 @@ export interface InspectorJobDTO {
 export interface InspectorRow {
   id: string;
   name: string;
-  /** Inspections done today (resets each morning). */
+  /** Inspections this inspector has entered this month (resets on a new month). */
   count: number;
-  /** Inspections done so far this month (resets on a new month). */
-  month: number;
   jobs: InspectorJobDTO[];
 }
 
@@ -42,29 +42,28 @@ export async function inspectorBoard(now: Date = new Date()): Promise<InspectorR
   const db = await getDb();
   const snap = await readInspectorSnapshot(db);
   const today = sydneyToday(now);
-  const fresh = snap?.asOfDate === today;
-  // The month total stays valid all month (re-pushed every 5 min); it only
-  // resets when the snapshot is from a previous month.
+  // The snapshot stays valid all month (re-pushed continuously); the count only
+  // resets when it's from a previous month. No daily reset — every job number an
+  // inspector enters this month counts and (on the wall) celebrates.
   const sameMonth = snap?.asOfDate.slice(0, 7) === today.slice(0, 7);
 
   // Always start with the two fixed boxes so the wall shows Martin & Danny even
   // with nothing pushed yet (counts 0).
   const byId = new Map<string, InspectorRow>(
-    DEFAULT_INSPECTORS.map((d) => [d.id, { id: d.id, name: d.name, count: 0, month: 0, jobs: [] }]),
+    DEFAULT_INSPECTORS.map((d) => [d.id, { id: d.id, name: d.name, count: 0, jobs: [] }]),
   );
 
   for (const r of snap?.rows ?? []) {
-    const jobs = fresh
+    const jobs = sameMonth
       ? r.jobs
           .filter((j) => j.code && String(j.code).trim())
           .map((j) => ({ code: String(j.code).trim(), forRep: j.forRep ?? null }))
       : [];
-    const month = sameMonth ? Math.max(0, Math.trunc(Number(r.monthCount) || 0)) : 0;
     // Overlay the pushed data onto the fixed boxes; keep any extra inspectors too.
-    byId.set(r.id, { id: r.id, name: r.name, count: jobs.length, month, jobs });
+    byId.set(r.id, { id: r.id, name: r.name, count: jobs.length, jobs });
   }
 
   return [...byId.values()].sort(
-    (a, b) => b.month - a.month || b.count - a.count || a.name.localeCompare(b.name),
+    (a, b) => b.count - a.count || a.name.localeCompare(b.name),
   );
 }

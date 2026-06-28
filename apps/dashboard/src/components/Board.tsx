@@ -43,10 +43,8 @@ export interface InspectorJobDTO {
 export interface InspectorRowDTO {
   id: string;
   name: string;
-  /** Inspections done today. */
+  /** Inspections this inspector has entered this month. */
   count: number;
-  /** Inspections done so far this month. */
-  month: number;
   jobs: InspectorJobDTO[];
 }
 
