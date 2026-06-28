@@ -1,41 +1,41 @@
 /**
  * No Limits — Site Inspections → dashboard live push (Google Apps Script).
  *
- * Lives as an extra FILE in the Follow-Up spreadsheet's ONE Apps Script project
- * (alongside leaderboard.gs / roster.gs).
+ * The site inspections are logged in a section of the "Leaderboard" tab (the
+ * same Follow-Up spreadsheet that runs leaderboard.gs). A spreadsheet has only
+ * ONE Apps Script project, so this lives as an extra FILE in that project
+ * alongside leaderboard.gs / roster.gs.
  *
- * SOURCE OF TRUTH — the form-fed **"Site Inspection Booked"** tab, one row per
- * booked inspection. Columns (1-based):
- *     D (4) date  ·  E (5) sales person  ·  F (6) job number  ·  H (8) inspector
+ * Layout (fixed cells):
+ *   TODAY's entries grow DOWN from row 198 — a row counts once it has BOTH a
+ *   job number and a sales rep:
+ *     Martin   job# col AU,  sales rep col BA
+ *     Danny    job# col BJ,  sales rep col BP
+ *   The MONTH total is a displayed cell on row 194 (merged 194-195):
+ *     Martin   col BA        Danny    col BP
  *
- * Each inspector's count = every row in the CURRENT MONTH that's theirs (col H)
- * and carries a real job number (col F), each tagged with the sales rep (col E).
- * We deliberately do NOT filter by "today": the wall just needs to celebrate
- * whenever an inspector enters a new job number — the day the inspection is
- * booked for doesn't matter. (We used to read a hand-kept daily mirror in the
- * Leaderboard tab; it stopped being filled, so Martin showed 0 on the wall.)
- *
- * Each push drives the green "Site Inspectors" boxes on /live and the applause
- * celebration (fires once per new job number, count-driven on the dashboard).
+ * Each push drives the green "Site Inspectors" boxes on /live (today + month)
+ * and the applause celebration (fires when a rep adds a today entry).
  *
  * SETUP — see scripts/sheets/README.md. In short:
- *   1. In the Follow-Up sheet's Apps Script project, add/replace this file.
+ *   1. In the Follow-Up sheet's Apps Script project, add this as a new file.
  *   2. Run installInspectorTriggers() once — it installs ONLY its own triggers.
  *   3. Test: run pushInspections() and check the log, then open /live.
  */
 
 var INSP_TZ = "Australia/Sydney";
+var INSP_TAB = "Leaderboard"; // tab holding the site-inspection section
+var INSP_GID = 1760907362; // fallback if the tab gets renamed
+var INSP_FIRST_ROW = 198; // first row of today's entries
+var INSP_MONTH_ROW = 194; // row with the displayed monthly total (194-195 merge)
+var INSP_MAXROWS = 600; // how far down to scan for today's entries
 
-// Booking log — the source of inspections.
-var INSP_BOOK_TAB = "Site Inspection Booked";
-var INSP_BOOK_FIRST_ROW = 3; // first data row (row 2 is the header)
-var INSP_BOOK_DATE_COL = 4; // D — booking date
-var INSP_BOOK_REP_COL = 5; // E — sales person the inspection is for
-var INSP_BOOK_JOB_COL = 6; // F — MovePro job number
-var INSP_BOOK_INSP_COL = 8; // H — which site inspector
-
-// The site inspectors we track. Names match col H of the booking tab.
-var INSP_PEOPLE = [{ name: "Martin" }, { name: "Danny" }];
+// Per inspector: 1-based columns. job#/sales-rep grow down from row 198; the
+// month total sits at (INSP_MONTH_ROW, monthCol).
+var INSP_PEOPLE = [
+  { name: "Martin", jobCol: 47 /* AU */, repCol: 53 /* BA */, monthCol: 53 /* BA */ },
+  { name: "Danny", jobCol: 62 /* BJ */, repCol: 68 /* BP */, monthCol: 68 /* BP */ },
+];
 
 function inspCfg_() {
   var props = PropertiesService.getScriptProperties();
@@ -47,74 +47,69 @@ function inspCfg_() {
   return { url: url, secret: secret };
 }
 
-function inspSheetByName_(name) {
-  return SpreadsheetApp.getActive().getSheetByName(name);
+function inspSheet_() {
+  var ss = SpreadsheetApp.getActive();
+  var sheet = ss.getSheetByName(INSP_TAB);
+  if (sheet) return sheet;
+  var all = ss.getSheets();
+  for (var i = 0; i < all.length; i++) if (all[i].getSheetId() === INSP_GID) return all[i];
+  return null;
 }
 
 /** A MovePro job number is always exactly 5 alphanumeric chars (e.g. "AY3VA",
- * or all letters like "EDPAG", or lowercase like "b8z6p"). The length is what
- * guards against a stray value (a name, a loose number, or an email pasted into
- * the job# column) being counted as a phantom inspection. Don't require a digit
- * — real codes can be all letters. */
+ * or all letters like "EDPAG"). The length is what guards against a stray
+ * name/number typed into the job# column being counted as a phantom inspection.
+ * Don't require a digit — real codes can be all letters. */
 function inspIsJobCode_(code) {
   return /^[A-Za-z0-9]{5}$/.test(code);
 }
 
-/** Normalise a booking-date cell (a Date object OR a string like
- * "Monday, June 29, 2026") to a yyyy-MM key in Sydney time. "" if unparseable. */
-function inspMonthKey_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, INSP_TZ, "yyyy-MM");
-  var s = String(v == null ? "" : v).trim();
-  if (!s) return "";
-  var d = new Date(s);
-  if (isNaN(d.getTime())) return "";
-  return Utilities.formatDate(d, INSP_TZ, "yyyy-MM");
+/** Parse a number from a cell (number, or "16" / "$16" text); blank → 0. */
+function inspNum_(v) {
+  if (v === "" || v == null) return 0;
+  if (typeof v === "number") return isFinite(v) ? v : 0;
+  var n = parseFloat(String(v).replace(/[^0-9.\-]/g, ""));
+  return isFinite(n) ? n : 0;
 }
 
 function pushInspections() {
   var t0 = new Date().getTime();
   var cfg = inspCfg_();
-  var book = inspSheetByName_(INSP_BOOK_TAB);
-  if (!book) throw new Error('Tab "' + INSP_BOOK_TAB + '" not found.');
-
-  var now = new Date();
-  var today = Utilities.formatDate(now, INSP_TZ, "yyyy-MM-dd");
-  var thisMonth = Utilities.formatDate(now, INSP_TZ, "yyyy-MM");
-
-  // Read the whole booking log once (date, rep, job, lead, inspector = cols D..H).
-  var lastRow = book.getLastRow();
-  var n = Math.max(0, lastRow - INSP_BOOK_FIRST_ROW + 1);
-  var width = INSP_BOOK_INSP_COL - INSP_BOOK_DATE_COL + 1; // D..H
-  var data = n > 0 ? book.getRange(INSP_BOOK_FIRST_ROW, INSP_BOOK_DATE_COL, n, width).getValues() : [];
-  var dIdx = 0; // D
-  var repIdx = INSP_BOOK_REP_COL - INSP_BOOK_DATE_COL; // E
-  var jobIdx = INSP_BOOK_JOB_COL - INSP_BOOK_DATE_COL; // F
-  var inspIdx = INSP_BOOK_INSP_COL - INSP_BOOK_DATE_COL; // H
+  var sheet = inspSheet_();
+  if (!sheet) throw new Error('Tab "' + INSP_TAB + '" not found.');
+  var today = Utilities.formatDate(new Date(), INSP_TZ, "yyyy-MM-dd");
+  var lastRow = sheet.getLastRow();
+  var n = Math.min(INSP_MAXROWS, Math.max(0, lastRow - INSP_FIRST_ROW + 1));
 
   var rows = INSP_PEOPLE.map(function (p) {
-    var wantInsp = p.name.toLowerCase();
+    // Month total: the displayed cell (merged 194-195 → value on row 194).
+    var month = inspNum_(sheet.getRange(INSP_MONTH_ROW, p.monthCol).getValue());
+    if (!month) month = inspNum_(sheet.getRange(INSP_MONTH_ROW + 1, p.monthCol).getValue());
+
+    // Today's entries: each row with BOTH a job number and a sales rep.
     var jobs = [];
-    var seen = {};
-    for (var i = 0; i < data.length; i++) {
-      var row = data[i];
-      var inspector = String(row[inspIdx] || "").trim().toLowerCase();
-      if (inspector !== wantInsp) continue;
-      if (inspMonthKey_(row[dIdx]) !== thisMonth) continue; // this month's inspections
-      var code = String(row[jobIdx] || "").trim();
-      if (!inspIsJobCode_(code)) continue; // stray value (name/number/email) in the job# cell
-      if (seen[code]) continue; // same job# twice → one inspection
-      seen[code] = true;
-      jobs.push({ code: code, forRep: String(row[repIdx] || "").trim() });
+    if (n > 0) {
+      var jobVals = sheet.getRange(INSP_FIRST_ROW, p.jobCol, n, 1).getValues();
+      var repVals = sheet.getRange(INSP_FIRST_ROW, p.repCol, n, 1).getValues();
+      for (var i = 0; i < n; i++) {
+        var code = String(jobVals[i][0] || "").trim();
+        var forRep = String(repVals[i][0] || "").trim();
+        if (!code || !forRep) continue;
+        if (!inspIsJobCode_(code)) continue; // stray name/number in the job# cell
+        var lr = forRep.toLowerCase();
+        if (lr === "sales rep") continue; // header guard
+        jobs.push({ code: code, forRep: forRep });
+      }
     }
-    return { name: p.name, jobs: jobs, monthCount: jobs.length };
+    return { name: p.name, jobs: jobs, monthCount: Math.round(month) };
   });
 
   var summary = rows
     .map(function (x) {
-      return x.name + " (" + x.jobs.length + ")";
+      return x.name + " (today " + x.jobs.length + ", month " + x.monthCount + ")";
     })
     .join(", ");
-  Logger.log("booking tab '%s', scanned %s rows in %sms — %s", book.getName(), n, new Date().getTime() - t0, summary);
+  Logger.log("tab '%s', scanned %s rows in %sms — %s", sheet.getName(), n, new Date().getTime() - t0, summary);
 
   var res = UrlFetchApp.fetch(cfg.url.replace(/\/$/, "") + "/api/ingest/inspectors", {
     method: "post",
@@ -128,13 +123,13 @@ function pushInspections() {
   return res.getContentText();
 }
 
-/** onEdit — push only when the edit touches the booking log's data columns
- * (D..H) of the "Site Inspection Booked" tab. */
+/** onEdit — push only when the edit touches the inspection section (cols
+ * AU..BP, row >= 194) of the Leaderboard tab. */
 function onInspectionEdit(e) {
   if (!e || !e.range) return;
-  if (e.range.getSheet().getName() !== INSP_BOOK_TAB) return;
-  if (e.range.getLastColumn() < INSP_BOOK_DATE_COL || e.range.getColumn() > INSP_BOOK_INSP_COL) return;
-  if (e.range.getLastRow() < INSP_BOOK_FIRST_ROW) return;
+  if (e.range.getSheet().getName() !== INSP_TAB) return;
+  if (e.range.getLastColumn() < 47 || e.range.getColumn() > 68) return;
+  if (e.range.getLastRow() < INSP_MONTH_ROW) return;
   pushInspections();
 }
 
