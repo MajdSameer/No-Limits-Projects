@@ -72,9 +72,9 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
   );
 }
 
-/** A site inspector's box — neon-green glow, name, and their inspection count
- * for the month. (Per-inspection job#·rep chips are intentionally not shown; the
- * celebration still pops the job number + sales rep when one lands.) */
+/** A site inspector's box — neon-green glow, name, and their today / month
+ * inspection counts. (Per-inspection job#·rep chips are intentionally not shown;
+ * the celebration still pops the job number + sales rep when one lands.) */
 function InspectorCell({ r }: { r: InspectorRowDTO }) {
   return (
     <li className="flex min-h-0 flex-col justify-center overflow-hidden rounded-xl border border-green-400 bg-green-500/[0.07] p-3 shadow-[0_0_15px_1px_rgba(74,222,128,0.65)]">
@@ -85,11 +85,19 @@ function InspectorCell({ r }: { r: InspectorRowDTO }) {
             Inspector
           </span>
         </span>
-        {/* Inspections this month */}
-        <span className="shrink-0 text-right leading-none">
-          <span className="block text-4xl font-black text-green-300 tabular-nums">{r.count}</span>
-          <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-green-300/55 uppercase">
-            this month
+        {/* Today (white) + this month (green) */}
+        <span className="flex shrink-0 items-end gap-3 leading-none">
+          <span className="text-right">
+            <span className="block text-4xl font-bold text-white tabular-nums">{r.count}</span>
+            <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-white/40 uppercase">
+              today
+            </span>
+          </span>
+          <span className="text-right">
+            <span className="block text-4xl font-black text-green-300 tabular-nums">{r.month}</span>
+            <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-green-300/55 uppercase">
+              month
+            </span>
           </span>
         </span>
       </div>
@@ -347,7 +355,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
                   Site Inspectors
                 </span>
                 <span aria-hidden className="h-px flex-1 bg-green-400/30" />
-                <span className="text-sm font-medium text-white/50">this month</span>
+                <span className="text-sm font-medium text-white/50">today</span>
               </div>
               <ul className="mt-2 grid grid-cols-2 gap-3 p-1 sm:grid-cols-3 [grid-auto-rows:1fr]">
                 {data.inspectors.map((r) => (
