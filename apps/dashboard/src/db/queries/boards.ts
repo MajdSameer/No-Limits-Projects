@@ -277,13 +277,23 @@ async function sheetMonthCounts(now: Date): Promise<Map<string, number>> {
  * (col AT minus the extra-charge cols AK/AL/AM/BB, which don't go to the rep),
  * pushed via api/ingest/monthly. Empty until the sheet pushes — the board then
  * simply omits the money line.
+ *
+ * Sanity guard: a rep's monthly NET revenue can't be negative for a month of
+ * real bookings (the total always dwarfs the small extra-charge deductions), so
+ * a negative or non-finite figure means the sheet pushed garbage — e.g. its
+ * Apps Script drifting onto the wrong column. We DROP those entries (omit the
+ * rep's money line) rather than splash an impossible number like -$134,740 on
+ * the wall; the line returns once a clean push lands.
  */
 async function sheetMonthRevenue(now: Date): Promise<Map<string, number>> {
   const raw = await getSetting(monthRevenueKey(sydneyToday(now).slice(0, 7)), "");
   if (!raw) return new Map();
   try {
     const obj = JSON.parse(raw) as Record<string, number>;
-    return new Map(Object.entries(obj).map(([id, n]) => [id, Number(n) || 0]));
+    const clean = Object.entries(obj)
+      .map(([id, n]) => [id, Number(n)] as const)
+      .filter(([, n]) => Number.isFinite(n) && n >= 0);
+    return new Map(clean);
   } catch {
     return new Map();
   }
