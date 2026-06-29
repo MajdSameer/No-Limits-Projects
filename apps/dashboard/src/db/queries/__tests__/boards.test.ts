@@ -106,6 +106,24 @@ test("monthly attaches the sheet's net revenue per rep", async () => {
   await setSetting(monthRevenueKey("2026-06"), "");
 });
 
+test("monthly drops an impossible negative/garbage revenue instead of showing it", async () => {
+  const { setSetting } = await import("../../settings");
+  const { monthSettingKey, monthRevenueKey } = await import("../../ingest-monthly");
+  await setSetting(monthSettingKey("2026-06"), JSON.stringify({ andy: 158, hanna: 80 }));
+  // andy gets a real figure; hanna a garbage negative (e.g. the Booking script
+  // drifting onto a text column). The board keeps andy and omits hanna's money
+  // line rather than splashing a -$134k figure on the wall.
+  await setSetting(
+    monthRevenueKey("2026-06"),
+    JSON.stringify({ andy: 100000, hanna: -134740.1975 }),
+  );
+  const rows = await monthlyBoard(NOW);
+  expect(rows.find((r) => r.staffId === "andy")?.revenue).toBe(100000);
+  expect(rows.find((r) => r.staffId === "hanna")?.revenue).toBeUndefined();
+  await setSetting(monthSettingKey("2026-06"), "");
+  await setSetting(monthRevenueKey("2026-06"), "");
+});
+
 test("monthly omits revenue when the sheet hasn't pushed it", async () => {
   const rows = await monthlyBoard(NOW);
   expect(rows.find((r) => r.staffId === "andy")?.revenue).toBeUndefined();
