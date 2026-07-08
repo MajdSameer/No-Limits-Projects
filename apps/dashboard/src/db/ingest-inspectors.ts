@@ -83,6 +83,13 @@ export interface InspectorIngestResult {
  * alphanumeric code, see isJobCode) are dropped — a site inspection only counts
  * once it has a real job number to celebrate, so stray cell values don't inflate
  * the daily tally.
+ *
+ * Each row the sheet sends is its own physical entry (one row 198+, read once
+ * per push), so two rows are NEVER counted as the same submission even if their
+ * job code text happens to collide (a rep can genuinely reuse/mistype a MovePro
+ * number across two separate inspections) — every row an inspector submits must
+ * count and celebrate on its own. Only the count/board is a full resend of every
+ * inspection so far today, not a duplicate of a single one.
  */
 export async function ingestInspectors(
   db: Db,
@@ -98,11 +105,9 @@ export async function ingestInspectors(
     if (!id) continue;
 
     const existing = byId.get(id) ?? { id, name, jobs: [], monthCount: 0 };
-    const seen = new Set(existing.jobs.map((j) => j.code));
     for (const j of row.jobs ?? []) {
       const code = cleanStr(j?.code);
-      if (!code || !isJobCode(code) || seen.has(code)) continue; // valid job #; dedupe
-      seen.add(code);
+      if (!code || !isJobCode(code)) continue; // valid job #
       existing.jobs.push({ code, forRep: cleanStr(j?.forRep) });
     }
     const m = Number(row.monthCount);
