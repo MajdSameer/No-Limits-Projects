@@ -147,6 +147,47 @@ test("a new site inspection fires once, tagged inspector + the sales rep it's fo
   ).toEqual([{ staffId: "martin", name: "Martin", code: "J2", kind: "inspector", forRep: "Jenifer" }]);
 });
 
+test("a 4th inspection reusing an earlier job code still fires (repeated code, no fresh label)", () => {
+  // Reproduces the reported bug: Martin's 3rd and 4th inspections both had job
+  // code XXMZD for the same sales rep. Every row he submits must still pop.
+  const s = createCelebrateState();
+  inspectorBookings(
+    [
+      {
+        staffId: "martin",
+        name: "Martin",
+        count: 3,
+        jobs: [
+          { code: "Q35K9", forRep: "Isaac" },
+          { code: "B6MYA", forRep: "Mariam" },
+          { code: "XXMZD", forRep: "Jesecca" },
+        ],
+      },
+    ],
+    s,
+    true, // seed — silent
+  );
+  expect(
+    inspectorBookings(
+      [
+        {
+          staffId: "martin",
+          name: "Martin",
+          count: 4,
+          jobs: [
+            { code: "Q35K9", forRep: "Isaac" },
+            { code: "B6MYA", forRep: "Mariam" },
+            { code: "XXMZD", forRep: "Jesecca" },
+            { code: "XXMZD", forRep: "Jesecca" },
+          ],
+        },
+      ],
+      s,
+      false,
+    ),
+  ).toEqual([{ staffId: "martin", name: "Martin", code: null, kind: "inspector", forRep: null }]);
+});
+
 test("a site inspection with no known sales rep still fires (forRep null)", () => {
   const s = createCelebrateState();
   expect(

@@ -25,7 +25,7 @@ test("ingest stores today's inspections per inspector, with job # + sales rep", 
       jobs: [
         { code: "7QAB6", forRep: "Hadeel" },
         { code: "", forRep: "Ann" }, // no job number — dropped
-        { code: "7QAB6", forRep: "Hadeel" }, // duplicate — deduped
+        { code: "7QAB6", forRep: "Hadeel" }, // same code+rep again — still its own row, counts
         { code: "55BKK", forRep: "Jenifer" },
       ],
     },
@@ -33,15 +33,16 @@ test("ingest stores today's inspections per inspector, with job # + sales rep", 
   ]);
 
   expect(res.inspectors).toBe(2);
-  expect(res.jobs).toBe(2); // Martin's two distinct, job-numbered inspections
+  expect(res.jobs).toBe(3); // Martin's three job-numbered rows — a repeated code is still its own submission
   expect(res.asOfDate).toBe(today);
 
   const board = await inspectorBoard();
-  // sorted by count desc: Martin (2) then Danny (0)
+  // sorted by count desc: Martin (3) then Danny (0)
   expect(board.map((r) => r.id)).toEqual(["martin", "danny"]);
   const martin = board.find((r) => r.id === "martin")!;
-  expect(martin.count).toBe(2);
+  expect(martin.count).toBe(3);
   expect(martin.jobs).toEqual([
+    { code: "7QAB6", forRep: "Hadeel" },
     { code: "7QAB6", forRep: "Hadeel" },
     { code: "55BKK", forRep: "Jenifer" },
   ]);
