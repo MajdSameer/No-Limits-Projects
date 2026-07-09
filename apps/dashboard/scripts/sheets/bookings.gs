@@ -56,6 +56,58 @@ function bookNum_(v) {
   return isFinite(n) ? n : 0;
 }
 
+/**
+ * The month/pipeline/revenue tally only needs 7 of the sheet's 54 columns. Read
+ * as separate single-column getValues() calls (same pattern as inspectors.gs)
+ * instead of folding it into the big all-columns read below — this sheet is
+ * large enough that a single full-width read across every row can time out,
+ * and when it does, the tally must NOT go down with it (see pushBookings()).
+ */
+function pushMonthlyTally_(sheet, tz, firstRow, n) {
+  var nowd = new Date();
+  var thisMonth = Utilities.formatDate(nowd, tz, "yyyy-MM");
+  // Pipeline window = this month + the next two (e.g. Jun, Jul, Aug — counts ALL
+  // of the current month, including days before today).
+  var pipeMonths = {};
+  for (var k = 0; k < 3; k++) {
+    pipeMonths[Utilities.formatDate(new Date(nowd.getFullYear(), nowd.getMonth() + k, 1), tz, "yyyy-MM")] = 1;
+  }
+
+  var dateCol = sheet.getRange(firstRow, COL.date + 1, n, 1).getValues();
+  var salesCol = sheet.getRange(firstRow, COL.sales + 1, n, 1).getValues();
+  var totalCol = sheet.getRange(firstRow, COL.total + 1, n, 1).getValues();
+  var extra1Col = sheet.getRange(firstRow, COL.extra1 + 1, n, 1).getValues();
+  var extra2Col = sheet.getRange(firstRow, COL.extra2 + 1, n, 1).getValues();
+  var extra3Col = sheet.getRange(firstRow, COL.extra3 + 1, n, 1).getValues();
+  var extra4Col = sheet.getRange(firstRow, COL.extra4 + 1, n, 1).getValues();
+
+  var monthCounts = {}; // sales person -> rows with a move date this month
+  var pipelineCounts = {}; // sales person -> rows with a move date in the next 3 months
+  var monthRevenue = {}; // sales person -> NET revenue ($) of this month's rows
+  for (var i = 0; i < n; i++) {
+    var date = dateCol[i][0];
+    if (!(date instanceof Date) || isNaN(date.getTime())) continue;
+    var sales = String(salesCol[i][0] || "").trim();
+    if (!sales) continue;
+
+    var ym = Utilities.formatDate(date, tz, "yyyy-MM");
+    if (ym === thisMonth) {
+      monthCounts[sales] = (monthCounts[sales] || 0) + 1;
+      // NET revenue to the rep = AT − AK − AL − AM − BB. Counts every row in
+      // the month (done or upcoming); the deposit is already part of AT.
+      var net =
+        bookNum_(totalCol[i][0]) -
+        bookNum_(extra1Col[i][0]) -
+        bookNum_(extra2Col[i][0]) -
+        bookNum_(extra3Col[i][0]) -
+        bookNum_(extra4Col[i][0]);
+      monthRevenue[sales] = (monthRevenue[sales] || 0) + net;
+    }
+    if (pipeMonths[ym]) pipelineCounts[sales] = (pipelineCounts[sales] || 0) + 1;
+  }
+  return { month: thisMonth, counts: monthCounts, pipeline: pipelineCounts, revenue: monthRevenue };
+}
+
 function pushBookings() {
   var props = PropertiesService.getScriptProperties();
   var url = props.getProperty("DASHBOARD_URL");
@@ -70,106 +122,81 @@ function pushBookings() {
 
   var lastRow = sheet.getLastRow();
   if (lastRow <= HEADER_ROWS) return "no rows";
-  var values = sheet.getRange(HEADER_ROWS + 1, 1, lastRow - HEADER_ROWS, LAST_COL).getValues();
+  var firstRow = HEADER_ROWS + 1;
+  var n = lastRow - HEADER_ROWS;
 
-  var cutoff = new Date();
-  cutoff.setHours(0, 0, 0, 0);
-  cutoff.setDate(cutoff.getDate() - WINDOW_DAYS);
-  var nowd = new Date();
-  var thisMonth = Utilities.formatDate(nowd, tz, "yyyy-MM");
-  // Pipeline window = this month + the next two (e.g. Jun, Jul, Aug — counts ALL
-  // of the current month, including days before today).
-  var pipeMonths = {};
-  for (var k = 0; k < 3; k++) {
-    pipeMonths[Utilities.formatDate(new Date(nowd.getFullYear(), nowd.getMonth() + k, 1), tz, "yyyy-MM")] = 1;
-  }
-
-  var rows = [];
-  var monthCounts = {}; // sales person -> rows with a move date this month
-  var pipelineCounts = {}; // sales person -> rows with a move date in the next 3 months
-  var monthRevenue = {}; // sales person -> NET revenue ($) of this month's rows
-  for (var i = 0; i < values.length; i++) {
-    var v = values[i];
-    var job = String(v[COL.job] || "").trim();
-    var date = v[COL.date];
-    if (!(date instanceof Date) || isNaN(date.getTime())) continue;
-
-    // Tallies: every row with a sales person, by the month of its move date
-    // (raw row count — the number the floor watches, not deduped by job).
-    var sales = String(v[COL.sales] || "").trim();
-    if (sales) {
-      var ym = Utilities.formatDate(date, tz, "yyyy-MM");
-      if (ym === thisMonth) {
-        monthCounts[sales] = (monthCounts[sales] || 0) + 1;
-        // NET revenue to the rep = AT − AK − AL − AM − BB. Counts every row in
-        // the month (done or upcoming); the deposit is already part of AT.
-        var net =
-          bookNum_(v[COL.total]) -
-          bookNum_(v[COL.extra1]) -
-          bookNum_(v[COL.extra2]) -
-          bookNum_(v[COL.extra3]) -
-          bookNum_(v[COL.extra4]);
-        monthRevenue[sales] = (monthRevenue[sales] || 0) + net;
-      }
-      if (pipeMonths[ym]) pipelineCounts[sales] = (pipelineCounts[sales] || 0) + 1;
-    }
-
-    if (!job || date < cutoff) continue; // bookings sync: recent + upcoming only
-    rows.push({
-      jobNumber: job,
-      company: String(v[COL.company] || "").trim(),
-      moveDate: Utilities.formatDate(date, tz, "yyyy-MM-dd"),
-      salesPerson: String(v[COL.sales] || "").trim(),
-      customerName: String(v[COL.name] || "").trim(),
-      customerPhone: String(v[COL.phone] || "").trim(),
-      customerEmail: String(v[COL.email] || "").trim(),
-      pickup: String(v[COL.pickup] || "").trim(),
-      delivery: String(v[COL.delivery] || "").trim(),
-      state: String(v[COL.state] || "").trim(),
-      beds: v[COL.beds],
-      cubic: v[COL.cubic],
-      men: v[COL.men],
-      deposit: v[COL.deposit],
-      leadSource: String(v[COL.leadFrom] || "").trim(),
-      notes: String(v[COL.notes] || "").trim(),
-    });
-  }
-
-  // Push the month tally first so the board's headline total is right even if
-  // the bigger bookings sync below is slow.
+  // Push the month tally FIRST, off its own narrow read, so the board's
+  // headline numbers land even when the full-width sync below is too slow (or
+  // times out outright) on a big sheet.
+  var tally = pushMonthlyTally_(sheet, tz, firstRow, n);
   var monthlyRes = UrlFetchApp.fetch(url.replace(/\/$/, "") + "/api/ingest/monthly", {
     method: "post",
     contentType: "application/json",
     headers: { Authorization: "Bearer " + secret },
-    payload: JSON.stringify({
-      month: thisMonth,
-      counts: monthCounts,
-      pipeline: pipelineCounts,
-      revenue: monthRevenue,
-    }),
+    payload: JSON.stringify(tally),
     muteHttpExceptions: true,
   });
   if (monthlyRes.getResponseCode() >= 300) {
     throw new Error("Monthly ingest failed " + monthlyRes.getResponseCode() + ": " + monthlyRes.getContentText());
   }
 
-  var endpoint = url.replace(/\/$/, "") + "/api/ingest/bookings";
-  var sent = 0;
-  for (var b = 0; b < rows.length; b += BATCH) {
-    var batch = rows.slice(b, b + BATCH);
-    var res = UrlFetchApp.fetch(endpoint, {
-      method: "post",
-      contentType: "application/json",
-      headers: { Authorization: "Bearer " + secret },
-      payload: JSON.stringify({ rows: batch }),
-      muteHttpExceptions: true,
-    });
-    if (res.getResponseCode() >= 300) {
-      throw new Error("Bookings ingest failed " + res.getResponseCode() + ": " + res.getContentText());
+  // Recent + upcoming full-detail sync: needs every column, so it's the heavy
+  // read. Isolated so a timeout/error here (a big/slow sheet) can't undo the
+  // monthly push above — the floor's headline numbers stay live even when this
+  // part fails and just retries on the next run.
+  try {
+    var cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - WINDOW_DAYS);
+    var values = sheet.getRange(firstRow, 1, n, LAST_COL).getValues();
+
+    var rows = [];
+    for (var i = 0; i < values.length; i++) {
+      var v = values[i];
+      var job = String(v[COL.job] || "").trim();
+      var date = v[COL.date];
+      if (!job || !(date instanceof Date) || isNaN(date.getTime()) || date < cutoff) continue;
+      rows.push({
+        jobNumber: job,
+        company: String(v[COL.company] || "").trim(),
+        moveDate: Utilities.formatDate(date, tz, "yyyy-MM-dd"),
+        salesPerson: String(v[COL.sales] || "").trim(),
+        customerName: String(v[COL.name] || "").trim(),
+        customerPhone: String(v[COL.phone] || "").trim(),
+        customerEmail: String(v[COL.email] || "").trim(),
+        pickup: String(v[COL.pickup] || "").trim(),
+        delivery: String(v[COL.delivery] || "").trim(),
+        state: String(v[COL.state] || "").trim(),
+        beds: v[COL.beds],
+        cubic: v[COL.cubic],
+        men: v[COL.men],
+        deposit: v[COL.deposit],
+        leadSource: String(v[COL.leadFrom] || "").trim(),
+        notes: String(v[COL.notes] || "").trim(),
+      });
     }
-    sent += batch.length;
+
+    var endpoint = url.replace(/\/$/, "") + "/api/ingest/bookings";
+    var sent = 0;
+    for (var b = 0; b < rows.length; b += BATCH) {
+      var batch = rows.slice(b, b + BATCH);
+      var res = UrlFetchApp.fetch(endpoint, {
+        method: "post",
+        contentType: "application/json",
+        headers: { Authorization: "Bearer " + secret },
+        payload: JSON.stringify({ rows: batch }),
+        muteHttpExceptions: true,
+      });
+      if (res.getResponseCode() >= 300) {
+        throw new Error("Bookings ingest failed " + res.getResponseCode() + ": " + res.getContentText());
+      }
+      sent += batch.length;
+    }
+    return "sent " + sent + " booking rows (monthly ok)";
+  } catch (err) {
+    Logger.log("Bookings detail sync failed (monthly tally still pushed OK): %s", err);
+    return "monthly ok; detail sync failed: " + err;
   }
-  return "sent " + sent + " booking rows";
 }
 
 function onBookingEdit(e) {

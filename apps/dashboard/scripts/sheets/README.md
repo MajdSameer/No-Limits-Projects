@@ -69,6 +69,12 @@ revenue under their name in the `/live` "This month" column. The read range was
 widened to col BB, so re-paste `bookings.gs` and run `pushBookings` once after
 updating.
 
+The month/pipeline/revenue tally is read off its own small set of columns
+(separately from the full-width recent-bookings sync), and pushed first — so
+on a big `Booking` tab where the full sync can time out, the `/live` monthly
+numbers still land instead of going stale. Re-paste `bookings.gs` to pick this
+up.
+
 ## Leads push (`leads.gs`)
 
 `leads.gs` is bound to the **Quote Leads Auto Process** spreadsheet (its own
