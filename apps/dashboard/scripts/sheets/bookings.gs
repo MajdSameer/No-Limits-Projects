@@ -11,12 +11,26 @@
  * Only the last WINDOW_DAYS of move dates (plus all future) are sent; the
  * dashboard side skips non-NL/RRR/PM companies and any sales rep that isn't a
  * roster rep or the subcontractor "Domanic".
+ *
+ * This sheet is large (~3,600+ rows × 54 cols, plus giant AU/AV/AW
+ * confirmation-text columns and volatile formulas), which makes a single
+ * full-width getValues() read prone to "Service Spreadsheets timed out" — when
+ * that happens the whole push used to fail, including the month/pipeline/
+ * revenue tally that the floor actually watches. This version reads the tally
+ * off a handful of narrow, targeted columns and pushes it FIRST, then does the
+ * heavier recent-bookings detail sync (capped to the most recent SYNC_ROWS
+ * rows) in its own try/catch, and retries any individual read that times out a
+ * couple of times before giving up — so a transient hiccup on this sheet no
+ * longer means the dashboard's monthly numbers go stale.
  */
 
 var BOOK_TAB = "Booking";
 var HEADER_ROWS = 2; // real headers are on row 2; data starts row 3
 var WINDOW_DAYS = 90;
 var BATCH = 300;
+var SYNC_ROWS = 2500; // detail sync only needs the most-recent rows (bookings are recent + upcoming)
+var MAX_ROW_NET = 60000; // sanity cap: a single booking can't net more than this
+var READ_TRIES = 3; // attempts for a single getValues() read before giving up
 
 // 0-based column indexes within the row (col A = 0).
 var COL = {
@@ -45,8 +59,9 @@ var COL = {
   extra4: 53, // BB
 };
 
-// We must read out to col BB (54) for the revenue maths.
-var LAST_COL = 54;
+// The recent-bookings detail sync only needs A..AT — skip the huge AU/AV/AW
+// message columns that make a full-width read so much slower.
+var MAIN_COLS = 46;
 
 /** Parse a money-ish cell (number, or "$1,234.50" text) to a number; blank → 0. */
 function bookNum_(v) {
@@ -57,11 +72,29 @@ function bookNum_(v) {
 }
 
 /**
- * The month/pipeline/revenue tally only needs 7 of the sheet's 54 columns. Read
- * as separate single-column getValues() calls (same pattern as inspectors.gs)
- * instead of folding it into the big all-columns read below — this sheet is
- * large enough that a single full-width read across every row can time out,
- * and when it does, the tally must NOT go down with it (see pushBookings()).
+ * getValues() with a short retry — this sheet is big/heavy enough that a read
+ * can throw a transient "Service Spreadsheets timed out" even on a narrow
+ * range; retrying a couple of times recovers most of those without waiting for
+ * the next scheduled run (15 min later).
+ */
+function getValuesRetry_(sheet, row, col, numRows, numCols) {
+  var lastErr;
+  for (var attempt = 1; attempt <= READ_TRIES; attempt++) {
+    try {
+      return sheet.getRange(row, col, numRows, numCols).getValues();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < READ_TRIES) Utilities.sleep(2000 * attempt);
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * The month/pipeline/revenue tally only needs 6 of the sheet's 54 columns.
+ * Read as a few small, targeted getValues() calls (retried on timeout)
+ * instead of folding it into the big all-columns read below — so the tally
+ * that the floor watches doesn't depend on the heavy read succeeding.
  */
 function pushMonthlyTally_(sheet, tz, firstRow, n) {
   var nowd = new Date();
@@ -73,17 +106,16 @@ function pushMonthlyTally_(sheet, tz, firstRow, n) {
     pipeMonths[Utilities.formatDate(new Date(nowd.getFullYear(), nowd.getMonth() + k, 1), tz, "yyyy-MM")] = 1;
   }
 
-  var dateCol = sheet.getRange(firstRow, COL.date + 1, n, 1).getValues();
-  var salesCol = sheet.getRange(firstRow, COL.sales + 1, n, 1).getValues();
-  var totalCol = sheet.getRange(firstRow, COL.total + 1, n, 1).getValues();
-  var extra1Col = sheet.getRange(firstRow, COL.extra1 + 1, n, 1).getValues();
-  var extra2Col = sheet.getRange(firstRow, COL.extra2 + 1, n, 1).getValues();
-  var extra3Col = sheet.getRange(firstRow, COL.extra3 + 1, n, 1).getValues();
-  var extra4Col = sheet.getRange(firstRow, COL.extra4 + 1, n, 1).getValues();
+  var dateCol = getValuesRetry_(sheet, firstRow, COL.date + 1, n, 1);
+  var salesCol = getValuesRetry_(sheet, firstRow, COL.sales + 1, n, 1);
+  var extrasCol = getValuesRetry_(sheet, firstRow, COL.extra1 + 1, n, 3); // AK,AL,AM are contiguous
+  var totalCol = getValuesRetry_(sheet, firstRow, COL.total + 1, n, 1);
+  var extra4Col = getValuesRetry_(sheet, firstRow, COL.extra4 + 1, n, 1);
 
   var monthCounts = {}; // sales person -> rows with a move date this month
   var pipelineCounts = {}; // sales person -> rows with a move date in the next 3 months
   var monthRevenue = {}; // sales person -> NET revenue ($) of this month's rows
+  var skipped = 0;
   for (var i = 0; i < n; i++) {
     var date = dateCol[i][0];
     if (!(date instanceof Date) || isNaN(date.getTime())) continue;
@@ -97,14 +129,22 @@ function pushMonthlyTally_(sheet, tz, firstRow, n) {
       // the month (done or upcoming); the deposit is already part of AT.
       var net =
         bookNum_(totalCol[i][0]) -
-        bookNum_(extra1Col[i][0]) -
-        bookNum_(extra2Col[i][0]) -
-        bookNum_(extra3Col[i][0]) -
+        bookNum_(extrasCol[i][0]) -
+        bookNum_(extrasCol[i][1]) -
+        bookNum_(extrasCol[i][2]) -
         bookNum_(extra4Col[i][0]);
+      // Safety floor: a real booking nets $0..a few thousand. Negative/absurd
+      // means junk in a cell (or a drifted column) — count it as $0 so one bad
+      // row can't poison the whole rep's month.
+      if (!(net > 0) || net > MAX_ROW_NET) {
+        net = 0;
+        skipped++;
+      }
       monthRevenue[sales] = (monthRevenue[sales] || 0) + net;
     }
     if (pipeMonths[ym]) pipelineCounts[sales] = (pipelineCounts[sales] || 0) + 1;
   }
+  if (skipped) Logger.log(skipped + " row(s) had a junk/negative net → counted as $0");
   return { month: thisMonth, counts: monthCounts, pipeline: pipelineCounts, revenue: monthRevenue };
 }
 
@@ -125,7 +165,7 @@ function pushBookings() {
   var firstRow = HEADER_ROWS + 1;
   var n = lastRow - HEADER_ROWS;
 
-  // Push the month tally FIRST, off its own narrow read, so the board's
+  // Push the month tally FIRST, off its own narrow reads, so the board's
   // headline numbers land even when the full-width sync below is too slow (or
   // times out outright) on a big sheet.
   var tally = pushMonthlyTally_(sheet, tz, firstRow, n);
@@ -140,15 +180,19 @@ function pushBookings() {
     throw new Error("Monthly ingest failed " + monthlyRes.getResponseCode() + ": " + monthlyRes.getContentText());
   }
 
-  // Recent + upcoming full-detail sync: needs every column, so it's the heavy
-  // read. Isolated so a timeout/error here (a big/slow sheet) can't undo the
-  // monthly push above — the floor's headline numbers stay live even when this
-  // part fails and just retries on the next run.
+  // Recent + upcoming full-detail sync: needs every column up to AT (skipping
+  // the huge AU/AV/AW message columns), so it's the heavy read. Capped to the
+  // most recent SYNC_ROWS rows (bookings synced here are only ever recent +
+  // upcoming anyway) and isolated in its own try/catch so a timeout/error here
+  // can't undo the monthly push above — the floor's headline numbers stay live
+  // even when this part fails and just retries on the next run.
   try {
     var cutoff = new Date();
     cutoff.setHours(0, 0, 0, 0);
     cutoff.setDate(cutoff.getDate() - WINDOW_DAYS);
-    var values = sheet.getRange(firstRow, 1, n, LAST_COL).getValues();
+    var wideCount = Math.min(n, SYNC_ROWS);
+    var wideStart = lastRow - wideCount + 1;
+    var values = getValuesRetry_(sheet, wideStart, 1, wideCount, MAIN_COLS);
 
     var rows = [];
     for (var i = 0; i < values.length; i++) {

@@ -69,11 +69,22 @@ revenue under their name in the `/live` "This month" column. The read range was
 widened to col BB, so re-paste `bookings.gs` and run `pushBookings` once after
 updating.
 
-The month/pipeline/revenue tally is read off its own small set of columns
-(separately from the full-width recent-bookings sync), and pushed first — so
-on a big `Booking` tab where the full sync can time out, the `/live` monthly
-numbers still land instead of going stale. Re-paste `bookings.gs` to pick this
-up.
+**This sheet is big enough that reads time out.** ~3,600+ rows × 54 columns,
+including giant AU/AV/AW confirmation-text columns and volatile formulas — a
+single full-width `getValues()` can throw "Service Spreadsheets timed out."
+`bookings.gs` now: reads the month/pipeline/revenue tally off its own small,
+targeted columns and pushes it FIRST (so it lands even if the full sync
+doesn't); caps the detail sync to the most recent `SYNC_ROWS` rows instead of
+the whole sheet; retries any individual read a couple of times on a timeout;
+and drops a single row's revenue to $0 (rather than poisoning the whole rep's
+month) if it comes out negative or absurdly large. Re-paste `bookings.gs` to
+pick this up.
+
+Note: a hotfix along these lines was previously applied directly to the
+deployed copy (`Desktop/NoLimits-Sheet2-Bookings.gs`, different var names —
+`nlPushBookings`/`NLB_*`) during the 2026-06-29 revenue incident, without
+being folded back into this repo file. This version brings the repo back in
+sync with (and slightly ahead of) that deployed copy — re-paste from here.
 
 ## Leads push (`leads.gs`)
 
