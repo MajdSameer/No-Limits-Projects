@@ -213,6 +213,37 @@ export function audioRunning(): boolean {
   return !!ctx && ctx.state === "running";
 }
 
+/**
+ * A wall TV gets tapped once at setup and never touched again. Browsers can
+ * still auto-suspend an idle AudioContext later (power saving) with nothing
+ * left to resume it — the celebration keeps firing (confetti is independent of
+ * audio) but the gong/cheer silently never reach the speakers again. Resuming
+ * here needs no fresh user gesture: once a context has been unlocked by a real
+ * gesture, browsers allow script-only resume() calls after that. Call once per
+ * screen and keep the returned stop function around for unmount.
+ */
+export function startAudioKeepAlive(intervalMs = 15000): () => void {
+  if (typeof window === "undefined") return () => {};
+  const id = window.setInterval(() => armAudio(), intervalMs);
+  return () => window.clearInterval(id);
+}
+
+/**
+ * Guard for the top of every play* function: resume() is async, so scheduling
+ * oscillator/buffer nodes synchronously right after calling it (against a
+ * still-frozen `currentTime`) can silently drop the sound if the context was
+ * suspended a beat earlier. If not already running, kick off resume() and
+ * retry the whole call once it resolves instead of racing it — cheap since
+ * this only ever happens right after an auto-suspend, not on the hot path.
+ */
+function retryWhenRunning(c: AudioContext, retry: () => void): boolean {
+  if (c.state === "running") return false;
+  void c.resume().then(() => {
+    if (c.state === "running") retry();
+  });
+  return true;
+}
+
 // ── Real recorded crowd cheer (public-domain clip) with a synth fallback ──
 /** Public-domain crowd cheer — "Hurray" by starlite, via Wikimedia Commons. */
 const APPLAUSE_SRC = "/sounds/cheer.ogg";
@@ -245,7 +276,7 @@ export function preloadApplause(): void {
 export function playApplause(volume = 1): void {
   const c = getCtx();
   if (!c) return;
-  if (c.state === "suspended") void c.resume();
+  if (retryWhenRunning(c, () => playApplause(volume))) return;
   if (!applauseBuf) {
     preloadApplause();
     playApplauseSynth(); // not ready yet — don't be silent
@@ -264,7 +295,7 @@ export function playApplause(volume = 1): void {
 export function playGong(volume = 0.55): void {
   const c = getCtx();
   if (!c) return;
-  if (c.state === "suspended") void c.resume();
+  if (retryWhenRunning(c, () => playGong(volume))) return;
   const now = c.currentTime;
 
   const master = c.createGain();
@@ -319,7 +350,7 @@ export function playGong(volume = 0.55): void {
 function playApplauseSynth(volume = 0.7): void {
   const c = getCtx();
   if (!c) return;
-  if (c.state === "suspended") void c.resume();
+  if (retryWhenRunning(c, () => playApplauseSynth(volume))) return;
   const now = c.currentTime;
   const sr = c.sampleRate;
   const DUR = 3.2;
@@ -418,7 +449,7 @@ function playApplauseSynth(volume = 0.7): void {
 export function playDing(volume = 0.65): void {
   const c = getCtx();
   if (!c) return;
-  if (c.state === "suspended") void c.resume();
+  if (retryWhenRunning(c, () => playDing(volume))) return;
   const now = c.currentTime;
 
   const master = c.createGain();
@@ -455,7 +486,7 @@ export function playDing(volume = 0.65): void {
 export function playWhoosh(volume = 0.3): void {
   const c = getCtx();
   if (!c) return;
-  if (c.state === "suspended") void c.resume();
+  if (retryWhenRunning(c, () => playWhoosh(volume))) return;
   const now = c.currentTime;
   const dur = 0.5;
 
@@ -495,7 +526,7 @@ export function playWhoosh(volume = 0.3): void {
 export function playChaChing(volume = 0.55): void {
   const c = getCtx();
   if (!c) return;
-  if (c.state === "suspended") void c.resume();
+  if (retryWhenRunning(c, () => playChaChing(volume))) return;
   const now = c.currentTime;
 
   const master = c.createGain();
@@ -556,7 +587,7 @@ export function playChaChing(volume = 0.55): void {
 export function playFanfare(volume = 0.45): void {
   const c = getCtx();
   if (!c) return;
-  if (c.state === "suspended") void c.resume();
+  if (retryWhenRunning(c, () => playFanfare(volume))) return;
   const now = c.currentTime;
 
   const master = c.createGain();

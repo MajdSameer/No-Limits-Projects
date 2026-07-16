@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
-import { armAudio } from "../lib/celebrate";
+import { armAudio, startAudioKeepAlive } from "../lib/celebrate";
 import { BookingCelebration } from "./BookingCelebration";
 import { DailyCell } from "./DailyCell";
 import { useLiveRefresh } from "../lib/live";
@@ -120,13 +120,18 @@ export function Board({
   const inFlight = useRef(false);
 
   // Enable the gong after the first interaction (browser autoplay policy).
+  // Nothing clicks again after that on an unattended board, so also keep
+  // re-arming on a timer — a browser that auto-suspends an idle context for
+  // power saving would otherwise silence every celebration after the first.
   useEffect(() => {
     const arm = () => armAudio();
     window.addEventListener("pointerdown", arm, { once: true });
     window.addEventListener("keydown", arm, { once: true });
+    const stopKeepAlive = startAudioKeepAlive();
     return () => {
       window.removeEventListener("pointerdown", arm);
       window.removeEventListener("keydown", arm);
+      stopKeepAlive();
     };
   }, []);
 

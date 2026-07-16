@@ -7,7 +7,7 @@ import { cx } from "@nlr/ui";
 
 import type { BoardsDTO } from "./Board";
 import { BookingCelebration } from "./BookingCelebration";
-import { armAudio } from "../lib/celebrate";
+import { armAudio, startAudioKeepAlive } from "../lib/celebrate";
 import { useLiveRefresh } from "../lib/live";
 import { SYDNEY_TZ, sydneyToday } from "../lib/sydney";
 
@@ -30,13 +30,18 @@ export function TvBoard({ initial }: { initial: BoardsDTO }) {
   const inFlight = useRef(false);
 
   // Enable the gong after any interaction (TV may need one click to unmute).
+  // Nothing clicks again after that on an unattended TV, so also keep
+  // re-arming on a timer — a browser that auto-suspends an idle context for
+  // power saving would otherwise silence every celebration after the first.
   useEffect(() => {
     const arm = () => armAudio();
     window.addEventListener("pointerdown", arm, { once: true });
     window.addEventListener("keydown", arm, { once: true });
+    const stopKeepAlive = startAudioKeepAlive();
     return () => {
       window.removeEventListener("pointerdown", arm);
       window.removeEventListener("keydown", arm);
+      stopKeepAlive();
     };
   }, []);
 

@@ -809,10 +809,15 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     window.addEventListener("pointerdown", arm);
     window.addEventListener("keydown", arm);
     document.addEventListener("visibilitychange", sync);
+    // A wall TV never gets a second click — if the browser auto-suspends an
+    // idle context for power saving, nothing above would ever fire again.
+    // Keep re-arming (and re-checking the banner) on a timer too.
+    const keepAliveId = window.setInterval(arm, 15000);
     return () => {
       window.removeEventListener("pointerdown", arm);
       window.removeEventListener("keydown", arm);
       document.removeEventListener("visibilitychange", sync);
+      window.clearInterval(keepAliveId);
     };
   }, [startMusic]);
 
