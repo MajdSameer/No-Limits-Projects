@@ -205,29 +205,18 @@ export function BookingCelebration({
     >
       <div aria-hidden className={cx("nl-glow pointer-events-none absolute inset-0", theme.glow)} />
       {isGoal && !reducedMotion() && (
-        <>
-          <div
-            aria-hidden
-            className="gd-goal-flash pointer-events-none absolute inset-0 z-10"
-            style={{
-              background: `radial-gradient(circle at 50% 45%, rgba(${goalTeam ? GOAL_TEAM[goalTeam].rgb : "255, 212, 46"}, 0.55), transparent 70%)`,
-            }}
-          />
-          <p
-            aria-hidden
-            className="gd-goal-sweep font-display pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 text-center leading-none font-black uppercase [font-size:clamp(5rem,24vw,20rem)]"
-            style={{
-              color: goalTeam === "orange" ? "#ffc400" : goalTeam === "blue" ? "#75aadb" : "#ffd42e",
-              WebkitTextStroke: goalTeam === "orange" ? "3px #c60b1e" : goalTeam === "blue" ? "3px #ffffff" : undefined,
-            }}
-          >
-            GOOOOAL
-          </p>
-        </>
+        <div
+          aria-hidden
+          className="gd-goal-flash pointer-events-none absolute inset-0 z-10"
+          style={{
+            background: `radial-gradient(circle at 50% 45%, rgba(${goalTeam ? GOAL_TEAM[goalTeam].rgb : "255, 212, 46"}, 0.55), transparent 70%)`,
+          }}
+        />
       )}
       <p
         className={cx(
-          "nl-pop relative font-mono text-sm font-bold tracking-[0.45em] uppercase sm:text-lg",
+          "nl-pop relative font-mono font-bold tracking-[0.45em] uppercase",
+          isGoal ? "text-xl sm:text-3xl" : "text-sm sm:text-lg",
           theme.labelColor,
         )}
       >
@@ -249,6 +238,20 @@ export function BookingCelebration({
       {isInspector && pop.forRep && (
         <p className="nl-rise relative font-display text-2xl font-bold text-white/80 sm:text-3xl">
           for <span className="text-green-300">{pop.forRep}</span>
+        </p>
+      )}
+      {/* GOOOOAL sweep plays in its own space BELOW the name/code — never
+          overlapping them — so both stay readable the whole time it plays. */}
+      {isGoal && !reducedMotion() && (
+        <p
+          aria-hidden
+          className="gd-goal-sweep font-display pointer-events-none relative w-full text-center leading-none font-black uppercase [font-size:clamp(5rem,24vw,20rem)]"
+          style={{
+            color: goalTeam === "orange" ? "#ffc400" : goalTeam === "blue" ? "#75aadb" : "#ffd42e",
+            WebkitTextStroke: goalTeam === "orange" ? "3px #c60b1e" : goalTeam === "blue" ? "3px #ffffff" : undefined,
+          }}
+        >
+          GOOOOAL
         </p>
       )}
     </div>
