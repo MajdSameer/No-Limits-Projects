@@ -1126,13 +1126,6 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           sibling negative-z-index context) — regardless of the pattern's
           opacity or color. z-0 forces <main> to own its stacking order so
           its background paints first, as intended. */}
-      {/* Football-pitch texture — halfway line + centre circle, ~12% white so
-          it reads as background texture without competing with any card,
-          number, or bar. */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center">
-        <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-white/[0.12]" />
-        <div className="aspect-square h-[38vh] rounded-full border-2 border-white/[0.12]" />
-      </div>
 
       {/* Bookings gong + celebrate (team members only on the board), and site
           inspections still pop their green celebration + gong — inspectors just
@@ -1372,7 +1365,18 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           </section>
 
           {/* ── Team rosters fill the rest of the wall ── */}
-          <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
+          <div className="relative z-0 grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
+            {/* Football-pitch texture, scoped to the roster grid (not the
+                whole screen) so it lands at the boundary between the first
+                and second row of player cards. z-0 above is load-bearing —
+                same trap as <main>: without it, this -z-10 child would
+                escape to the root stacking context and this div's (implicit,
+                transparent) background wouldn't be the issue, but any solid
+                ancestor between here and the root could paint over it. */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+              <div className="absolute inset-x-0 top-[25%] h-0.5 -translate-y-1/2 bg-white/[0.12]" />
+              <div className="absolute top-[25%] left-1/2 aspect-square h-[34vh] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/[0.12]" />
+            </div>
             <TeamColumn
               side="orange"
               reps={orange}
