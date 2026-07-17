@@ -1117,13 +1117,21 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const introCard = intro?.phase === "roster" ? roster[intro.idx] : undefined;
 
   return (
-    <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
-      {/* TEMP DIAGNOSTIC — same shape/position as the real pitch texture, just
-          cranked to 40% bright cyan so it's unmissable if any of it is exposed
-          at all. Revert to the restrained white/10 version once confirmed. */}
+    <main className="relative z-0 flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
+      {/* z-0 above is load-bearing: `relative` alone doesn't create a
+          stacking context, so without an explicit z-index the pitch
+          pattern's -z-10 child below gets promoted to the page's ROOT
+          stacking context and THIS element's own bg-black paints over it
+          unconditionally (a z-index:auto positioned box paints above a
+          sibling negative-z-index context) — regardless of the pattern's
+          opacity or color. z-0 forces <main> to own its stacking order so
+          its background paints first, as intended. */}
+      {/* Football-pitch texture — halfway line + centre circle, ~12% white so
+          it reads as background texture without competing with any card,
+          number, or bar. */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center">
-        <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-cyan-400/40" />
-        <div className="aspect-square h-[38vh] rounded-full border-2 border-cyan-400/40" />
+        <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-white/[0.12]" />
+        <div className="aspect-square h-[38vh] rounded-full border-2 border-white/[0.12]" />
       </div>
 
       {/* Bookings gong + celebrate (team members only on the board), and site
