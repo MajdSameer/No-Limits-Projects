@@ -1118,13 +1118,14 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
 
   return (
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
-      {/* Faint football-pitch texture — halfway line + centre circle, ~5% white
-          so it reads as atmosphere, never competes with any card, number, or
-          bar. First child + negative z so it sits behind literally everything,
-          including the standby screen. */}
+      {/* Football-pitch texture — halfway line + centre circle, ~10% white so
+          it actually reads as background texture from across a room, thicker
+          lines for the same reason, still never competing with any card,
+          number, or bar. First child + negative z so it sits behind literally
+          everything, including the standby screen. */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center">
-        <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/5" />
-        <div className="aspect-square h-[38vh] rounded-full border border-white/5" />
+        <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-white/10" />
+        <div className="aspect-square h-[38vh] rounded-full border-2 border-white/10" />
       </div>
 
       {/* Bookings gong + celebrate (team members only on the board), and site
