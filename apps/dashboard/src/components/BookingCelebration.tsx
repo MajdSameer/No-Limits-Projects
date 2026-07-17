@@ -33,6 +33,29 @@ const BURST = ["#ffd42e", "#fff389", "#f472b6", "#38bdf8", "#f4f1e8"];
 // Site-inspection celebrations get a neon-green burst to match their boxes.
 const INSPECTOR_BURST = ["#4ade80", "#22c55e", "#86efac", "#bbf7d0", "#f4f1e8"];
 
+// Game Day goal celebrations — mirrors GameDayWall's Spain/Argentina palette so
+// the confetti and glow match the scoring rep's team.
+const GOAL_TEAM = {
+  orange: {
+    rgb: "198, 11, 30",
+    burst: ["#c60b1e", "#ffc400", "#ff5468", "#fff7d6"],
+    text: "text-[#ffc400]",
+    border: "border-[#c60b1e]/70",
+    shadow: "shadow-[0_0_40px_-8px_rgba(198,11,30,0.5)]",
+    small: "text-[#ffe3ad]/90",
+    big: "text-[#ffc400]",
+  },
+  blue: {
+    rgb: "117, 170, 219",
+    burst: ["#75aadb", "#ffffff", "#9cc4e4", "#eef7ff"],
+    text: "text-[#75aadb]",
+    border: "border-[#75aadb]/70",
+    shadow: "shadow-[0_0_40px_-8px_rgba(117,170,219,0.5)]",
+    small: "text-[#bfe0ff]/90",
+    big: "text-[#9cc4e4]",
+  },
+};
+
 function reducedMotion(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -43,9 +66,14 @@ function reducedMotion(): boolean {
 export function BookingCelebration({
   daily,
   inspectors,
+  gameDay = false,
 }: {
   daily: DailyCountRow[];
   inspectors?: InspectorRowDTO[];
+  /** Game Day only: swaps the "new booking" beat for a goal celebration
+   * (net-flash + "GOOOOAL" sweep, team-coloured confetti). Everywhere else
+   * (outside Game Day) the gong, timing, and visuals are unchanged. */
+  gameDay?: boolean;
 }) {
   const state = useRef(createCelebrateState());
   const seeded = useRef(false);
@@ -94,7 +122,11 @@ export function BookingCelebration({
     setActive({ pop: next, out: false });
     playGong();
     if (!reducedMotion()) {
-      const colors = next.kind === "inspector" ? INSPECTOR_BURST : BURST;
+      const goalTeam =
+        gameDay && next.kind !== "inspector" && (next.team === "orange" || next.team === "blue")
+          ? next.team
+          : null;
+      const colors = next.kind === "inspector" ? INSPECTOR_BURST : goalTeam ? GOAL_TEAM[goalTeam].burst : BURST;
       confetti({ particleCount: 160, spread: 110, startVelocity: 45, origin: { y: 0.5 }, colors });
       timers.current.push(
         window.setTimeout(
@@ -123,17 +155,44 @@ export function BookingCelebration({
   if (!active) return null;
   const { pop, out } = active;
   const isInspector = pop.kind === "inspector";
+  // Game Day: swap the "new booking" moment for a goal beat, recoloured to the
+  // scoring rep's team. Untouched outside Game Day and for site inspections.
+  const isGoal = gameDay && !isInspector;
+  const goalTeam = isGoal && (pop.team === "orange" || pop.team === "blue") ? pop.team : null;
+  const codeTheme = isInspector
+    ? {
+        border: "border-green-400/70",
+        shadow: "shadow-[0_0_40px_-8px_rgba(74,222,128,0.5)]",
+        small: "text-green-200/80",
+        big: "text-green-200",
+      }
+    : goalTeam
+      ? GOAL_TEAM[goalTeam]
+      : {
+          border: "border-accent-400/70",
+          shadow: "shadow-[0_0_40px_-8px_rgba(255,212,46,0.5)]",
+          small: "text-accent-200/80",
+          big: "text-accent-300",
+        };
   const theme = isInspector
     ? {
         glow: "[background:radial-gradient(60%_60%_at_50%_45%,rgba(74,222,128,0.24),transparent_70%)]",
         label: "Site inspection",
         labelColor: "text-green-300",
       }
-    : {
-        glow: "[background:radial-gradient(60%_60%_at_50%_45%,rgba(255,212,46,0.22),transparent_70%)]",
-        label: "New booking",
-        labelColor: "text-accent-400",
-      };
+    : isGoal
+      ? {
+          glow: goalTeam
+            ? `[background:radial-gradient(60%_60%_at_50%_45%,rgba(${GOAL_TEAM[goalTeam].rgb},0.24),transparent_70%)]`
+            : "[background:radial-gradient(60%_60%_at_50%_45%,rgba(255,212,46,0.22),transparent_70%)]",
+          label: "Goal!",
+          labelColor: goalTeam ? GOAL_TEAM[goalTeam].text : "text-accent-400",
+        }
+      : {
+          glow: "[background:radial-gradient(60%_60%_at_50%_45%,rgba(255,212,46,0.22),transparent_70%)]",
+          label: "New booking",
+          labelColor: "text-accent-400",
+        };
 
   return (
     <div
@@ -145,6 +204,27 @@ export function BookingCelebration({
       )}
     >
       <div aria-hidden className={cx("nl-glow pointer-events-none absolute inset-0", theme.glow)} />
+      {isGoal && !reducedMotion() && (
+        <>
+          <div
+            aria-hidden
+            className="gd-goal-flash pointer-events-none absolute inset-0 z-10"
+            style={{
+              background: `radial-gradient(circle at 50% 45%, rgba(${goalTeam ? GOAL_TEAM[goalTeam].rgb : "255, 212, 46"}, 0.55), transparent 70%)`,
+            }}
+          />
+          <p
+            aria-hidden
+            className="gd-goal-sweep font-display pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 text-center leading-none font-black uppercase [font-size:clamp(3.5rem,16vw,13rem)]"
+            style={{
+              color: goalTeam === "orange" ? "#ffc400" : goalTeam === "blue" ? "#75aadb" : "#ffd42e",
+              WebkitTextStroke: goalTeam === "orange" ? "3px #c60b1e" : goalTeam === "blue" ? "3px #ffffff" : undefined,
+            }}
+          >
+            GOOOOAL
+          </p>
+        </>
+      )}
       <p
         className={cx(
           "nl-pop relative font-mono text-sm font-bold tracking-[0.45em] uppercase sm:text-lg",
@@ -157,28 +237,11 @@ export function BookingCelebration({
         {pop.name}
       </p>
       {pop.code && (
-        <div
-          className={cx(
-            "nl-rise relative rounded-2xl border-2 bg-black/40 px-7 py-3",
-            isInspector
-              ? "border-green-400/70 shadow-[0_0_40px_-8px_rgba(74,222,128,0.5)]"
-              : "border-accent-400/70 shadow-[0_0_40px_-8px_rgba(255,212,46,0.5)]",
-          )}
-        >
-          <span
-            className={cx(
-              "block font-mono text-[0.6rem] tracking-[0.35em] uppercase sm:text-xs",
-              isInspector ? "text-green-200/80" : "text-accent-200/80",
-            )}
-          >
+        <div className={cx("nl-rise relative rounded-2xl border-2 bg-black/40 px-7 py-3", codeTheme.border, codeTheme.shadow)}>
+          <span className={cx("block font-mono text-[0.6rem] tracking-[0.35em] uppercase sm:text-xs", codeTheme.small)}>
             MovePro
           </span>
-          <span
-            className={cx(
-              "font-mono font-bold tracking-[0.25em] [font-size:clamp(1.3rem,4.5vw,2.6rem)]",
-              isInspector ? "text-green-200" : "text-accent-300",
-            )}
-          >
+          <span className={cx("font-mono font-bold tracking-[0.25em] [font-size:clamp(1.3rem,4.5vw,2.6rem)]", codeTheme.big)}>
             #{pop.code}
           </span>
         </div>
