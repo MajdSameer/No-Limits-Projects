@@ -21,8 +21,8 @@ import { useLiveRefresh } from "../lib/live";
 import { tierProgress } from "../lib/tiers";
 
 /**
- * Full-screen DARK "Game Day" wall board for /live/game-day — a 7-v-8 Orange vs
- * Blue battle. Opens with a hype CEREMONY: a slam-in title, then every rostered
+ * Full-screen DARK "Game Day" wall board for /live/game-day — a 7-v-8 Spain vs
+ * Argentina World Cup Final battle. Opens with a hype CEREMONY: a slam-in title, then every rostered
  * rep is introduced one-by-one (name rises in, with a soft whoosh — or a
  * cha-ching + money splash for the big earners, or a fanfare + shout-out for the
  * Tier 3 club), then "LET THE GAMES BEGIN" with a triple ding and crowd cheer,
@@ -50,6 +50,7 @@ const FACT_HOLD_MS = 9000; // how long each fact banner stays up
 const GAME_END_HOUR = 19;
 const SYDNEY_TZ = "Australia/Sydney";
 const URGENT_S = 30 * 60; // countdown turns red inside the last 30 min
+const STOPPAGE_S = 5 * 60; // "stoppage time" — faster pulse inside the last 5 min
 
 // Ceremony timing (ms).
 const TITLE_MS = 3500; // opening "GAME DAY" slam
@@ -69,6 +70,9 @@ const TEAM: Record<
     label: string;
     emoji: string;
     rgb: string; // "r, g, b" for building rgba() glows/auras
+    wash: number; // opacity of the always-on panel background wash (tuned per team for contrast)
+    washBase?: string; // solid backdrop colour under the wash, for teams whose wash needs a saturated anchor
+    leaderRgb?: string; // "r, g, b" override for the team-leader glow/ring, when brighter than the base rgb
     fire: { core: string; mid: string; edge: string };
     box: string;
     name: string;
@@ -79,28 +83,38 @@ const TEAM: Record<
   }
 > = {
   orange: {
-    label: "Orange",
-    emoji: "🟠",
-    rgb: "249, 115, 22",
-    fire: { core: "#fff3d6", mid: "#ff9d2e", edge: "#ff4d1f" },
-    box: "border-orange-500/70 bg-orange-500/10",
-    name: "text-orange-200",
-    num: "text-orange-300",
-    heading: "text-orange-400",
-    barFrom: "from-orange-400",
-    barTo: "to-orange-600",
+    // Spain — red & gold.
+    label: "Spain",
+    emoji: "🇪🇸",
+    rgb: "198, 11, 30",
+    wash: 0.1,
+    fire: { core: "#fff7d6", mid: "#ffc400", edge: "#c60b1e" },
+    box: "border-[#c60b1e]/70 bg-[#c60b1e]/10",
+    name: "text-[#ffe3ad]",
+    num: "text-[#ffc400]",
+    heading: "text-[#ff5468]",
+    barFrom: "from-[#c60b1e]",
+    barTo: "to-[#ffc400]",
   },
   blue: {
-    label: "Blue",
-    emoji: "🔵",
-    rgb: "34, 211, 238",
-    fire: { core: "#e8ffff", mid: "#54e6ff", edge: "#2f7dff" },
-    box: "border-cyan-400/70 bg-cyan-400/10",
-    name: "text-cyan-100",
-    num: "text-cyan-200",
-    heading: "text-cyan-300",
-    barFrom: "from-cyan-300",
-    barTo: "to-cyan-500",
+    // Argentina — celeste & white. Wash sits on a navy backdrop (not bare
+    // black) so the blue has something saturated to pop against, mirroring
+    // how Spain's dark red base makes its gold glow read — and the number/
+    // leader-glow tint is a brighter sky blue so this side doesn't read flat
+    // next to Spain's red/gold.
+    label: "Argentina",
+    emoji: "🇦🇷",
+    rgb: "117, 170, 219",
+    wash: 0.16,
+    washBase: "#0a1929",
+    leaderRgb: "79, 195, 247",
+    fire: { core: "#eef7ff", mid: "#75aadb", edge: "#1f4a73" },
+    box: "border-[#75aadb]/70 bg-[#75aadb]/10",
+    name: "text-white",
+    num: "text-[#4fc3f7]",
+    heading: "text-[#75aadb]",
+    barFrom: "from-[#75aadb]",
+    barTo: "to-white",
   },
 };
 
@@ -260,48 +274,88 @@ function Flames({ side, heat }: { side: Side; heat: number }) {
   );
 }
 
-/** Live countdown to the 7 PM final whistle — the time left to swing the score. */
+/** Live countdown to the 7 PM final whistle — the time left to swing the score.
+ * Turns urgent (red) inside the last 30 min, then escalates to a faster
+ * "stoppage time" pulse inside the last 5 — with a one-off "Added time" flash
+ * the moment it first crosses into that final stretch. Nothing here is
+ * latched: every style is recomputed straight off `secs` each render, so if
+ * the clock ever climbs back above a threshold it reverts immediately. */
 function Countdown({ secs }: { secs: number | null }) {
+  const [showAdded, setShowAdded] = useState(false);
+  const wasStoppage = useRef(false);
+  const addedTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (secs === null) return;
+    const isStoppage = secs > 0 && secs <= STOPPAGE_S;
+    if (isStoppage && !wasStoppage.current) {
+      setShowAdded(true);
+      if (addedTimer.current) window.clearTimeout(addedTimer.current);
+      addedTimer.current = window.setTimeout(() => setShowAdded(false), 4000);
+    }
+    wasStoppage.current = isStoppage;
+  }, [secs]);
+
+  useEffect(
+    () => () => {
+      if (addedTimer.current) window.clearTimeout(addedTimer.current);
+    },
+    [],
+  );
+
   if (secs === null) return null; // computed in the parent; render only after mount
 
   const over = secs <= 0;
   const urgent = !over && secs <= URGENT_S;
+  const stoppage = !over && secs <= STOPPAGE_S;
   const hh = Math.floor(secs / 3600);
   const mm = Math.floor((secs % 3600) / 60);
   const ss = secs % 60;
   return (
-    <div
-      className={cx(
-        "flex items-center gap-2.5 rounded-full border px-4 py-1.5",
-        over
-          ? "border-white/15 bg-white/[0.04]"
-          : urgent
-            ? "border-red-400/60 bg-red-500/10"
-            : "border-accent-400/40 bg-white/[0.04]",
+    <div className="relative">
+      {showAdded && (
+        <p className="gd-fact absolute -top-8 left-1/2 -translate-x-1/2 rounded-full border border-red-400/60 bg-red-950/90 px-3 py-1 text-[0.65rem] font-black tracking-[0.2em] whitespace-nowrap text-red-200 uppercase shadow-lg">
+          ⏱️ Added time
+        </p>
       )}
-    >
-      <span className={cx("text-xl", urgent && "animate-pulse")} aria-hidden>
-        {over ? "🏁" : "⏳"}
-      </span>
-      {over ? (
-        <span className="font-display text-lg font-black tracking-wide text-white/70 uppercase">
-          Full time
+      <div
+        className={cx(
+          "flex items-center gap-2.5 rounded-full border px-4 py-1.5",
+          over
+            ? "border-white/15 bg-white/[0.04]"
+            : stoppage
+              ? "gd-stoppage-pulse border-red-500 bg-red-600/20"
+              : urgent
+                ? "border-red-400/60 bg-red-500/10"
+                : "border-accent-400/40 bg-white/[0.04]",
+        )}
+      >
+        <span
+          className={cx("text-xl", stoppage ? "gd-stoppage-blink" : urgent && "animate-pulse")}
+          aria-hidden
+        >
+          {over ? "🏁" : "⏳"}
         </span>
-      ) : (
-        <span className="flex items-baseline gap-2">
-          <span
-            className={cx(
-              "font-display text-2xl font-black tabular-nums sm:text-3xl",
-              urgent ? "text-red-300" : "text-white",
-            )}
-          >
-            {hh}:{String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
+        {over ? (
+          <span className="font-display text-lg font-black tracking-wide text-white/70 uppercase">
+            Full time
           </span>
-          <span className="text-[0.65rem] font-semibold tracking-wider text-white/45 uppercase">
-            left · ends 7 PM
+        ) : (
+          <span className="flex items-baseline gap-2">
+            <span
+              className={cx(
+                "font-display text-2xl font-black tabular-nums sm:text-3xl",
+                urgent ? "text-red-300" : "text-white",
+              )}
+            >
+              {hh}:{String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
+            </span>
+            <span className="text-[0.65rem] font-semibold tracking-wider text-white/45 uppercase">
+              left · ends 7 PM
+            </span>
           </span>
-        </span>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -471,36 +525,70 @@ function RosterIntroCard({ card, index, total }: { card: RosterCard; index: numb
 /** One player's box on the board — name + today's count. The day's top scorer
  * gets a gold crown pill, and the manager-picked top-revenue-job winner gets an
  * amber money pill (both stack if it's the same rep), each with a matching ring
- * and glow. */
+ * and glow — both breathe with a slow pulse. Whoever leads their OWN team gets a
+ * quieter version of the same ring/glow treatment (no pill — that's reserved for
+ * the real prizes), so both sides read as "alive" even when the floor-wide crown
+ * sits with the other team. */
 function PlayerBox({
   r,
   side,
   isTop,
   isTopJob,
+  isTeamLeader,
 }: {
   r: BoardRowDTO;
   side: Side;
   isTop: boolean;
   isTopJob: boolean;
+  isTeamLeader: boolean;
 }) {
   const t = TEAM[side];
   const highlight = isTop || isTopJob;
+  // The team-leader glow/ring can be brighter than the team's base rgb (e.g.
+  // Argentina's celeste needs a punchier tint here than its ambient box glow).
+  const leaderRgb = t.leaderRgb ?? t.rgb;
+  const glowVars = isTop
+    ? {
+        ["--glow-lo" as string]: "0 0 22px -3px rgba(255, 212, 46, 0.6)",
+        ["--glow-hi" as string]: "0 0 34px -2px rgba(255, 212, 46, 1)",
+      }
+    : isTopJob
+      ? {
+          ["--glow-lo" as string]: "0 0 22px -3px rgba(251, 191, 36, 0.6)",
+          ["--glow-hi" as string]: "0 0 34px -2px rgba(251, 191, 36, 1)",
+        }
+      : isTeamLeader
+        ? {
+            ["--glow-lo" as string]: `0 0 16px -3px rgba(${leaderRgb}, 0.5)`,
+            ["--glow-hi" as string]: `0 0 26px -2px rgba(${leaderRgb}, 0.9)`,
+          }
+        : undefined;
   return (
     <li
       className={cx(
         "relative flex min-h-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 px-2 py-2 text-center",
         t.box,
-        isTop && "border-accent-400 ring-2 ring-accent-400/70",
-        !isTop && isTopJob && "border-amber-400 ring-2 ring-amber-400/70",
+        isTop && "gd-glow-pulse border-accent-400 ring-2 ring-accent-400/70",
+        !isTop && isTopJob && "gd-glow-pulse border-amber-400 ring-2 ring-amber-400/70",
+        !isTop &&
+          !isTopJob &&
+          isTeamLeader &&
+          `gd-glow-pulse ring-2 ring-[rgba(${leaderRgb.replace(/\s+/g, "")},0.6)]`,
       )}
       // Fluorescent tube glow: gold for the top scorer, amber for the top-revenue
-      // job winner, otherwise the team colour.
+      // job winner, a quieter team-coloured ring for the team's own leader,
+      // otherwise the plain team colour. The --glow-lo/--glow-hi vars feed the
+      // gentle breathing pulse in globals.css (falls back to this static value
+      // under prefers-reduced-motion since the animation is disabled there).
       style={{
         boxShadow: isTop
           ? `0 0 26px -3px rgba(255, 212, 46, 0.85)`
           : isTopJob
             ? `0 0 26px -3px rgba(251, 191, 36, 0.85)`
-            : `0 0 14px 0 rgba(${t.rgb}, 0.55)`,
+            : isTeamLeader
+              ? `0 0 20px -3px rgba(${leaderRgb}, 0.75)`
+              : `0 0 14px 0 rgba(${t.rgb}, 0.55)`,
+        ...glowVars,
       }}
     >
       {highlight && (
@@ -558,8 +646,24 @@ function TeamColumn({
 }) {
   const t = TEAM[side];
   const sorted = [...reps].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  // This team's own leading rep (ties all share it) — separate from the
+  // floor-wide top-scorer crown, so a team without the crown still has a
+  // highlighted "in-form" rep instead of a flat, all-equal grid.
+  const maxTeamCount = sorted[0]?.count ?? 0;
   return (
     <section className="relative flex min-h-0 flex-col">
+      {/* Subtle always-on team-colour wash behind the panel, kept faint so names
+          and numbers on the opaque player boxes stay easy to read. Teams with a
+          `washBase` sit on a saturated solid backdrop instead of bare black, so
+          the wash has something to pop against rather than reading muddy. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-20 rounded-[2rem]"
+        style={{
+          backgroundColor: t.washBase,
+          backgroundImage: `linear-gradient(160deg, rgba(${t.rgb}, ${t.wash}), transparent 60%)`,
+        }}
+      />
       {/* Aura behind the leading team — bigger + brighter the further ahead. */}
       {isLeader && heat > 0 && (
         <div
@@ -595,6 +699,7 @@ function TeamColumn({
               side={side}
               isTop={topIds.has(r.staffId)}
               isTopJob={r.staffId === topJobId}
+              isTeamLeader={maxTeamCount > 0 && r.count === maxTeamCount}
             />
           ))}
         </ul>
@@ -626,14 +731,18 @@ function ScorePlate({
           className={cx(
             "relative z-10 grid size-28 place-items-center rounded-3xl border-2 sm:size-36",
             t.box,
+            isLeader && heat > 0 && "gd-glow-pulse",
           )}
           style={
             isLeader && heat > 0
               ? {
                   // Opaque while on fire so flames frame the box but never wash
-                  // over the number.
+                  // over the number. Breathes gently via --glow-lo/--glow-hi
+                  // (globals.css) instead of sitting at a fixed intensity.
                   backgroundColor: "#0a0d16",
                   boxShadow: `0 0 ${blur}px ${spread}px rgba(${t.rgb}, 0.8)`,
+                  ["--glow-lo" as string]: `0 0 ${blur}px ${spread}px rgba(${t.rgb}, 0.55)`,
+                  ["--glow-hi" as string]: `0 0 ${Math.round(blur * 1.3)}px ${spread - 4}px rgba(${t.rgb}, 1)`,
                 }
               : undefined
           }
@@ -665,8 +774,11 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const [intro, setIntro] = useState<IntroState | null>(null);
   const [secsLeft, setSecsLeft] = useState<number | null>(null);
   const [fact, setFact] = useState<string | null>(null);
+  const [proximity, setProximity] = useState<Side | null>(null);
   const inFlight = useRef(false);
   const prevLeader = useRef<Side | null>(null);
+  const prevMargin = useRef<number | undefined>(undefined);
+  const proximityTimer = useRef<number | null>(null);
   const wasOn = useRef(initial.gameDay);
   const firstRun = useRef(true);
   const prevSecs = useRef<number | null>(null);
@@ -714,7 +826,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   }, [secsLeft, on]);
 
   // Every so often, flash up an attention-grabbing fact about the scoreboard
-  // ("X is carrying Orange right now…"), with a fanfare + a little confetti.
+  // ("X is carrying Spain right now…"), with a fanfare + a little confetti.
   useEffect(() => {
     if (!on) return;
     const fire = () => {
@@ -734,7 +846,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           spread: 75,
           startVelocity: 40,
           origin: { y: 0.15 },
-          colors: ["#ffd42e", "#fff389", "#fb923c", "#22d3ee"],
+          colors: ["#ffd42e", "#fff389", "#c60b1e", "#75aadb"],
         });
       }
       factTimer.current = window.setTimeout(() => setFact(null), FACT_HOLD_MS);
@@ -965,11 +1077,34 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
         particleCount: 150,
         spread: 100,
         origin: { y: 0.4 },
-        colors: leader === "orange" ? ["#fb923c", "#fdba74", "#f97316"] : ["#22d3ee", "#67e8f9", "#06b6d4"],
+        colors: leader === "orange" ? ["#c60b1e", "#ffc400", "#e8434f"] : ["#75aadb", "#ffffff", "#a9cdec"],
       });
     }
     prevLeader.current = leader;
   }, [leader, on]);
+
+  // Proximity alert: flash a banner the MOMENT the gap closes to exactly one
+  // booking — not on every poll while it happens to sit at one, and not on
+  // first load (prevMargin starts undefined so a page freshly opened mid-gap
+  // stays quiet).
+  useEffect(() => {
+    const prev = prevMargin.current;
+    prevMargin.current = margin;
+    if (!on || !leader) return;
+    if (prev !== undefined && prev !== 1 && margin === 1) {
+      const trailing: Side = leader === "orange" ? "blue" : "orange";
+      setProximity(trailing);
+      if (proximityTimer.current) window.clearTimeout(proximityTimer.current);
+      proximityTimer.current = window.setTimeout(() => setProximity(null), 4500);
+    }
+  }, [margin, leader, on]);
+
+  useEffect(
+    () => () => {
+      if (proximityTimer.current) window.clearTimeout(proximityTimer.current);
+    },
+    [],
+  );
 
   const leadLine =
     leader === null
@@ -985,8 +1120,9 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
       {/* Bookings gong + celebrate (team members only on the board), and site
           inspections still pop their green celebration + gong — inspectors just
-          don't get a box on the game-day leaderboard. */}
-      <BookingCelebration daily={teamed} inspectors={inspectors} />
+          don't get a box on the game-day leaderboard. `gameDay` swaps the "new
+          booking" beat for a goal celebration only while the battle is on. */}
+      <BookingCelebration daily={teamed} inspectors={inspectors} gameDay={on} />
 
       {/* Roll-call background music (World Cup theme). Hidden; driven by the ceremony. */}
       <audio ref={musicRef} src={MUSIC_SRC} preload="auto" className="hidden" aria-hidden />
@@ -1031,12 +1167,22 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                   Game Day
                 </h1>
                 <div className="mt-6 flex items-center gap-5 sm:gap-8">
-                  <span className="gd-charge-left font-display text-4xl font-black text-orange-400 uppercase sm:text-6xl">
-                    🟠 Orange
+                  <span
+                    className={cx(
+                      "gd-charge-left font-display text-4xl font-black uppercase sm:text-6xl",
+                      TEAM.orange.heading,
+                    )}
+                  >
+                    {TEAM.orange.emoji} Spain
                   </span>
                   <span className="font-display text-2xl font-black text-white/50 sm:text-4xl">VS</span>
-                  <span className="gd-charge-right font-display text-4xl font-black text-cyan-300 uppercase sm:text-6xl">
-                    Blue 🔵
+                  <span
+                    className={cx(
+                      "gd-charge-right font-display text-4xl font-black uppercase sm:text-6xl",
+                      TEAM.blue.heading,
+                    )}
+                  >
+                    Argentina {TEAM.blue.emoji}
                   </span>
                 </div>
                 <p className="mt-8 max-w-3xl text-base font-semibold text-white/70 gd-fade-up sm:text-xl">
@@ -1074,7 +1220,8 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                   Let the games begin
                 </h1>
                 <p className="mt-6 text-2xl font-black text-white/80 sm:text-3xl">
-                  🟠 Orange <span className="text-white/40">vs</span> Blue 🔵 — go go go!
+                  {TEAM.orange.emoji} Spain <span className="text-white/40">vs</span> Argentina{" "}
+                  {TEAM.blue.emoji} — go go go!
                 </p>
               </div>
             )}
@@ -1126,7 +1273,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                 Game Day
               </h1>
               <span className="font-display text-2xl font-black tracking-wide text-white/30 uppercase sm:text-3xl">
-                Orange vs Blue
+                Spain vs Argentina
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -1156,7 +1303,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           {/* Final-30-minutes motivator (escalates toward 7 PM). */}
           <LastPush secs={secsLeft} />
 
-          {/* ── Scoreboard: Orange total · tug-of-war · Blue total ── */}
+          {/* ── Scoreboard: Spain total · tug-of-war · Argentina total ── */}
           <section className="flex shrink-0 items-center gap-4 rounded-3xl border border-white/10 bg-white/[0.03] px-5 py-4 sm:gap-8 sm:px-8">
             <ScorePlate side="orange" total={orangeTotal} isLeader={leader === "orange"} heat={heat} />
 
@@ -1164,17 +1311,45 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
               <span className="font-display text-3xl font-black tracking-[0.2em] text-white/40 uppercase sm:text-4xl">
                 VS
               </span>
-              {/* Tug-of-war: the boundary slides toward whoever's ahead. */}
-              <div className="flex h-5 w-full overflow-hidden rounded-full border border-white/15 sm:h-6">
+              {/* Tug-of-war: the boundary slides toward whoever's ahead, with a
+                  slow shimmer drifting across the blend so the bar never sits
+                  fully frozen between score updates. */}
+              <div className="relative flex h-5 w-full overflow-hidden rounded-full border border-white/15 sm:h-6">
                 <div
-                  className={cx("h-full bg-gradient-to-r transition-all duration-700", TEAM.orange.barFrom, TEAM.orange.barTo)}
+                  className={cx(
+                    "h-full bg-gradient-to-r transition-all duration-500 ease-out",
+                    TEAM.orange.barFrom,
+                    TEAM.orange.barTo,
+                  )}
                   style={{ width: `${Math.round(orangeShare * 100)}%` }}
                 />
                 <div
-                  className={cx("h-full flex-1 bg-gradient-to-r transition-all duration-700", TEAM.blue.barFrom, TEAM.blue.barTo)}
+                  className={cx(
+                    "h-full flex-1 bg-gradient-to-r transition-all duration-500 ease-out",
+                    TEAM.blue.barFrom,
+                    TEAM.blue.barTo,
+                  )}
                 />
+                <span aria-hidden className="gd-vs-drift pointer-events-none absolute inset-0" />
               </div>
               <p className="text-center text-lg font-black text-white sm:text-2xl">{leadLine}</p>
+              {/* Proximity alert — flashes once the instant the trailing team closes
+                  the gap to a single booking, then auto-dismisses. */}
+              {proximity && (
+                <p
+                  aria-live="polite"
+                  className={cx(
+                    "gd-fact rounded-full border px-4 py-1 text-sm font-black tracking-wide uppercase sm:text-base",
+                    TEAM[proximity].heading,
+                  )}
+                  style={{
+                    borderColor: `rgba(${TEAM[proximity].rgb}, 0.5)`,
+                    background: `rgba(${TEAM[proximity].rgb}, 0.14)`,
+                  }}
+                >
+                  {TEAM[proximity].emoji} {TEAM[proximity].label} within one!
+                </p>
+              )}
             </div>
 
             <ScorePlate side="blue" total={blueTotal} isLeader={leader === "blue"} heat={heat} />

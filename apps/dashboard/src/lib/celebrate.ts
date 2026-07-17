@@ -43,6 +43,8 @@ export interface DailyCountRow {
   count: number;
   /** MovePro codes behind today's count; the last is the newest booking. */
   jobCodes?: string[];
+  /** Game Day team, when this row comes from a Game Day roster (else absent). */
+  team?: "orange" | "blue" | null;
 }
 
 export interface BookingPop {
@@ -54,6 +56,9 @@ export interface BookingPop {
   kind?: "rep" | "inspector";
   /** Site inspections only: the SALES rep whose customer this inspection is for. */
   forRep?: string | null;
+  /** Carried through from the source row so a Game Day goal celebration can be
+   * recoloured to the scoring rep's team. */
+  team?: "orange" | "blue" | null;
 }
 
 /** Mutable per-session memory for the live celebration. Create one per board. */
@@ -118,7 +123,7 @@ export function newBookings(
       // New bookings — one pop each, labelled with any not-yet-shown code.
       if (!seed) {
         for (let i = 0; i < target - prev; i++) {
-          pops.push({ staffId: r.staffId, name: r.name, code: freshCodes[i] ?? null });
+          pops.push({ staffId: r.staffId, name: r.name, code: freshCodes[i] ?? null, team: r.team });
         }
       }
       fired.set(r.staffId, target);
