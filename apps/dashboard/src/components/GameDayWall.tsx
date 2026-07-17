@@ -1118,6 +1118,15 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
 
   return (
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
+      {/* Faint football-pitch texture — halfway line + centre circle, ~5% white
+          so it reads as atmosphere, never competes with any card, number, or
+          bar. First child + negative z so it sits behind literally everything,
+          including the standby screen. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center">
+        <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/5" />
+        <div className="aspect-square h-[38vh] rounded-full border border-white/5" />
+      </div>
+
       {/* Bookings gong + celebrate (team members only on the board), and site
           inspections still pop their green celebration + gong — inspectors just
           don't get a box on the game-day leaderboard. `gameDay` swaps the "new

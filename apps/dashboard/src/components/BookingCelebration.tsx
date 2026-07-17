@@ -215,7 +215,7 @@ export function BookingCelebration({
           />
           <p
             aria-hidden
-            className="gd-goal-sweep font-display pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 text-center leading-none font-black uppercase [font-size:clamp(3.5rem,16vw,13rem)]"
+            className="gd-goal-sweep font-display pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 text-center leading-none font-black uppercase [font-size:clamp(5rem,24vw,20rem)]"
             style={{
               color: goalTeam === "orange" ? "#ffc400" : goalTeam === "blue" ? "#75aadb" : "#ffd42e",
               WebkitTextStroke: goalTeam === "orange" ? "3px #c60b1e" : goalTeam === "blue" ? "3px #ffffff" : undefined,
