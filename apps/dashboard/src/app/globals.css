@@ -695,11 +695,17 @@ dialog::backdrop {
     transform: translateX(-120%) skewX(-8deg) scale(0.85);
     opacity: 0;
   }
-  35% {
+  25% {
     transform: translateX(0) skewX(-8deg) scale(1.05);
     opacity: 1;
   }
-  55% {
+  40% {
+    transform: translateX(0) skewX(0deg) scale(1);
+    opacity: 1;
+  }
+  /* Long steady hold in the middle — the whole point of slowing this down is
+     giving "GOOOOAL" time to actually be read before it exits. */
+  75% {
     transform: translateX(0) skewX(0deg) scale(1);
     opacity: 1;
   }
@@ -709,7 +715,7 @@ dialog::backdrop {
   }
 }
 .gd-goal-sweep {
-  animation: gd-goal-sweep 1.05s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: gd-goal-sweep 4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
