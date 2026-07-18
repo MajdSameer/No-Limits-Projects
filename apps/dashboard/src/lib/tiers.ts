@@ -18,8 +18,16 @@ export const TIERS: Tier[] = [
   { name: "Tier 4", short: "T4", at: 158 },
 ];
 
-/** Hitting the top tier (158) is the Super Bonus. */
+/** Hitting the top tier (158) is the Super Bonus by booking count. */
 export const SUPER_BONUS_AT = 158;
+
+/**
+ * Booking count alone isn't enough to earn the Super Bonus — NET revenue for
+ * the month must also clear this. A rep can hit Tier 4 on count before
+ * revenue catches up; until it does, the board shows "Tier 4" (still
+ * glowing) rather than "★ Super Bonus".
+ */
+export const SUPER_BONUS_REVENUE_AT = 400_000;
 
 export interface TierProgress {
   /** How many tiers are fully reached (0–4). */

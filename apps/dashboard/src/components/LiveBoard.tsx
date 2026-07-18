@@ -10,7 +10,7 @@ import { armAudio, audioRunning } from "../lib/celebrate";
 import { cellMessage, cellTier } from "../lib/leaderboard-messages";
 import { useLiveRefresh } from "../lib/live";
 import { sydneyToday } from "../lib/sydney";
-import { tierProgress } from "../lib/tiers";
+import { SUPER_BONUS_REVENUE_AT, tierProgress } from "../lib/tiers";
 
 /**
  * Full-screen DARK wall leaderboard for /live — black background, each rep's box
@@ -105,13 +105,19 @@ function InspectorCell({ r }: { r: InspectorRowDTO }) {
   );
 }
 
-/** Chip showing how many bookings a rep is off their next incentive tier. */
-function TierChip({ count }: { count: number }) {
+/**
+ * Chip showing how many bookings a rep is off their next incentive tier.
+ * Reaching Tier 4 by count alone isn't the Super Bonus — NET revenue for the
+ * month must also clear SUPER_BONUS_REVENUE_AT. Until it does, this stays a
+ * glowing "Tier 4" badge instead of "★ Super Bonus".
+ */
+function TierChip({ count, revenue }: { count: number; revenue?: number }) {
   const t = tierProgress(count);
   if (t.top) {
+    const superBonus = (revenue ?? 0) >= SUPER_BONUS_REVENUE_AT;
     return (
       <span className="shrink-0 rounded bg-accent-400/25 px-2 py-0.5 text-sm font-bold text-accent-300">
-        ★ Super Bonus
+        {superBonus ? "★ Super Bonus" : "Tier 4"}
       </span>
     );
   }
@@ -171,7 +177,7 @@ function MonthRow({ r, i }: { r: BoardRowDTO; i: number }) {
       </span>
       <span aria-hidden className={cx("size-2.5 shrink-0 rounded-full", glowDot(r.gender))} />
       <span className="min-w-0 flex-1 truncate text-base font-semibold text-white">{r.name}</span>
-      <TierChip count={r.count} />
+      <TierChip count={r.count} revenue={r.revenue} />
       <span className="w-7 shrink-0 text-right text-lg font-bold text-white tabular-nums">{r.count}</span>
       <span className="w-[4.25rem] shrink-0 text-right text-base font-black text-emerald-300 tabular-nums">
         {hasRev ? moneyCompact(r.revenue!) : ""}
