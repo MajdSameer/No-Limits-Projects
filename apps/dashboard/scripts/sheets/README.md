@@ -87,26 +87,29 @@ that's where the clock comes from — install `leaderboard.gs` first.
 
 ## Site inspections push (`inspectors.gs`)
 
-Site inspections are logged in a **section of the "Leaderboard" tab** (the
-Follow-Up spreadsheet), so `inspectors.gs` is an **extra file in the Follow-Up
-Apps Script project** (alongside `leaderboard.gs` / `roster.gs`). It reuses the
-project's existing `DASHBOARD_URL` / `INGEST_SECRET` script properties.
+Site inspections are logged in the **"Site Inspection Booked" tab** (the
+Follow-Up spreadsheet), one row per booking — columns **D** date, **E** sales
+person, **F** job number, **H** inspector. `inspectors.gs` is an **extra file
+in the Follow-Up Apps Script project** (alongside `leaderboard.gs` /
+`roster.gs`). It reuses the project's existing `DASHBOARD_URL` /
+`INGEST_SECRET` script properties.
 
-It reads two fixed-cell areas on the Leaderboard tab and POSTs them to
+It reads the booking tab directly and POSTs distinct job counts to
 `/api/ingest/inspectors`, which drives the green **Site Inspectors** boxes on
 `/live` (Martin, Danny) and the **applause** celebration:
 
-- **Today's entries** grow down from **row 198** — a row counts (and celebrates)
-  once it has BOTH a job number and a sales rep:
-  - Martin: job# col **AU**, sales rep col **BA**
-  - Danny: job# col **BJ**, sales rep col **BP**
-- **This month's total** is read straight from the displayed cell on **row 194**
-  (the `194-195` merge): Martin col **BA**, Danny col **BP**.
+- **Today's jobs**: distinct job numbers (col F) for that inspector (col H)
+  dated today — this drives the daily number and fires the celebration.
+- **This month's total**: distinct job numbers for that inspector across the
+  whole calendar month (today's jobs are a subset).
 
-The box shows **today** (from the section) and **month** (from the cell) side by
-side; the celebration fires the instant a rep adds a today entry (inspector name,
-job number, and the sales rep it's for). Columns/rows are constants at the top of
-the script — adjust them there if the section moves.
+We used to read a hand-kept mirror of this in the Leaderboard tab instead —
+it depended on someone re-typing every job number a second time by hand, and
+it silently drifted out of sync (Martin showing 0, then Danny stuck on a
+stale month total) whenever that manual step lapsed. Reading the booking tab
+directly removes that failure mode. Tab name/columns are constants at the
+top of the script — adjust them there if the tab is renamed or the columns
+move.
 
 1. In the **Follow-Up** sheet's Apps Script project, **add a file** and paste in
    `inspectors.gs`, Save.
