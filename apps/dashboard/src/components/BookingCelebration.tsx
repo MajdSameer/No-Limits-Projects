@@ -12,6 +12,7 @@ import {
   newBookings,
   playGong,
   type BookingPop,
+  type CelebrateState,
   type DailyCountRow,
 } from "../lib/celebrate";
 
@@ -21,8 +22,11 @@ import {
  * the screen blacks out and the rep's name pops in with the MovePro number
  * underneath, plus a gong and confetti. Site inspections pop the same way (same
  * gong) but with a green burst and the sales rep the inspection is for. Multiple
- * bookings queue up and play one after another. Seeded silently on mount so a
- * page load never fires.
+ * bookings queue up and play one after another. Seeded silently on the very
+ * first-ever load for a screen (so opening the wall never dumps a pile of old
+ * celebrations) — but that baseline is saved to localStorage and restored across
+ * reloads, so a TV/browser refresh never silently swallows a real celebration
+ * that lands right around the same time.
  */
 const HOLD_MS = 6500; // how long one celebration stays up (matches the long gong)
 const FADE_MS = 500; // fade-out tail at the end of HOLD_MS
@@ -63,6 +67,59 @@ function reducedMotion(): boolean {
   );
 }
 
+// ── Persist celebration baseline across reloads (per screen, via localStorage) ──
+const STORAGE_VERSION = 1;
+interface StoredCelebrateState {
+  v: number;
+  seenCodes: string[];
+  fired: [string, number][];
+}
+
+/** Namespaced per page path, so /live, /live/tv, /live/game-day never collide
+ * even if the same browser somehow has more than one open. */
+function storageKeyFor(kind: "daily" | "inspectors"): string | null {
+  if (typeof window === "undefined") return null;
+  return `nlr-celebrate:${kind}:${window.location.pathname}`;
+}
+
+/** Load a previously-saved baseline for this screen, if any. `restored: true`
+ * means we already know real prior state, so the next diff should NOT be
+ * treated as a silent seed pass — a reload must be able to catch up and still
+ * celebrate anything that landed just before or during it. */
+function loadCelebrateState(key: string | null): { state: CelebrateState; restored: boolean } {
+  if (key) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<StoredCelebrateState>;
+        if (parsed && parsed.v === STORAGE_VERSION && Array.isArray(parsed.seenCodes) && Array.isArray(parsed.fired)) {
+          return {
+            state: { seenCodes: new Set(parsed.seenCodes), fired: new Map(parsed.fired), lowFor: new Map() },
+            restored: true,
+          };
+        }
+      }
+    } catch {
+      /* corrupt/unavailable storage — fall back to a fresh (silently-seeded) start */
+    }
+  }
+  return { state: createCelebrateState(), restored: false };
+}
+
+function saveCelebrateState(key: string | null, state: CelebrateState): void {
+  if (!key) return;
+  try {
+    const payload: StoredCelebrateState = {
+      v: STORAGE_VERSION,
+      seenCodes: [...state.seenCodes],
+      fired: [...state.fired.entries()],
+    };
+    window.localStorage.setItem(key, JSON.stringify(payload));
+  } catch {
+    /* storage full/unavailable — celebrations still fire, just won't survive a reload */
+  }
+}
+
 export function BookingCelebration({
   daily,
   inspectors,
@@ -75,10 +132,16 @@ export function BookingCelebration({
    * (outside Game Day) the gong, timing, and visuals are unchanged. */
   gameDay?: boolean;
 }) {
-  const state = useRef(createCelebrateState());
-  const seeded = useRef(false);
-  const inspState = useRef(createCelebrateState());
-  const inspSeeded = useRef(false);
+  const dailyBox = useRef<{ state: CelebrateState; seeded: boolean } | null>(null);
+  if (dailyBox.current === null) {
+    const { state, restored } = loadCelebrateState(storageKeyFor("daily"));
+    dailyBox.current = { state, seeded: restored };
+  }
+  const inspBox = useRef<{ state: CelebrateState; seeded: boolean } | null>(null);
+  if (inspBox.current === null) {
+    const { state, restored } = loadCelebrateState(storageKeyFor("inspectors"));
+    inspBox.current = { state, seeded: restored };
+  }
   const queue = useRef<BookingPop[]>([]);
   const running = useRef(false);
   const timers = useRef<number[]>([]);
@@ -86,10 +149,13 @@ export function BookingCelebration({
 
   useEffect(() => {
     const pops: BookingPop[] = [];
+    const dBox = dailyBox.current!;
+    const iBox = inspBox.current!;
 
     if (daily.length > 0) {
-      pops.push(...newBookings(daily, state.current, !seeded.current));
-      seeded.current = true;
+      pops.push(...newBookings(daily, dBox.state, !dBox.seeded));
+      dBox.seeded = true;
+      saveCelebrateState(storageKeyFor("daily"), dBox.state);
     }
 
     if (inspectors && inspectors.length > 0) {
@@ -99,8 +165,9 @@ export function BookingCelebration({
         count: i.count,
         jobs: i.jobs,
       }));
-      pops.push(...inspectorBookings(rows, inspState.current, !inspSeeded.current));
-      inspSeeded.current = true;
+      pops.push(...inspectorBookings(rows, iBox.state, !iBox.seeded));
+      iBox.seeded = true;
+      saveCelebrateState(storageKeyFor("inspectors"), iBox.state);
     }
 
     if (pops.length === 0) return;
