@@ -110,6 +110,48 @@ test("a jump of several bookings at once fires one pop per booking", () => {
   ]);
 });
 
+test("without a day key, a fast overnight reset can silently swallow the first booking of the new day", () => {
+  // Reproduces the reported bug on an always-on wall (never reloads): if the
+  // count reset to 0 and the day's first booking both land between the same
+  // two polls, DROP_PERSIST accepts the drop as the new floor before ever
+  // seeing an increase — the first booking never pops. This documents the
+  // failure mode with no `day` passed; the next test shows the fix.
+  const s = createCelebrateState();
+  newBookings([row("a", 5)], s, true); // yesterday ends at 5
+  expect(newBookings([row("a", 1)], s, false)).toEqual([]); // low poll 1 (reset+1st booking already landed)
+  expect(newBookings([row("a", 1)], s, false)).toEqual([]); // low poll 2 — drop accepted, no pop for booking #1
+  expect(newBookings([row("a", 2)], s, false)).toEqual([{ staffId: "a", name: "a", code: null }]); // only #2 pops
+});
+
+test("a day key resets the high-water immediately, so the first booking of a new day still fires", () => {
+  const s = createCelebrateState();
+  newBookings([row("a", 5)], s, true, "2026-07-21"); // yesterday ends at 5
+  // New day: reset + first booking land in the same poll — must still pop.
+  expect(newBookings([row("a", 1)], s, false, "2026-07-22")).toEqual([
+    { staffId: "a", name: "a", code: null },
+  ]);
+  // Same day, no further change.
+  expect(newBookings([row("a", 1)], s, false, "2026-07-22")).toEqual([]);
+});
+
+test("day-rollover reset applies to inspectorBookings too", () => {
+  const s = createCelebrateState();
+  inspectorBookings(
+    [{ staffId: "martin", name: "Martin", count: 4, jobs: [{ code: "A1", forRep: "Ann" }] }],
+    s,
+    true,
+    "2026-07-21",
+  );
+  expect(
+    inspectorBookings(
+      [{ staffId: "martin", name: "Martin", count: 1, jobs: [{ code: "B1", forRep: "Hadeel" }] }],
+      s,
+      false,
+      "2026-07-22",
+    ),
+  ).toEqual([{ staffId: "martin", name: "Martin", code: "B1", kind: "inspector", forRep: "Hadeel" }]);
+});
+
 test("the new day's fresh codes fire (old codes already labelled)", () => {
   const s = createCelebrateState();
   s.seenCodes.add("OLD1");

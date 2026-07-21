@@ -69,6 +69,9 @@ export interface CelebrateState {
   fired: Map<string, number>;
   /** Consecutive polls a rep's count has sat below `fired` (drop debounce). */
   lowFor: Map<string, number>;
+  /** Calendar day (e.g. "2026-07-22") this state was last evaluated for — see
+   * the day-rollover handling in {@link newBookings}. null until first use. */
+  day: string | null;
 }
 
 /** A rep's count must sit below its celebrated high-water for this many polls
@@ -79,7 +82,7 @@ const DROP_PERSIST = 2;
 
 /** Fresh, empty celebration memory. */
 export function createCelebrateState(): CelebrateState {
-  return { seenCodes: new Set(), fired: new Map(), lowFor: new Map() };
+  return { seenCodes: new Set(), fired: new Map(), lowFor: new Map(), day: null };
 }
 
 /**
@@ -93,13 +96,30 @@ export function createCelebrateState(): CelebrateState {
  * moment its code leaves the board, so a re-added booking shows its number again.
  * On the seed pass it only records state and returns nothing, so a page load is
  * silent. Mutates `state`.
+ *
+ * `day` (a "yyyy-MM-dd" key, e.g. from `sydneyToday()`) resets the high-water
+ * marks IMMEDIATELY the instant it changes from the previously-seen day —
+ * bypassing the drop debounce entirely. Without this, a wall display (which
+ * stays on one tab for days, never reloading) would otherwise treat every
+ * night's count reset the same as a mid-day stale dip: the reset AND the
+ * day's first real booking can land between the same two polls, so
+ * DROP_PERSIST quietly accepts the drop as the new floor before an increase
+ * is ever recognized — the first booking of the day never pops. Pass the day
+ * to make that transition explicit instead of inferring it from the numbers.
  */
 export function newBookings(
   rows: DailyCountRow[],
   state: CelebrateState,
   seed: boolean,
+  day?: string,
 ): BookingPop[] {
   const { seenCodes, fired, lowFor } = state;
+  if (day && state.day && state.day !== day) {
+    fired.clear();
+    lowFor.clear();
+    seenCodes.clear();
+  }
+  if (day) state.day = day;
   const pops: BookingPop[] = [];
 
   // Forget labels for codes no longer on the board (purely cosmetic — never
@@ -160,15 +180,16 @@ export interface InspectorCountRow {
 
 /**
  * Pure: new site inspections since we last looked. Reuses {@link newBookings}
- * (count-driven, drop-debounced, seeded-silent) over the inspectors' job
- * numbers, then tags each pop as an inspection and attaches the sales rep the
- * job is for — so the celebration can show "<inspector> · #<job> · for <rep>".
- * Mutates `state`.
+ * (count-driven, drop-debounced, seeded-silent, day-rollover-aware) over the
+ * inspectors' job numbers, then tags each pop as an inspection and attaches
+ * the sales rep the job is for — so the celebration can show
+ * "<inspector> · #<job> · for <rep>". Mutates `state`.
  */
 export function inspectorBookings(
   rows: InspectorCountRow[],
   state: CelebrateState,
   seed: boolean,
+  day?: string,
 ): BookingPop[] {
   const codeToRep = new Map<string, string | null>();
   for (const r of rows) for (const j of r.jobs) codeToRep.set(j.code, j.forRep ?? null);
@@ -181,6 +202,7 @@ export function inspectorBookings(
     })),
     state,
     seed,
+    day,
   );
   return base.map((p) => ({
     ...p,
