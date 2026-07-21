@@ -14,6 +14,7 @@ import {
   type BookingPop,
   type DailyCountRow,
 } from "../lib/celebrate";
+import { sydneyToday } from "../lib/sydney";
 
 /**
  * Live "someone just booked!" moment. When a new booking appears (deduped by
@@ -86,9 +87,13 @@ export function BookingCelebration({
 
   useEffect(() => {
     const pops: BookingPop[] = [];
+    // A day key so a rep's/inspector's overnight count reset (this always-on
+    // wall never reloads to clear state) is recognized immediately instead of
+    // being debounced like a stale mid-day dip — see newBookings.
+    const today = sydneyToday();
 
     if (daily.length > 0) {
-      pops.push(...newBookings(daily, state.current, !seeded.current));
+      pops.push(...newBookings(daily, state.current, !seeded.current, today));
       seeded.current = true;
     }
 
@@ -99,7 +104,7 @@ export function BookingCelebration({
         count: i.count,
         jobs: i.jobs,
       }));
-      pops.push(...inspectorBookings(rows, inspState.current, !inspSeeded.current));
+      pops.push(...inspectorBookings(rows, inspState.current, !inspSeeded.current, today));
       inspSeeded.current = true;
     }
 
