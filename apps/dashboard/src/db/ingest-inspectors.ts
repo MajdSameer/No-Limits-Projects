@@ -58,16 +58,20 @@ function cleanStr(v: unknown): string | null {
 }
 
 /**
- * A MovePro job number is always exactly 5 alphanumeric characters (e.g.
- * "AY3VA", "3KZ3P", or all letters like "EDPAG"). The sheet's job-number column
- * occasionally gets a stray value typed into it — a name ("Andy") or a loose
- * number ("1") — which would otherwise be counted as a phantom inspection. The
- * 5-char length is what separates a real code from those strays. We deliberately
- * do NOT require a mix of letters and digits: real codes can be all letters
- * (EDPAG was dropped by that stricter rule and never counted/celebrated).
+ * A MovePro job number is 5 or 6 alphanumeric characters (e.g. "AY3VA",
+ * "X8B96M", or all letters like "EDPAG"/"VVZEXM"). Real entries sometimes
+ * carry copy-paste junk around the code itself — a leading "#" and trailing
+ * newlines ("#9VKZV\n\n\n") — so strip anything that isn't a letter or digit
+ * before checking length. That length check (5-6, after stripping) is what
+ * separates a real code from a stray value typed into the cell (a name, a
+ * loose number, or an email) — e.g. "leejaak@bigpond.net.au" strips down to
+ * 19 characters and is correctly rejected. We deliberately do NOT require a
+ * mix of letters and digits: real codes can be all letters (EDPAG/VVZEXM
+ * were dropped by that stricter rule and never counted/celebrated).
  */
 export function isJobCode(code: string): boolean {
-  return /^[A-Za-z0-9]{5}$/.test(code);
+  const stripped = code.replace(/[^A-Za-z0-9]/g, "");
+  return stripped.length === 5 || stripped.length === 6;
 }
 
 export interface InspectorIngestResult {
