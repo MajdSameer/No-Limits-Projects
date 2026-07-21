@@ -87,29 +87,32 @@ that's where the clock comes from — install `leaderboard.gs` first.
 
 ## Site inspections push (`inspectors.gs`)
 
-Site inspections are logged in the **"Site Inspection Booked" tab** (the
-Follow-Up spreadsheet), one row per booking — columns **D** date, **E** sales
-person, **F** job number, **H** inspector. `inspectors.gs` is an **extra file
-in the Follow-Up Apps Script project** (alongside `leaderboard.gs` /
-`roster.gs`). It reuses the project's existing `DASHBOARD_URL` /
-`INGEST_SECRET` script properties.
+`inspectors.gs` pulls from **two different tabs for two different numbers**,
+because they turned out to track different things. It's an **extra file in
+the Follow-Up Apps Script project** (alongside `leaderboard.gs` /
+`roster.gs`) and reuses the project's existing `DASHBOARD_URL` /
+`INGEST_SECRET` script properties. It POSTs to `/api/ingest/inspectors`,
+which drives the green **Site Inspectors** boxes on `/live` (Martin, Danny)
+and the **applause** celebration:
 
-It reads the booking tab directly and POSTs distinct job counts to
-`/api/ingest/inspectors`, which drives the green **Site Inspectors** boxes on
-`/live` (Martin, Danny) and the **applause** celebration:
+- **Today's jobs** come from the **Leaderboard tab's hand-kept entry block**
+  (job#/rep grow down from row 198 — Martin col **AU** job# / **BA** rep,
+  Danny col **BJ** job# / **BP** rep). Staff keep this block updated in real
+  time as inspections actually happen, and it gets reset each day — so
+  whatever's filled in there right now is "today."
+- **This month's total** comes from the **"Site Inspection Booked"** tab
+  instead (one row per booking — col **D** date, **E** sales person, **F**
+  job number, **H** inspector) — every row for that inspector this calendar
+  month, no dedup and no job-code format validation (matches the sheet's own
+  reference `SUMPRODUCT` count over the same tab exactly).
 
-- **Today's jobs**: distinct job numbers (col F) for that inspector (col H)
-  dated today — this drives the daily number and fires the celebration.
-- **This month's total**: distinct job numbers for that inspector across the
-  whole calendar month (today's jobs are a subset).
-
-We used to read a hand-kept mirror of this in the Leaderboard tab instead —
-it depended on someone re-typing every job number a second time by hand, and
-it silently drifted out of sync (Martin showing 0, then Danny stuck on a
-stale month total) whenever that manual step lapsed. Reading the booking tab
-directly removes that failure mode. Tab name/columns are constants at the
-top of the script — adjust them there if the tab is renamed or the columns
-move.
+Why two sources: the "Site Inspection Booked" tab's dates aren't a reliable
+same-day signal — inspections get pre-booked there well in advance, so a row
+dated today doesn't mean it happened today. We tried reading "today" from
+that tab too and it didn't match what staff actually see on the ground; the
+Leaderboard block is the real-time source for that. Tab names/columns are
+constants at the top of the script — adjust them there if either tab is
+renamed or the columns move.
 
 1. In the **Follow-Up** sheet's Apps Script project, **add a file** and paste in
    `inspectors.gs`, Save.
