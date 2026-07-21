@@ -57,23 +57,6 @@ function cleanStr(v: unknown): string | null {
   return s === "" ? null : s;
 }
 
-/**
- * A MovePro job number is 5 or 6 alphanumeric characters (e.g. "AY3VA",
- * "X8B96M", or all letters like "EDPAG"/"VVZEXM"). Real entries sometimes
- * carry copy-paste junk around the code itself — a leading "#" and trailing
- * newlines ("#9VKZV\n\n\n") — so strip anything that isn't a letter or digit
- * before checking length. That length check (5-6, after stripping) is what
- * separates a real code from a stray value typed into the cell (a name, a
- * loose number, or an email) — e.g. "leejaak@bigpond.net.au" strips down to
- * 19 characters and is correctly rejected. We deliberately do NOT require a
- * mix of letters and digits: real codes can be all letters (EDPAG/VVZEXM
- * were dropped by that stricter rule and never counted/celebrated).
- */
-export function isJobCode(code: string): boolean {
-  const stripped = code.replace(/[^A-Za-z0-9]/g, "");
-  return stripped.length === 5 || stripped.length === 6;
-}
-
 export interface InspectorIngestResult {
   asOfDate: string;
   inspectors: number;
@@ -82,11 +65,13 @@ export interface InspectorIngestResult {
 
 /**
  * Overwrite the inspectors snapshot with today's push. Inspectors with no
- * job-numbered inspections today are kept (with an empty job list) so their box
- * still shows on the board. Jobs without a valid MovePro job number (a 5-char
- * alphanumeric code, see isJobCode) are dropped — a site inspection only counts
- * once it has a real job number to celebrate, so stray cell values don't inflate
- * the daily tally.
+ * inspections today are kept (with an empty job list) so their box still
+ * shows on the board. A job is dropped only if its code cell is truly blank
+ * — we deliberately do NOT validate the code's format (length, alphanumeric,
+ * etc.): the sheet's own reference count (a SUMPRODUCT over the same tab)
+ * doesn't validate it either, so a typo in the job# cell (e.g. someone
+ * pasting an email address by mistake) still represents a real site visit
+ * and must still count and celebrate.
  *
  * Each row the sheet sends is its own physical entry (one row 198+, read once
  * per push), so two rows are NEVER counted as the same submission even if their
@@ -111,7 +96,7 @@ export async function ingestInspectors(
     const existing = byId.get(id) ?? { id, name, jobs: [], monthCount: 0 };
     for (const j of row.jobs ?? []) {
       const code = cleanStr(j?.code);
-      if (!code || !isJobCode(code)) continue; // valid job #
+      if (!code) continue; // truly blank job# cell — no entry at all
       existing.jobs.push({ code, forRep: cleanStr(j?.forRep) });
     }
     const m = Number(row.monthCount);

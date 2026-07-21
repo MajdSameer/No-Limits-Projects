@@ -18,11 +18,12 @@
  * sync.
  *
  * TODAY's jobs (col F) drive the green "Site Inspectors" boxes' daily number
- * and the applause celebration. MONTH is every qualifying row that inspector
- * has entered this calendar month (today's jobs are a subset). Rows are NOT
- * deduped by job code: two rows can legitimately share a code (a rep
- * re-entering the same job by mistake still logged two real site visits),
- * and the sheet's own manual counts confirm each row counts once.
+ * and the applause celebration. MONTH is every row with a non-blank job# cell
+ * for that inspector this calendar month (today's jobs are a subset). Rows
+ * are NOT deduped by job code (two rows can legitimately share a code), and
+ * the job# cell's CONTENT is not validated as a MovePro code either — the
+ * sheet's own reference count (a SUMPRODUCT over this same tab) doesn't
+ * validate it, so neither do we; every logged row is one real inspection.
  *
  * SETUP — see scripts/sheets/README.md. In short:
  *   1. In the Follow-Up sheet's Apps Script project, add/replace this file.
@@ -57,21 +58,25 @@ function inspSheetByName_(name) {
   return SpreadsheetApp.getActive().getSheetByName(name);
 }
 
-/** A MovePro job number is 5 or 6 alphanumeric chars (e.g. "AY3VA", "X8B96M",
- * or all letters like "EDPAG"/"VVZEXM", or lowercase like "b8z6p"). Real
- * entries sometimes carry copy-paste junk around the code itself — a leading
- * "#" and trailing newlines ("#9VKZV\n\n\n") — so strip anything that isn't a
- * letter or digit before checking length. That length check (5-6, after
- * stripping) is what guards against a stray value (a name, a loose number, or
- * an email pasted into the job# column) being counted as a phantom
- * inspection — e.g. "leejaak@bigpond.net.au" strips down to 19 characters and
- * is correctly rejected. Returns the cleaned code, or null if it's not a
- * plausible job number. */
+/**
+ * No format validation here on purpose — the sheet's own "Monthly" display
+ * (a SUMPRODUCT over this same tab) counts every row where the inspector
+ * matches, regardless of what's in the job# cell, and that's the number
+ * that's treated as correct. So: any row with a real inspector and a
+ * non-blank job# cell counts as one inspection, typo or not (e.g. a sales
+ * rep once pasted an email address into the job# cell by mistake — that
+ * still counted as a real site visit, so it counts here too). This only
+ * strips surrounding junk (a stray leading "#", stray newlines) for display
+ * — it's cosmetic, not a filter. Returns the cleaned string, or null only
+ * if the cell is truly blank.
+ */
 function inspCleanJobCode_(raw) {
   var s = String(raw == null ? "" : raw)
     .trim()
-    .replace(/[^A-Za-z0-9]/g, "");
-  return s.length === 5 || s.length === 6 ? s : null;
+    .replace(/^#+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return s.length > 0 ? s : null;
 }
 
 /** Normalise a booking-date cell (a Date object OR a string like
@@ -116,7 +121,7 @@ function pushInspections() {
       var dayKey = inspDayKey_(row[dIdx]);
       if (dayKey.slice(0, 7) !== thisMonth) continue; // this month only
       var code = inspCleanJobCode_(row[jobIdx]);
-      if (!code) continue; // stray value (name/number/email) in the job# cell
+      if (!code) continue; // truly blank job# cell — no entry at all
       monthCount += 1;
       if (dayKey === today) jobs.push({ code: code, forRep: String(row[repIdx] || "").trim() });
     }

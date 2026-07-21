@@ -50,7 +50,7 @@ test("ingest stores today's inspections per inspector, with job # + sales rep", 
   expect(board.find((r) => r.id === "danny")).toMatchObject({ name: "Danny", count: 0, jobs: [] });
 });
 
-test("stray non-job-number cell values are dropped, not counted", async () => {
+test("job code format is never validated — only a truly blank cell is dropped", async () => {
   const today = sydneyToday();
   const res = await ingestInspectors(
     db,
@@ -58,46 +58,33 @@ test("stray non-job-number cell values are dropped, not counted", async () => {
       {
         name: "Martin",
         jobs: [
-          { code: "AY3VA", forRep: "Luka" }, // real (letters + digits)
-          { code: "AY5YM", forRep: "Ann" }, // real
-          { code: "3KZ3P", forRep: "francis" }, // real
-          { code: "EDPAG", forRep: "Francis" }, // real — all letters, must still count
-          { code: "Andy", forRep: "Luka" }, // a name in the job# cell — dropped (4 chars)
-          { code: "1", forRep: "Anthony" }, // a loose number — dropped (1 char)
+          { code: "AY3VA", forRep: "Luka" }, // a normal 5-char code
+          { code: "X8B96M", forRep: "Issac" }, // a 6-char code
+          { code: "EDPAG", forRep: "Francis" }, // all letters
+          { code: "Andy", forRep: "Luka" }, // a name typed into the job# cell — still counts
+          { code: "1", forRep: "Anthony" }, // a loose number — still counts
+          { code: "leejaak@bigpond.net.au", forRep: "Issac" }, // an email typo'd into the cell — still counts
+          { code: "", forRep: "Ann" }, // truly blank — the only thing dropped
         ],
       },
     ],
     today,
   );
 
-  expect(res.jobs).toBe(4); // the four real 5-char job codes count (incl. all-letter EDPAG)
+  // Every non-blank cell counts, whatever it looks like — the sheet's own
+  // reference count doesn't validate format either, so neither do we.
+  expect(res.jobs).toBe(6);
   const board = await inspectorBoard();
   const martin = board.find((r) => r.id === "martin")!;
-  expect(martin.count).toBe(4);
-  expect(martin.jobs.map((j) => j.code)).toEqual(["AY3VA", "AY5YM", "3KZ3P", "EDPAG"]);
-});
-
-test("6-char job codes count too, and an email pasted into the cell is dropped", async () => {
-  const today = sydneyToday();
-  const res = await ingestInspectors(
-    db,
-    [
-      {
-        name: "Martin",
-        jobs: [
-          { code: "X8B96M", forRep: "Issac" }, // real — 6 chars
-          { code: "VVZEXM", forRep: "Issac" }, // real — 6 chars, all letters
-          { code: "leejaak@bigpond.net.au", forRep: "Issac" }, // stray email — dropped
-        ],
-      },
-    ],
-    today,
-  );
-
-  expect(res.jobs).toBe(2);
-  const board = await inspectorBoard();
-  const martin = board.find((r) => r.id === "martin")!;
-  expect(martin.jobs.map((j) => j.code)).toEqual(["X8B96M", "VVZEXM"]);
+  expect(martin.count).toBe(6);
+  expect(martin.jobs.map((j) => j.code)).toEqual([
+    "AY3VA",
+    "X8B96M",
+    "EDPAG",
+    "Andy",
+    "1",
+    "leejaak@bigpond.net.au",
+  ]);
 });
 
 test("a snapshot from an earlier day shows the boxes but resets the count to 0", async () => {
