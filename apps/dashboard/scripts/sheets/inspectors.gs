@@ -32,7 +32,14 @@ var INSP_TZ = "Australia/Sydney";
 var INSP_TAB = "Leaderboard";
 var INSP_GID = 1760907362; // fallback if the tab gets renamed
 var INSP_FIRST_ROW = 198; // first row of today's entries
-var INSP_MAXROWS = 600; // how far down to scan for today's entries
+// How far down to scan for today's entries. Keep this SMALL and well short of
+// row ~228, where a completely unrelated "Highest Revenue Job" rankings table
+// starts in these same columns (AU/BA, BJ/BP) — a wide scan range picks up
+// its cells as if they were job#/rep pairs (e.g. a rank-list name landing in
+// the job# column, paired with an unrelated name in the rep column). The
+// day's real entries are always a handful of rows; 20 gives generous headroom
+// while staying safely clear of that other table.
+var INSP_MAXROWS = 20;
 
 // MONTH — the booking log (Site Inspection Booked tab).
 var INSP_BOOK_TAB = "Site Inspection Booked";
@@ -166,6 +173,9 @@ function onInspectionEdit(e) {
   if (sheetName === INSP_TAB) {
     if (e.range.getLastColumn() < 47 || e.range.getColumn() > 68) return;
     if (e.range.getLastRow() < INSP_FIRST_ROW) return;
+    // Above the entry block (e.g. edits to the unrelated "Highest Revenue
+    // Job" rankings table further down these same columns) — ignore.
+    if (e.range.getRow() > INSP_FIRST_ROW + INSP_MAXROWS - 1) return;
     pushInspections();
     return;
   }

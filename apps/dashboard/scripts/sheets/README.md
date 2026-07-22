@@ -114,6 +114,14 @@ Leaderboard block is the real-time source for that. Tab names/columns are
 constants at the top of the script — adjust them there if either tab is
 renamed or the columns move.
 
+**Keep `INSP_MAXROWS` small.** A completely unrelated "Highest Revenue Job"
+rankings table starts around row ~228 in these SAME columns (AU/BA, BJ/BP) —
+a wide scan range picks up its cells as if they were job#/rep pairs (a
+rank-list name landing in the job# column, paired with an unrelated name in
+the rep column, showing up as a phantom inspection + celebration). The day's
+real entries are always a handful of rows, so keep the constant well short of
+that table's start — 20 gives generous headroom.
+
 1. In the **Follow-Up** sheet's Apps Script project, **add a file** and paste in
    `inspectors.gs`, Save.
 2. Run **`installInspectorTriggers`** — it installs **only** its own triggers (a
