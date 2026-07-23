@@ -750,18 +750,6 @@ function TeamColumn({
           backgroundImage: `linear-gradient(160deg, rgba(${t.rgb}, ${t.wash}), transparent 60%)`,
         }}
       />
-      {/* Aura behind the leading team — bigger + brighter the further ahead. */}
-      {isLeader && heat > 0 && (
-        <div
-          aria-hidden
-          className={cx("pointer-events-none absolute -inset-3 -z-10 rounded-[2rem]", heat >= 3 && "gd-pulse")}
-          style={{
-            background: `radial-gradient(60% 70% at 50% 35%, rgba(${t.rgb}, ${0.1 + 0.06 * heat}), transparent 70%)`,
-            ["--gd-pulse-lo" as string]: `${0.3 + 0.05 * heat}`,
-            ["--gd-pulse-hi" as string]: `${0.5 + 0.08 * heat}`,
-          }}
-        />
-      )}
       <header className="flex shrink-0 items-center justify-between gap-2 px-1">
         <h2 className={cx("font-display text-xl font-black tracking-wide uppercase sm:text-2xl", t.heading)}>
           {t.emoji} {t.label}
@@ -770,26 +758,45 @@ function TeamColumn({
           {reps.length} {reps.length === 1 ? "rep" : "reps"} · <span className={t.num}>{total}</span>
         </span>
       </header>
-      {sorted.length === 0 ? (
-        <div className="mt-2 grid flex-1 place-items-center rounded-2xl border border-dashed border-white/15 p-4 text-center">
-          <p className="text-sm font-medium text-white/40">
-            No {t.label} reps yet — assign them in Manage.
-          </p>
-        </div>
-      ) : (
-        <ul className="mt-2 grid min-h-0 flex-1 grid-cols-2 gap-2.5 p-1 [grid-auto-rows:1fr] sm:gap-3">
-          {sorted.map((r) => (
-            <PlayerBox
-              key={r.staffId}
-              r={r}
-              side={side}
-              isTop={topIds.has(r.staffId)}
-              isTopJob={r.staffId === topJobId}
-              isTeamLeader={maxTeamCount > 0 && r.count === maxTeamCount}
-            />
-          ))}
-        </ul>
-      )}
+      {/* Card-grid area, scoped separately from the header so the leader
+          aura below only ever renders behind the cards — the header and
+          the gap above this wrapper have no opaque background, so an aura
+          spanning the whole section showed through there as a flat-edged
+          glow band, at odds with the individually-rounded cards below it. */}
+      <div className="relative mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
+        {/* Aura behind the leading team — bigger + brighter the further ahead. */}
+        {isLeader && heat > 0 && (
+          <div
+            aria-hidden
+            className={cx("pointer-events-none absolute -inset-3 -z-10 rounded-2xl", heat >= 3 && "gd-pulse")}
+            style={{
+              background: `radial-gradient(60% 70% at 50% 35%, rgba(${t.rgb}, ${0.1 + 0.06 * heat}), transparent 70%)`,
+              ["--gd-pulse-lo" as string]: `${0.3 + 0.05 * heat}`,
+              ["--gd-pulse-hi" as string]: `${0.5 + 0.08 * heat}`,
+            }}
+          />
+        )}
+        {sorted.length === 0 ? (
+          <div className="grid flex-1 place-items-center rounded-2xl border border-dashed border-white/15 p-4 text-center">
+            <p className="text-sm font-medium text-white/40">
+              No {t.label} reps yet — assign them in Manage.
+            </p>
+          </div>
+        ) : (
+          <ul className="grid min-h-0 flex-1 grid-cols-2 gap-2.5 p-1 [grid-auto-rows:1fr] sm:gap-3">
+            {sorted.map((r) => (
+              <PlayerBox
+                key={r.staffId}
+                r={r}
+                side={side}
+                isTop={topIds.has(r.staffId)}
+                isTopJob={r.staffId === topJobId}
+                isTeamLeader={maxTeamCount > 0 && r.count === maxTeamCount}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }
