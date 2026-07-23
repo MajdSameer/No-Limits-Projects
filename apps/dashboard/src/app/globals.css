@@ -674,7 +674,7 @@ dialog::backdrop {
   animation: gd-stoppage-blink 0.6s ease-in-out infinite;
 }
 
-/* Goal celebration (Game Day only) — a quick net-flash + "GOOOOAL" sweep ahead
+/* Booking celebration (Game Day only) — a quick flash + "BOOKED!" sweep ahead
    of the usual rep name / job number settling in. */
 @keyframes gd-goal-flash {
   0% {
@@ -690,32 +690,135 @@ dialog::backdrop {
 .gd-goal-flash {
   animation: gd-goal-flash 0.5s ease-out both;
 }
+/* A punchy zoom+rotate impact instead of a flat side-to-side slide — lands
+   with a spring overshoot, wobbles into place, glows while held, then
+   zooms softly out. currentColor drives the glow so it's always the
+   scoring team's own colour (the text's inline `color` style) with zero
+   extra plumbing. */
 @keyframes gd-goal-sweep {
   0% {
-    transform: translateX(-120%) skewX(-8deg) scale(0.85);
+    transform: scale(0.3) rotate(-8deg);
     opacity: 0;
+    text-shadow: 0 0 0 currentColor;
   }
-  25% {
-    transform: translateX(0) skewX(-8deg) scale(1.05);
+  30% {
+    transform: scale(1.15) rotate(3deg);
     opacity: 1;
+    text-shadow:
+      0 0 40px currentColor,
+      0 0 80px currentColor;
   }
-  40% {
-    transform: translateX(0) skewX(0deg) scale(1);
-    opacity: 1;
+  42% {
+    transform: scale(0.96) rotate(-1.5deg);
+    text-shadow:
+      0 0 30px currentColor,
+      0 0 60px currentColor;
   }
-  /* Long steady hold in the middle — the whole point of slowing this down is
-     giving "GOOOOAL" time to actually be read before it exits. */
-  75% {
-    transform: translateX(0) skewX(0deg) scale(1);
+  54% {
+    transform: scale(1.03) rotate(1deg);
+  }
+  /* Long steady hold in the middle, breathing gently — the whole point of
+     slowing this down is giving "BOOKED!" time to actually be read. */
+  65%,
+  82% {
+    transform: scale(1) rotate(0deg);
     opacity: 1;
+    text-shadow:
+      0 0 36px currentColor,
+      0 0 72px currentColor;
   }
   100% {
-    transform: translateX(120%) skewX(6deg) scale(0.9);
+    transform: scale(1.08) rotate(2deg);
     opacity: 0;
+    text-shadow:
+      0 0 18px currentColor,
+      0 0 36px currentColor;
   }
 }
 .gd-goal-sweep {
-  animation: gd-goal-sweep 4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: gd-goal-sweep 4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Ambient arena backdrop: the wall stays visually alive even between
+   bookings, like a game's menu screen. All four below are decorative only
+   (aria-hidden, pointer-events-none) and disabled under reduced-motion. ── */
+
+/* A single drifting spark, rising the full height of the screen and drifting
+   sideways by --pdx. Colour comes from an inline background, not a var here,
+   since each spark is tinted per-team by its own inline style. */
+@keyframes gd-particle-drift {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.9;
+  }
+  88% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(-115vh) translateX(var(--pdx, 0));
+    opacity: 0;
+  }
+}
+.gd-particle-drift {
+  animation: gd-particle-drift var(--pd, 14s) linear infinite;
+  will-change: transform, opacity;
+}
+
+/* A soft diagonal light beam sweeping across the whole backdrop, like a
+   stage spotlight passing over a menu screen. */
+@keyframes gd-scan-sweep {
+  0% {
+    transform: translateX(-130%) rotate(10deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(430%) rotate(10deg);
+    opacity: 0;
+  }
+}
+.gd-scan-sweep {
+  animation: gd-scan-sweep 10s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Slow-panning tech grid — the faint circuitry texture behind the arena. */
+@keyframes gd-grid-pan {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 56px 56px;
+  }
+}
+.gd-grid-pan {
+  animation: gd-grid-pan 7s linear infinite;
+}
+
+/* The vertical VS seam where the two teams' colours clash — breathes rather
+   than sitting at a flat brightness. */
+@keyframes gd-seam-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+.gd-seam-pulse {
+  animation: gd-seam-pulse 3.2s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -744,11 +847,15 @@ dialog::backdrop {
   .gd-stoppage-pulse,
   .gd-stoppage-blink,
   .gd-goal-flash,
-  .gd-goal-sweep {
+  .gd-goal-sweep,
+  .gd-scan-sweep,
+  .gd-grid-pan,
+  .gd-seam-pulse {
     animation: none;
   }
-  /* Embers are pure motion — hide them rather than freeze a stray dot. */
-  .gd-ember {
+  /* Embers/sparks are pure motion — hide them rather than freeze a stray dot. */
+  .gd-ember,
+  .gd-particle-drift {
     display: none;
   }
 }
