@@ -34,26 +34,26 @@ const BURST = ["#ffd42e", "#fff389", "#f472b6", "#38bdf8", "#f4f1e8"];
 // Site-inspection celebrations get a neon-green burst to match their boxes.
 const INSPECTOR_BURST = ["#4ade80", "#22c55e", "#86efac", "#bbf7d0", "#f4f1e8"];
 
-// Game Day goal celebrations — mirrors GameDayWall's Spain/Argentina palette so
+// Game Day goal celebrations — mirrors GameDayWall's Red/Blue neon palette so
 // the confetti and glow match the scoring rep's team.
 const GOAL_TEAM = {
   orange: {
-    rgb: "198, 11, 30",
-    burst: ["#c60b1e", "#ffc400", "#ff5468", "#fff7d6"],
-    text: "text-[#ffc400]",
-    border: "border-[#c60b1e]/70",
-    shadow: "shadow-[0_0_40px_-8px_rgba(198,11,30,0.5)]",
-    small: "text-[#ffe3ad]/90",
-    big: "text-[#ffc400]",
+    rgb: "255, 40, 40",
+    burst: ["#ff2828", "#ff3b3b", "#ff8080", "#fff0ee"],
+    text: "text-[#ff3b3b]",
+    border: "border-[#ff3b3b]/70",
+    shadow: "shadow-[0_0_40px_-8px_rgba(255,40,40,0.5)]",
+    small: "text-[#ffd9d9]/90",
+    big: "text-[#ff3b3b]",
   },
   blue: {
-    rgb: "117, 170, 219",
-    burst: ["#75aadb", "#ffffff", "#9cc4e4", "#eef7ff"],
-    text: "text-[#75aadb]",
-    border: "border-[#75aadb]/70",
-    shadow: "shadow-[0_0_40px_-8px_rgba(117,170,219,0.5)]",
-    small: "text-[#bfe0ff]/90",
-    big: "text-[#9cc4e4]",
+    rgb: "0, 179, 255",
+    burst: ["#00b3ff", "#ffffff", "#7fe3ff", "#eafcff"],
+    text: "text-[#00c2ff]",
+    border: "border-[#00c2ff]/70",
+    shadow: "shadow-[0_0_40px_-8px_rgba(0,179,255,0.5)]",
+    small: "text-[#bfeeff]/90",
+    big: "text-[#00c2ff]",
   },
 };
 
@@ -71,9 +71,10 @@ export function BookingCelebration({
 }: {
   daily: DailyCountRow[];
   inspectors?: InspectorRowDTO[];
-  /** Game Day only: swaps the "new booking" beat for a goal celebration
-   * (net-flash + "GOOOOAL" sweep, team-coloured confetti). Everywhere else
-   * (outside Game Day) the gong, timing, and visuals are unchanged. */
+  /** Game Day only: swaps the "new booking" beat for a bigger "BOOKED!"
+   * celebration (flash + team-coloured sweep, team-coloured confetti).
+   * Everywhere else (outside Game Day) the gong, timing, and visuals are
+   * unchanged. */
   gameDay?: boolean;
 }) {
   const state = useRef(createCelebrateState());
@@ -190,7 +191,7 @@ export function BookingCelebration({
           glow: goalTeam
             ? `[background:radial-gradient(60%_60%_at_50%_45%,rgba(${GOAL_TEAM[goalTeam].rgb},0.24),transparent_70%)]`
             : "[background:radial-gradient(60%_60%_at_50%_45%,rgba(255,212,46,0.22),transparent_70%)]",
-          label: "Goal!",
+          label: "Booked!",
           labelColor: goalTeam ? GOAL_TEAM[goalTeam].text : "text-accent-400",
         }
       : {
@@ -245,18 +246,19 @@ export function BookingCelebration({
           for <span className="text-green-300">{pop.forRep}</span>
         </p>
       )}
-      {/* GOOOOAL sweep plays in its own space BELOW the name/code — never
+      {/* BOOKED! sweep plays in its own space BELOW the name/code — never
           overlapping them — so both stay readable the whole time it plays. */}
       {isGoal && !reducedMotion() && (
         <p
           aria-hidden
           className="gd-goal-sweep font-display pointer-events-none relative w-full text-center leading-none font-black uppercase [font-size:clamp(5rem,24vw,20rem)]"
           style={{
-            color: goalTeam === "orange" ? "#ffc400" : goalTeam === "blue" ? "#75aadb" : "#ffd42e",
-            WebkitTextStroke: goalTeam === "orange" ? "3px #c60b1e" : goalTeam === "blue" ? "3px #ffffff" : undefined,
+            color: goalTeam === "orange" ? "#ff3b3b" : goalTeam === "blue" ? "#00c2ff" : "#ffd42e",
+            WebkitTextStroke:
+              goalTeam === "orange" ? "3px #7a0010" : goalTeam === "blue" ? "3px #ffffff" : undefined,
           }}
         >
-          GOOOOAL
+          BOOKED!
         </p>
       )}
     </div>

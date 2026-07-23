@@ -21,17 +21,22 @@ import { useLiveRefresh } from "../lib/live";
 import { tierProgress } from "../lib/tiers";
 
 /**
- * Full-screen DARK "Game Day" wall board for /live/game-day — a 7-v-8 Spain vs
- * Argentina World Cup Final battle. Opens with a hype CEREMONY: a slam-in title, then every rostered
- * rep is introduced one-by-one (name rises in, with a soft whoosh — or a
- * cha-ching + money splash for the big earners, or a fanfare + shout-out for the
- * Tier 3 club), then "LET THE GAMES BEGIN" with a triple ding and crowd cheer,
- * and only then the live scoreboard. The board has real CSS flames + an aura that
- * grow the further ahead the leading team is, a live countdown to the 7 PM final
- * whistle (with an escalating "last push" inside the final 30 min), periodic
- * scoreboard "fun facts", and the day's top scorer crowned for the prize. Every
- * booking still fires the shared gong + celebration (site inspections included),
- * and it polls /api/boards, replaying the ceremony whenever Game Day flips on.
+ * Full-screen DARK "Game Day" wall board for /live/game-day — a head-to-head
+ * neon RED vs BLUE sales battle: reps split into two squads, competing for
+ * who lands the most bookings before the 7 PM whistle. Opens with a hype
+ * CEREMONY: a slam-in title, then every rostered rep is introduced one-by-one
+ * (name rises in, with a soft whoosh — or a cha-ching + money splash for the
+ * big earners, or a fanfare + shout-out for the Tier 3 club), then "LET THE
+ * GAMES BEGIN" with a triple ding and crowd cheer, and only then the live
+ * scoreboard. The whole wall stays visually alive even between bookings —
+ * drifting neon sparks, a slow scanning light sweep, and a pulsing centre
+ * "VS" seam where the two team colours clash, like a game's menu screen. The
+ * board also has real CSS flames + an aura that grow the further ahead the
+ * leading team is, a live countdown to the 7 PM final whistle (with an
+ * escalating "last push" inside the final 30 min), periodic scoreboard "fun
+ * facts", and the day's top scorer crowned for the prize. Every booking
+ * still fires the shared gong + celebration (site inspections included), and
+ * it polls /api/boards, replaying the ceremony whenever Game Day flips on.
  */
 
 // Prize money — edit these to change what's on the line.
@@ -58,7 +63,7 @@ const ROSTER_TOTAL_MS = 44000; // the rep roll-call lasts EXACTLY this long (44s
 const GO_MS = 3000; // "LET THE GAMES BEGIN"
 const FADE_MS = 550; // veil fade-out tail
 
-// Background music for the roll-call (FIFA World Cup 26 theme, in public/sounds).
+// Background hype anthem for the roll-call (in public/sounds).
 const MUSIC_SRC = "/sounds/worldcup26-theme.mp3";
 const MUSIC_VOL = 0.55;
 
@@ -83,38 +88,47 @@ const TEAM: Record<
   }
 > = {
   orange: {
-    // Spain — red & gold.
-    label: "Spain",
-    emoji: "🇪🇸",
-    rgb: "198, 11, 30",
-    wash: 0.1,
-    fire: { core: "#fff7d6", mid: "#ffc400", edge: "#c60b1e" },
-    box: "border-[#c60b1e]/70 bg-[#c60b1e]/10",
-    name: "text-[#ffe3ad]",
-    num: "text-[#ffc400]",
-    heading: "text-[#ff5468]",
-    barFrom: "from-[#c60b1e]",
-    barTo: "to-[#ffc400]",
+    // Team Red — neon crimson. Kept on key "orange" so BoardRowDTO.team
+    // values ("orange"/"blue" from the roster assignment) don't need a
+    // migration; only the visual identity changed.
+    label: "Red",
+    emoji: "🔴",
+    rgb: "255, 40, 40",
+    wash: 0.12,
+    washBase: "#160406",
+    leaderRgb: "255, 90, 90",
+    // Real fire reads as fire because of the red→orange→yellow-white hue
+    // SHIFT, not just shades of one hue — a mono-red gradient (what this was
+    // before) looks like a flat glow, not flames. Core/mid stay classic
+    // fire warm tones; only the outer edge carries the team's actual red, so
+    // it's still unmistakably "Team Red" at a glance while the flame itself
+    // looks real.
+    fire: { core: "#fff8e1", mid: "#ff8a00", edge: "#ff2828" },
+    box: "border-[#ff3b3b]/70 bg-[#ff3b3b]/10",
+    name: "text-[#ffd9d9]",
+    num: "text-[#ff3b3b]",
+    heading: "text-[#ff3b3b]",
+    barFrom: "from-[#7a0010]",
+    barTo: "to-[#ff3b3b]",
   },
   blue: {
-    // Argentina — celeste & white. Wash sits on a navy backdrop (not bare
-    // black) so the blue has something saturated to pop against, mirroring
-    // how Spain's dark red base makes its gold glow read — and the number/
-    // leader-glow tint is a brighter sky blue so this side doesn't read flat
-    // next to Spain's red/gold.
-    label: "Argentina",
-    emoji: "🇦🇷",
-    rgb: "117, 170, 219",
+    // Team Blue — neon electric blue. Wash sits on a near-black navy backdrop
+    // so the blue has something saturated to pop against, mirroring Red's
+    // dark base — and the leader-glow tint is a brighter cyan-blue so this
+    // side doesn't read flat next to Red's hotter neon.
+    label: "Blue",
+    emoji: "🔵",
+    rgb: "0, 179, 255",
     wash: 0.16,
-    washBase: "#0a1929",
-    leaderRgb: "79, 195, 247",
-    fire: { core: "#eef7ff", mid: "#75aadb", edge: "#1f4a73" },
-    box: "border-[#75aadb]/70 bg-[#75aadb]/10",
+    washBase: "#020814",
+    leaderRgb: "56, 210, 255",
+    fire: { core: "#eafcff", mid: "#00b3ff", edge: "#003a66" },
+    box: "border-[#00c2ff]/70 bg-[#00c2ff]/10",
     name: "text-white",
-    num: "text-[#4fc3f7]",
-    heading: "text-[#75aadb]",
-    barFrom: "from-[#75aadb]",
-    barTo: "to-white",
+    num: "text-[#00c2ff]",
+    heading: "text-[#00c2ff]",
+    barFrom: "from-[#003a66]",
+    barTo: "to-[#00c2ff]",
   },
 };
 
@@ -226,6 +240,78 @@ function buildRoster(daily: BoardRowDTO[], monthly: BoardRowDTO[]): RosterCard[]
     }
   }
   return [...byId.values()].sort((a, b) => a.month - b.month || a.name.localeCompare(b.name));
+}
+
+// Deterministic ember field — seeded by index (not Math.random()) so server
+// and client render the exact same positions/timings, avoiding a hydration
+// mismatch on first paint.
+const BACKDROP_SPARKS = Array.from({ length: 26 }, (_, i) => ({
+  side: (i % 2 === 0 ? "orange" : "blue") as Side,
+  left: (i * 37) % 100,
+  drift: ((i * 53) % 40) - 20, // px sideways drift over the rise
+  delay: (i * 1.7) % 16,
+  dur: 11 + (i % 6) * 2,
+  size: 3 + (i % 4),
+}));
+
+/** Always-on ambient arena backdrop: a red/blue base wash meeting at a
+ * pulsing centre "VS" seam, a slow diagonal light sweep, a faint panning
+ * tech grid, and drifting neon sparks in each team's colour — so the wall
+ * has game-menu-screen energy even between bookings, not just static
+ * colour blocks. Purely decorative; every animation here is disabled under
+ * prefers-reduced-motion (see the gd-* classes in globals.css). */
+function GameDayBackdrop() {
+  return (
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-30 overflow-hidden bg-[#050608]">
+      <div
+        className="absolute inset-y-0 left-0 w-3/5"
+        style={{
+          background: `radial-gradient(120% 100% at 0% 45%, rgba(${TEAM.orange.rgb}, 0.16), transparent 65%)`,
+        }}
+      />
+      <div
+        className="absolute inset-y-0 right-0 w-3/5"
+        style={{
+          background: `radial-gradient(120% 100% at 100% 45%, rgba(${TEAM.blue.rgb}, 0.16), transparent 65%)`,
+        }}
+      />
+      {/* Faint panning tech grid for arena texture. */}
+      <div
+        aria-hidden
+        className="gd-grid-pan absolute inset-0 opacity-[0.04]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)",
+          backgroundSize: "56px 56px",
+        }}
+      />
+      {/* Centre VS seam — the bright line where Red and Blue's light clashes. */}
+      <div className="gd-seam-pulse absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-white/50 to-transparent" />
+      {/* Slow diagonal spotlight sweep. */}
+      <div className="gd-scan-sweep absolute -inset-y-1/4 -left-1/3 w-1/4 rotate-12 bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+      {/* Drifting neon sparks, tinted per team. */}
+      {BACKDROP_SPARKS.map((s, i) => {
+        const rgb = TEAM[s.side].rgb;
+        return (
+          <span
+            key={i}
+            className="gd-particle-drift absolute rounded-full"
+            style={{
+              left: `${s.left}%`,
+              bottom: "-4%",
+              width: s.size,
+              height: s.size,
+              background: `rgb(${rgb})`,
+              boxShadow: `0 0 ${s.size * 3}px rgba(${rgb}, 0.9)`,
+              ["--pdx" as string]: `${s.drift}px`,
+              ["--pd" as string]: `${s.dur}s`,
+              animationDelay: `${s.delay}s`,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
 }
 
 /** Thin flames rising up BEHIND the leading team's score box — a curtain of thin,
@@ -545,7 +631,7 @@ function PlayerBox({
   const t = TEAM[side];
   const highlight = isTop || isTopJob;
   // The team-leader glow/ring can be brighter than the team's base rgb (e.g.
-  // Argentina's celeste needs a punchier tint here than its ambient box glow).
+  // Blue's cyan needs a punchier tint here than its ambient box glow).
   const leaderRgb = t.leaderRgb ?? t.rgb;
   const glowVars = isTop
     ? {
@@ -826,7 +912,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   }, [secsLeft, on]);
 
   // Every so often, flash up an attention-grabbing fact about the scoreboard
-  // ("X is carrying Spain right now…"), with a fanfare + a little confetti.
+  // ("X is carrying Team Red right now…"), with a fanfare + a little confetti.
   useEffect(() => {
     if (!on) return;
     const fire = () => {
@@ -846,7 +932,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           spread: 75,
           startVelocity: 40,
           origin: { y: 0.15 },
-          colors: ["#ffd42e", "#fff389", "#c60b1e", "#75aadb"],
+          colors: ["#ffd42e", "#fff389", "#ff3b3b", "#00c2ff"],
         });
       }
       factTimer.current = window.setTimeout(() => setFact(null), FACT_HOLD_MS);
@@ -859,7 +945,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     };
   }, [on]);
 
-  // ── Roll-call background music (World Cup theme) ──
+  // ── Roll-call background music (hype anthem) ──
   const startMusic = useCallback(() => {
     const el = musicRef.current;
     if (!el) return;
@@ -949,7 +1035,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     const n = roster.length;
 
     // The roll-call spans EXACTLY ROSTER_TOTAL_MS (44s) end-to-end, under the
-    // World Cup theme — card i lands at its fraction of that window no matter how
+    // hype anthem — card i lands at its fraction of that window no matter how
     // many reps there are. Each rep: a soft whoosh by default, a cha-ching +
     // money splash for the big earners, a fanfare for the Tier 3 club.
     if (n > 0) musicWanted.current = true;
@@ -1077,7 +1163,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
         particleCount: 150,
         spread: 100,
         origin: { y: 0.4 },
-        colors: leader === "orange" ? ["#c60b1e", "#ffc400", "#e8434f"] : ["#75aadb", "#ffffff", "#a9cdec"],
+        colors: leader === "orange" ? ["#ff3b3b", "#ff2828", "#ff8080"] : ["#00c2ff", "#ffffff", "#7fe3ff"],
       });
     }
     prevLeader.current = leader;
@@ -1127,13 +1213,17 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           opacity or color. z-0 forces <main> to own its stacking order so
           its background paints first, as intended. */}
 
+      {/* Always-on ambient arena backdrop — game-menu-screen energy behind
+          everything else, regardless of standby/ceremony/live state. */}
+      <GameDayBackdrop />
+
       {/* Bookings gong + celebrate (team members only on the board), and site
           inspections still pop their green celebration + gong — inspectors just
           don't get a box on the game-day leaderboard. `gameDay` swaps the "new
           booking" beat for a goal celebration only while the battle is on. */}
       <BookingCelebration daily={teamed} inspectors={inspectors} gameDay={on} />
 
-      {/* Roll-call background music (World Cup theme). Hidden; driven by the ceremony. */}
+      {/* Roll-call background music (hype anthem). Hidden; driven by the ceremony. */}
       <audio ref={musicRef} src={MUSIC_SRC} preload="auto" className="hidden" aria-hidden />
 
       {/* ── Opening ceremony ── */}
@@ -1182,7 +1272,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                       TEAM.orange.heading,
                     )}
                   >
-                    {TEAM.orange.emoji} Spain
+                    {TEAM.orange.emoji} Team {TEAM.orange.label}
                   </span>
                   <span className="font-display text-2xl font-black text-white/50 sm:text-4xl">VS</span>
                   <span
@@ -1191,7 +1281,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                       TEAM.blue.heading,
                     )}
                   >
-                    Argentina {TEAM.blue.emoji}
+                    Team {TEAM.blue.label} {TEAM.blue.emoji}
                   </span>
                 </div>
                 <p className="mt-8 max-w-3xl text-base font-semibold text-white/70 gd-fade-up sm:text-xl">
@@ -1229,8 +1319,9 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                   Let the games begin
                 </h1>
                 <p className="mt-6 text-2xl font-black text-white/80 sm:text-3xl">
-                  {TEAM.orange.emoji} Spain <span className="text-white/40">vs</span> Argentina{" "}
-                  {TEAM.blue.emoji} — go go go!
+                  {TEAM.orange.emoji} Team {TEAM.orange.label}{" "}
+                  <span className="text-white/40">vs</span> Team {TEAM.blue.label} {TEAM.blue.emoji} — go
+                  go go!
                 </p>
               </div>
             )}
@@ -1282,7 +1373,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                 Game Day
               </h1>
               <span className="font-display text-2xl font-black tracking-wide text-white/30 uppercase sm:text-3xl">
-                Spain vs Argentina
+                {TEAM.orange.label} vs {TEAM.blue.label}
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -1312,7 +1403,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           {/* Final-30-minutes motivator (escalates toward 7 PM). */}
           <LastPush secs={secsLeft} />
 
-          {/* ── Scoreboard: Spain total · tug-of-war · Argentina total ── */}
+          {/* ── Scoreboard: Red total · tug-of-war · Blue total ── */}
           <section className="flex shrink-0 items-center gap-4 rounded-3xl border border-white/10 bg-white/[0.03] px-5 py-4 sm:gap-8 sm:px-8">
             <ScorePlate side="orange" total={orangeTotal} isLeader={leader === "orange"} heat={heat} />
 
@@ -1366,17 +1457,6 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
 
           {/* ── Team rosters fill the rest of the wall ── */}
           <div className="relative z-0 grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
-            {/* Football-pitch texture, scoped to the roster grid (not the
-                whole screen) so it lands at the boundary between the first
-                and second row of player cards. z-0 above is load-bearing —
-                same trap as <main>: without it, this -z-10 child would
-                escape to the root stacking context and this div's (implicit,
-                transparent) background wouldn't be the issue, but any solid
-                ancestor between here and the root could paint over it. */}
-            <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-              <div className="absolute inset-x-0 top-[25%] h-0.5 -translate-y-1/2 bg-white/[0.12]" />
-              <div className="absolute top-[25%] left-1/2 aspect-square h-[34vh] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/[0.12]" />
-            </div>
             <TeamColumn
               side="orange"
               reps={orange}
