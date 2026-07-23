@@ -737,7 +737,7 @@ function TeamColumn({
   // highlighted "in-form" rep instead of a flat, all-equal grid.
   const maxTeamCount = sorted[0]?.count ?? 0;
   return (
-    <section className="relative flex min-h-0 flex-col">
+    <section className="relative flex min-h-0 flex-col overflow-hidden rounded-[2rem]">
       {/* Subtle always-on team-colour wash behind the panel, kept faint so names
           and numbers on the opaque player boxes stay easy to read. Teams with a
           `washBase` sit on a saturated solid backdrop instead of bare black, so
