@@ -11,12 +11,26 @@
  * Only the last WINDOW_DAYS of move dates (plus all future) are sent; the
  * dashboard side skips non-NL/RRR/PM companies and any sales rep that isn't a
  * roster rep or the subcontractor "Domanic".
+ *
+ * This sheet is large (~3,600+ rows × 54 cols, plus giant AU/AV/AW
+ * confirmation-text columns and volatile formulas), which makes a single
+ * full-width getValues() read prone to "Service Spreadsheets timed out" — when
+ * that happens the whole push used to fail, including the month/pipeline/
+ * revenue tally that the floor actually watches. This version reads the tally
+ * off a handful of narrow, targeted columns and pushes it FIRST, then does the
+ * heavier recent-bookings detail sync (capped to the most recent SYNC_ROWS
+ * rows) in its own try/catch, and retries any individual read that times out a
+ * couple of times before giving up — so a transient hiccup on this sheet no
+ * longer means the dashboard's monthly numbers go stale.
  */
 
 var BOOK_TAB = "Booking";
 var HEADER_ROWS = 2; // real headers are on row 2; data starts row 3
 var WINDOW_DAYS = 90;
 var BATCH = 300;
+var SYNC_ROWS = 2500; // detail sync only needs the most-recent rows (bookings are recent + upcoming)
+var MAX_ROW_NET = 60000; // sanity cap: a single booking can't net more than this
+var READ_TRIES = 3; // attempts for a single getValues() read before giving up
 
 // 0-based column indexes within the row (col A = 0).
 var COL = {
@@ -45,8 +59,9 @@ var COL = {
   extra4: 53, // BB
 };
 
-// We must read out to col BB (54) for the revenue maths.
-var LAST_COL = 54;
+// The recent-bookings detail sync only needs A..AT — skip the huge AU/AV/AW
+// message columns that make a full-width read so much slower.
+var MAIN_COLS = 46;
 
 /** Parse a money-ish cell (number, or "$1,234.50" text) to a number; blank → 0. */
 function bookNum_(v) {
@@ -54,6 +69,83 @@ function bookNum_(v) {
   if (typeof v === "number") return isFinite(v) ? v : 0;
   var n = parseFloat(String(v).replace(/[^0-9.\-]/g, ""));
   return isFinite(n) ? n : 0;
+}
+
+/**
+ * getValues() with a short retry — this sheet is big/heavy enough that a read
+ * can throw a transient "Service Spreadsheets timed out" even on a narrow
+ * range; retrying a couple of times recovers most of those without waiting for
+ * the next scheduled run (15 min later).
+ */
+function getValuesRetry_(sheet, row, col, numRows, numCols) {
+  var lastErr;
+  for (var attempt = 1; attempt <= READ_TRIES; attempt++) {
+    try {
+      return sheet.getRange(row, col, numRows, numCols).getValues();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < READ_TRIES) Utilities.sleep(2000 * attempt);
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * The month/pipeline/revenue tally only needs 6 of the sheet's 54 columns.
+ * Read as a few small, targeted getValues() calls (retried on timeout)
+ * instead of folding it into the big all-columns read below — so the tally
+ * that the floor watches doesn't depend on the heavy read succeeding.
+ */
+function pushMonthlyTally_(sheet, tz, firstRow, n) {
+  var nowd = new Date();
+  var thisMonth = Utilities.formatDate(nowd, tz, "yyyy-MM");
+  // Pipeline window = this month + the next two (e.g. Jun, Jul, Aug — counts ALL
+  // of the current month, including days before today).
+  var pipeMonths = {};
+  for (var k = 0; k < 3; k++) {
+    pipeMonths[Utilities.formatDate(new Date(nowd.getFullYear(), nowd.getMonth() + k, 1), tz, "yyyy-MM")] = 1;
+  }
+
+  var dateCol = getValuesRetry_(sheet, firstRow, COL.date + 1, n, 1);
+  var salesCol = getValuesRetry_(sheet, firstRow, COL.sales + 1, n, 1);
+  var extrasCol = getValuesRetry_(sheet, firstRow, COL.extra1 + 1, n, 3); // AK,AL,AM are contiguous
+  var totalCol = getValuesRetry_(sheet, firstRow, COL.total + 1, n, 1);
+  var extra4Col = getValuesRetry_(sheet, firstRow, COL.extra4 + 1, n, 1);
+
+  var monthCounts = {}; // sales person -> rows with a move date this month
+  var pipelineCounts = {}; // sales person -> rows with a move date in the next 3 months
+  var monthRevenue = {}; // sales person -> NET revenue ($) of this month's rows
+  var skipped = 0;
+  for (var i = 0; i < n; i++) {
+    var date = dateCol[i][0];
+    if (!(date instanceof Date) || isNaN(date.getTime())) continue;
+    var sales = String(salesCol[i][0] || "").trim();
+    if (!sales) continue;
+
+    var ym = Utilities.formatDate(date, tz, "yyyy-MM");
+    if (ym === thisMonth) {
+      monthCounts[sales] = (monthCounts[sales] || 0) + 1;
+      // NET revenue to the rep = AT − AK − AL − AM − BB. Counts every row in
+      // the month (done or upcoming); the deposit is already part of AT.
+      var net =
+        bookNum_(totalCol[i][0]) -
+        bookNum_(extrasCol[i][0]) -
+        bookNum_(extrasCol[i][1]) -
+        bookNum_(extrasCol[i][2]) -
+        bookNum_(extra4Col[i][0]);
+      // Safety floor: a real booking nets $0..a few thousand. Negative/absurd
+      // means junk in a cell (or a drifted column) — count it as $0 so one bad
+      // row can't poison the whole rep's month.
+      if (!(net > 0) || net > MAX_ROW_NET) {
+        net = 0;
+        skipped++;
+      }
+      monthRevenue[sales] = (monthRevenue[sales] || 0) + net;
+    }
+    if (pipeMonths[ym]) pipelineCounts[sales] = (pipelineCounts[sales] || 0) + 1;
+  }
+  if (skipped) Logger.log(skipped + " row(s) had a junk/negative net → counted as $0");
+  return { month: thisMonth, counts: monthCounts, pipeline: pipelineCounts, revenue: monthRevenue };
 }
 
 function pushBookings() {
@@ -70,106 +162,85 @@ function pushBookings() {
 
   var lastRow = sheet.getLastRow();
   if (lastRow <= HEADER_ROWS) return "no rows";
-  var values = sheet.getRange(HEADER_ROWS + 1, 1, lastRow - HEADER_ROWS, LAST_COL).getValues();
+  var firstRow = HEADER_ROWS + 1;
+  var n = lastRow - HEADER_ROWS;
 
-  var cutoff = new Date();
-  cutoff.setHours(0, 0, 0, 0);
-  cutoff.setDate(cutoff.getDate() - WINDOW_DAYS);
-  var nowd = new Date();
-  var thisMonth = Utilities.formatDate(nowd, tz, "yyyy-MM");
-  // Pipeline window = this month + the next two (e.g. Jun, Jul, Aug — counts ALL
-  // of the current month, including days before today).
-  var pipeMonths = {};
-  for (var k = 0; k < 3; k++) {
-    pipeMonths[Utilities.formatDate(new Date(nowd.getFullYear(), nowd.getMonth() + k, 1), tz, "yyyy-MM")] = 1;
-  }
-
-  var rows = [];
-  var monthCounts = {}; // sales person -> rows with a move date this month
-  var pipelineCounts = {}; // sales person -> rows with a move date in the next 3 months
-  var monthRevenue = {}; // sales person -> NET revenue ($) of this month's rows
-  for (var i = 0; i < values.length; i++) {
-    var v = values[i];
-    var job = String(v[COL.job] || "").trim();
-    var date = v[COL.date];
-    if (!(date instanceof Date) || isNaN(date.getTime())) continue;
-
-    // Tallies: every row with a sales person, by the month of its move date
-    // (raw row count — the number the floor watches, not deduped by job).
-    var sales = String(v[COL.sales] || "").trim();
-    if (sales) {
-      var ym = Utilities.formatDate(date, tz, "yyyy-MM");
-      if (ym === thisMonth) {
-        monthCounts[sales] = (monthCounts[sales] || 0) + 1;
-        // NET revenue to the rep = AT − AK − AL − AM − BB. Counts every row in
-        // the month (done or upcoming); the deposit is already part of AT.
-        var net =
-          bookNum_(v[COL.total]) -
-          bookNum_(v[COL.extra1]) -
-          bookNum_(v[COL.extra2]) -
-          bookNum_(v[COL.extra3]) -
-          bookNum_(v[COL.extra4]);
-        monthRevenue[sales] = (monthRevenue[sales] || 0) + net;
-      }
-      if (pipeMonths[ym]) pipelineCounts[sales] = (pipelineCounts[sales] || 0) + 1;
-    }
-
-    if (!job || date < cutoff) continue; // bookings sync: recent + upcoming only
-    rows.push({
-      jobNumber: job,
-      company: String(v[COL.company] || "").trim(),
-      moveDate: Utilities.formatDate(date, tz, "yyyy-MM-dd"),
-      salesPerson: String(v[COL.sales] || "").trim(),
-      customerName: String(v[COL.name] || "").trim(),
-      customerPhone: String(v[COL.phone] || "").trim(),
-      customerEmail: String(v[COL.email] || "").trim(),
-      pickup: String(v[COL.pickup] || "").trim(),
-      delivery: String(v[COL.delivery] || "").trim(),
-      state: String(v[COL.state] || "").trim(),
-      beds: v[COL.beds],
-      cubic: v[COL.cubic],
-      men: v[COL.men],
-      deposit: v[COL.deposit],
-      leadSource: String(v[COL.leadFrom] || "").trim(),
-      notes: String(v[COL.notes] || "").trim(),
-    });
-  }
-
-  // Push the month tally first so the board's headline total is right even if
-  // the bigger bookings sync below is slow.
+  // Push the month tally FIRST, off its own narrow reads, so the board's
+  // headline numbers land even when the full-width sync below is too slow (or
+  // times out outright) on a big sheet.
+  var tally = pushMonthlyTally_(sheet, tz, firstRow, n);
   var monthlyRes = UrlFetchApp.fetch(url.replace(/\/$/, "") + "/api/ingest/monthly", {
     method: "post",
     contentType: "application/json",
     headers: { Authorization: "Bearer " + secret },
-    payload: JSON.stringify({
-      month: thisMonth,
-      counts: monthCounts,
-      pipeline: pipelineCounts,
-      revenue: monthRevenue,
-    }),
+    payload: JSON.stringify(tally),
     muteHttpExceptions: true,
   });
   if (monthlyRes.getResponseCode() >= 300) {
     throw new Error("Monthly ingest failed " + monthlyRes.getResponseCode() + ": " + monthlyRes.getContentText());
   }
 
-  var endpoint = url.replace(/\/$/, "") + "/api/ingest/bookings";
-  var sent = 0;
-  for (var b = 0; b < rows.length; b += BATCH) {
-    var batch = rows.slice(b, b + BATCH);
-    var res = UrlFetchApp.fetch(endpoint, {
-      method: "post",
-      contentType: "application/json",
-      headers: { Authorization: "Bearer " + secret },
-      payload: JSON.stringify({ rows: batch }),
-      muteHttpExceptions: true,
-    });
-    if (res.getResponseCode() >= 300) {
-      throw new Error("Bookings ingest failed " + res.getResponseCode() + ": " + res.getContentText());
+  // Recent + upcoming full-detail sync: needs every column up to AT (skipping
+  // the huge AU/AV/AW message columns), so it's the heavy read. Capped to the
+  // most recent SYNC_ROWS rows (bookings synced here are only ever recent +
+  // upcoming anyway) and isolated in its own try/catch so a timeout/error here
+  // can't undo the monthly push above — the floor's headline numbers stay live
+  // even when this part fails and just retries on the next run.
+  try {
+    var cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - WINDOW_DAYS);
+    var wideCount = Math.min(n, SYNC_ROWS);
+    var wideStart = lastRow - wideCount + 1;
+    var values = getValuesRetry_(sheet, wideStart, 1, wideCount, MAIN_COLS);
+
+    var rows = [];
+    for (var i = 0; i < values.length; i++) {
+      var v = values[i];
+      var job = String(v[COL.job] || "").trim();
+      var date = v[COL.date];
+      if (!job || !(date instanceof Date) || isNaN(date.getTime()) || date < cutoff) continue;
+      rows.push({
+        jobNumber: job,
+        company: String(v[COL.company] || "").trim(),
+        moveDate: Utilities.formatDate(date, tz, "yyyy-MM-dd"),
+        salesPerson: String(v[COL.sales] || "").trim(),
+        customerName: String(v[COL.name] || "").trim(),
+        customerPhone: String(v[COL.phone] || "").trim(),
+        customerEmail: String(v[COL.email] || "").trim(),
+        pickup: String(v[COL.pickup] || "").trim(),
+        delivery: String(v[COL.delivery] || "").trim(),
+        state: String(v[COL.state] || "").trim(),
+        beds: v[COL.beds],
+        cubic: v[COL.cubic],
+        men: v[COL.men],
+        deposit: v[COL.deposit],
+        leadSource: String(v[COL.leadFrom] || "").trim(),
+        notes: String(v[COL.notes] || "").trim(),
+      });
     }
-    sent += batch.length;
+
+    var endpoint = url.replace(/\/$/, "") + "/api/ingest/bookings";
+    var sent = 0;
+    for (var b = 0; b < rows.length; b += BATCH) {
+      var batch = rows.slice(b, b + BATCH);
+      var res = UrlFetchApp.fetch(endpoint, {
+        method: "post",
+        contentType: "application/json",
+        headers: { Authorization: "Bearer " + secret },
+        payload: JSON.stringify({ rows: batch }),
+        muteHttpExceptions: true,
+      });
+      if (res.getResponseCode() >= 300) {
+        throw new Error("Bookings ingest failed " + res.getResponseCode() + ": " + res.getContentText());
+      }
+      sent += batch.length;
+    }
+    return "sent " + sent + " booking rows (monthly ok)";
+  } catch (err) {
+    Logger.log("Bookings detail sync failed (monthly tally still pushed OK): %s", err);
+    return "monthly ok; detail sync failed: " + err;
   }
-  return "sent " + sent + " booking rows";
 }
 
 function onBookingEdit(e) {
