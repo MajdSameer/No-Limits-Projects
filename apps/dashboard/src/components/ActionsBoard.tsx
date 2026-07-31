@@ -9,12 +9,13 @@ import { useLiveRefresh } from "../lib/live";
 import { SYDNEY_TZ } from "../lib/sydney";
 
 const POLL_MS = 30000;
-// A single failed round-trip to MovePro takes ~15-20s (its own fetch timeout
-// budget), so 25s is enough to have seen at least one real failure — long
-// enough not to flash an error during a normal slow-but-working first load,
-// short enough that the wall board doesn't sit on "Loading…" forever when
-// something's actually broken.
-const STALE_MS = 25000;
+// A single failed round-trip to MovePro now times out at ~5s (see
+// FETCH_TIMEOUT_MS in movepro-actions.ts — both endpoints respond in well
+// under 1s when reachable, so 5s is already generous for a real failure).
+// 7s covers one failed attempt plus a little slack, so the board flips from
+// "Loading…" to an honest error as fast as it reasonably can without
+// flashing an error mid a normal working load.
+const STALE_MS = 7000;
 
 /** Briefly true right after `value` changes, for a subtle number-change pulse
  * (no layout shift — just a colour flash on the digits themselves). */
