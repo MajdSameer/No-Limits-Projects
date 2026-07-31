@@ -63,8 +63,10 @@ const ROSTER_TOTAL_MS = 44000; // the rep roll-call lasts EXACTLY this long (44s
 const GO_MS = 3000; // "LET THE GAMES BEGIN"
 const FADE_MS = 550; // veil fade-out tail
 
-// Background hype anthem for the roll-call (in public/sounds).
-const MUSIC_SRC = "/sounds/worldcup26-theme.mp3";
+// Background hype anthem for the roll-call (in public/sounds). 57s, longer
+// than the 44s roll-call window, so it never runs dry before the "Let the
+// games begin" fade-out.
+const MUSIC_SRC = "/sounds/f1-opening-titles-2026.mp3";
 const MUSIC_VOL = 0.55;
 
 type Side = "orange" | "blue";
