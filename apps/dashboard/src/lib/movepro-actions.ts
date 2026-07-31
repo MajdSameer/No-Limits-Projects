@@ -1,5 +1,6 @@
 import { addDays } from "date-fns";
 import { format, toZonedTime } from "date-fns-tz";
+import { unstable_cache } from "next/cache";
 
 import { SYDNEY_TZ, sydneyToday } from "./sydney";
 
@@ -267,9 +268,64 @@ export async function fetchDayAggregate(
 
 // ── Monthly assembly ─────────────────────────────────────────────────────
 
-/** Completed days never change — cached forever for the life of this server
- * instance. Only today is re-fetched on every poll. */
-const dayCache = new Map<string, Map<string, AgentAgg>>();
+/** Runs `fn` over `items` with at most `limit` in flight at once, not
+ * Promise.all's unbounded fan-out. Metabase serialises concurrent report
+ * queries on its own backend — confirmed via /api/debug-movepro's
+ * ?concurrency probe: 20 parallel dashcard calls each took 12-16s (vs ~5s
+ * solo), so the original unbounded ~31-wide cold-start fan-out was timing
+ * everything out by overloading Metabase, not by hitting any per-request
+ * problem. */
+export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]!);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+
+const DASHCARD_CONCURRENCY = 5;
+
+/** Agents seen so far this process — feeds the truncation guard in
+ * fetchDayAggregate. Resets on cold start (there's no durable source of "all
+ * possible sales agents" to seed it from), same accepted caveat as before;
+ * unrelated to the day-result cache below, which is now durable. */
+const knownAgents = new Set<string>();
+
+/** A completed Sydney calendar day's aggregate never changes once computed,
+ * so it's cached in Next's Data Cache (durable on Vercel — survives cold
+ * starts, unlike a module-level Map) rather than refetched every poll. Keyed
+ * by the date string ONLY: the JWT embedded in the dashcard URL rotates
+ * every ~24h and must never be part of the cache key, or every mint would
+ * silently bust the whole month's cache. `revalidate: false` because a
+ * completed day is immutable — there's nothing to revalidate. A suspect day
+ * (fetchDayAggregate's truncation guard returning null) throws instead of
+ * resolving, so Next never caches it — it's retried on the next poll rather
+ * than permanently excluded. */
+const getCachedDayEntries = unstable_cache(
+  async (dateStr: string): Promise<[string, AgentAgg][]> => {
+    const result = await fetchDayAggregate(dateStr, knownAgents);
+    if (!result) {
+      throw new Error(`MovePro dashcard: ${dateStr} could not be safely aggregated (see truncation-guard log above)`);
+    }
+    return [...result.entries()];
+  },
+  ["actions-day"],
+  { revalidate: false },
+);
+
+async function getCachedDayAggregate(dateStr: string): Promise<Map<string, AgentAgg> | null> {
+  try {
+    return new Map(await getCachedDayEntries(dateStr));
+  } catch (err) {
+    console.error(`MovePro /actions: ${dateStr} could not be safely aggregated:`, err);
+    return null;
+  }
+}
 
 function sydneyDatesFromMonthStart(today: string): string[] {
   const zonedToday = toZonedTime(`${today}T00:00:00`, SYDNEY_TZ);
@@ -287,47 +343,38 @@ function sydneyDatesFromMonthStart(today: string): string[] {
 const RESPONSE_TTL_MS = 20000;
 let responseCache: { at: number; data: ActionsResponseDTO } | null = null;
 
-function agentKeys(maps: Iterable<Map<string, AgentAgg>>): Set<string> {
-  const keys = new Set<string>();
-  for (const m of maps) for (const k of m.keys()) keys.add(k);
-  return keys;
-}
-
 /** Assembled /api/actions payload: today's per-agent totals, and this
- * calendar month's (Sydney) per-agent totals built from a day-cached sum.
- * Coalesced behind a short in-memory cache so many polling tabs don't each
- * trigger a fresh ~30-request month rebuild. Suspect days (truncation guard
+ * calendar month's (Sydney) per-agent totals built from a durably-cached
+ * per-day sum. Coalesced behind a short in-memory cache so many polling tabs
+ * don't each trigger a fresh month rebuild. Suspect days (truncation guard
  * couldn't safely disaggregate them) are excluded from the monthly total and
- * left uncached, so they're retried on the next poll rather than permanently
- * undercounting the month. */
+ * never cached, so they're retried on the next poll rather than permanently
+ * undercounting the month. Day-level fetches are capped at
+ * DASHCARD_CONCURRENCY in flight at once; a day that's already in the
+ * durable cache resolves near-instantly (no real request), so the cap only
+ * ever throttles genuine Metabase-bound calls, not cache hits. */
 export async function getActionsSnapshot(): Promise<ActionsResponseDTO> {
   if (responseCache && Date.now() - responseCache.at < RESPONSE_TTL_MS) return responseCache.data;
 
   const today = sydneyToday();
-
-  // Known roster: every agent seen in already-cached prior days. Today isn't
-  // fetched yet at this point (it runs in the same parallel batch as the
-  // prior days below, not serialized ahead of it — the day-level requests
-  // don't depend on each other), so it can't contribute to its own roster,
-  // but the truncation guard only needs "good enough," not exhaustive.
-  const known = agentKeys(dayCache.values());
-
   const monthDates = sydneyDatesFromMonthStart(today);
   const priorDates = monthDates.filter((d) => d !== today);
-  const uncached = priorDates.filter((d) => !dayCache.has(d));
-  const daysToFetch = [today, ...uncached];
-  const fetched = await Promise.all(daysToFetch.map((d) => fetchDayAggregate(d, known)));
-  const dailyMap = fetched[0]!;
-  fetched.slice(1).forEach((agg, i) => {
-    if (agg) dayCache.set(uncached[i]!, agg);
-  });
+  const daysToFetch = [today, ...priorDates];
+
+  const fetchOne = async (d: string): Promise<Map<string, AgentAgg> | null> => {
+    // Today is never cached (it's still accumulating), so it's fetched fresh
+    // via the same fetchDayAggregate that backs the durable cache for
+    // completed days below.
+    const result = d === today ? await fetchDayAggregate(d, knownAgents) : await getCachedDayAggregate(d);
+    if (result) for (const k of result.keys()) knownAgents.add(k);
+    return result;
+  };
+
+  const results = await mapWithConcurrency(daysToFetch, DASHCARD_CONCURRENCY, fetchOne);
+  const dailyMap = results[0]!;
 
   const monthlyMap = new Map<string, AgentAgg>();
-  for (const d of priorDates) {
-    const agg = dayCache.get(d);
-    if (agg) mergeAgg(monthlyMap, agg);
-  }
-  if (dailyMap) mergeAgg(monthlyMap, dailyMap);
+  for (const r of results) if (r) mergeAgg(monthlyMap, r);
 
   const data: ActionsResponseDTO = {
     updatedAt: new Date().toISOString(),
