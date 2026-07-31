@@ -33,11 +33,19 @@ function usePulseOnChange(value: number): boolean {
   return pulsing;
 }
 
+/** Fixed ch-based width (scales with the element's own font-size, so it
+ * stays correct across the vmin-clamped sizes below) — reserves enough room
+ * for a 5-digit stat so it never collides with its neighbour, without
+ * needing a hardcoded pixel value tied to one particular row height. */
 function NumStat({ label, value }: { label: string; value: number }) {
   return (
-    <span className="text-right leading-none">
-      <span className="block text-sm font-bold text-white/70 tabular-nums">{value.toLocaleString()}</span>
-      <span className="block text-[0.55rem] font-semibold tracking-wide text-white/35 uppercase">{label}</span>
+    <span className="w-[5ch] shrink-0 text-right leading-none">
+      <span className="block text-[clamp(0.5rem,1.5vmin,0.95rem)] font-bold text-white/70 tabular-nums">
+        {value.toLocaleString()}
+      </span>
+      <span className="block text-[clamp(0.35rem,0.8vmin,0.55rem)] font-semibold tracking-wide text-white/35 uppercase">
+        {label}
+      </span>
     </span>
   );
 }
@@ -48,32 +56,37 @@ function Row({ r, i }: { r: ActionRowDTO; i: number }) {
   return (
     <li
       className={cx(
-        "mb-2 flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 break-inside-avoid",
+        "flex min-w-0 items-center gap-2 overflow-hidden rounded-lg px-3 py-1",
         top3 ? "border border-accent-400/40 bg-accent-400/[0.06]" : "border border-white/5 bg-white/[0.04]",
       )}
     >
       <span
         className={cx(
-          "w-5 shrink-0 text-center text-sm font-bold",
+          "w-[2ch] shrink-0 text-center font-bold text-[clamp(0.5rem,1.4vmin,0.9rem)]",
           i === 0 ? "text-accent-400" : top3 ? "text-brand-200" : "text-white/40",
         )}
       >
         {i + 1}
       </span>
-      <span className={cx("min-w-0 flex-1 truncate font-semibold text-white", top3 ? "text-lg" : "text-base")}>
+      <span
+        className={cx(
+          "min-w-0 flex-1 truncate font-semibold text-white",
+          top3 ? "text-[clamp(0.65rem,2vmin,1.2rem)]" : "text-[clamp(0.6rem,1.7vmin,1rem)]",
+        )}
+      >
         {r.name}
       </span>
-      {/* Real totals run into the thousands (monthly), so the total figure
-          gets no fixed width — it sizes to its own content instead of
-          clipping/overflowing past a box tuned for 1-2 digit numbers. */}
-      <div className="flex shrink-0 items-end gap-2">
+      <div className="flex shrink-0 items-end gap-1.5">
         <NumStat label="calls" value={r.calls} />
         <NumStat label="emails" value={r.emails} />
         <NumStat label="msgs" value={r.messages} />
+        {/* Monthly totals reach 5 digits (e.g. 12,669) — a fixed ch-based
+            width reserves room for that so calls/emails/msgs never collide
+            with it, without hardcoding a pixel value tied to one font size. */}
         <span
           className={cx(
-            "shrink-0 text-right leading-none font-black tabular-nums transition-colors duration-500",
-            top3 ? "text-2xl" : "text-xl",
+            "w-[7ch] shrink-0 text-right leading-none font-black tabular-nums transition-colors duration-500",
+            top3 ? "text-[clamp(0.8rem,2.4vmin,1.6rem)]" : "text-[clamp(0.7rem,2vmin,1.3rem)]",
             pulse ? "text-accent-300" : "text-white",
           )}
         >
@@ -87,7 +100,7 @@ function Row({ r, i }: { r: ActionRowDTO; i: number }) {
 function Section({ title, rows }: { title: string; rows: ActionRowDTO[] }) {
   const total = rows.reduce((s, r) => s + r.total, 0);
   return (
-    <section className="flex min-h-0 flex-1 flex-col">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 items-baseline justify-between">
         <h2 className="text-lg font-bold text-white">{title}</h2>
         <span className="text-sm font-medium text-white/50">{total.toLocaleString()} total</span>
@@ -97,7 +110,13 @@ function Section({ title, rows }: { title: string; rows: ActionRowDTO[] }) {
           <p className="text-sm font-medium text-white/40">No activity yet.</p>
         </div>
       ) : (
-        <ul className="mt-2 min-h-0 flex-1 overflow-hidden [column-fill:balance] sm:columns-2 sm:gap-4">
+        // Single ranked column, not the old columns-2 split (that's what was
+        // clipping off the right edge — half a section is too narrow to fit
+        // another 2-column layout inside it). [grid-auto-rows:1fr] divides
+        // the section's full height evenly across however many rows exist,
+        // so ~18 rows span the viewport with no dead space and no scroll,
+        // regardless of daily vs monthly having a different rep count.
+        <ul className="mt-2 grid min-h-0 flex-1 grid-cols-1 gap-1 overflow-hidden [grid-auto-rows:1fr]">
           {rows.map((r, i) => (
             <Row key={r.name} r={r} i={i} />
           ))}
