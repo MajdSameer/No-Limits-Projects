@@ -9,7 +9,12 @@ import { useLiveRefresh } from "../lib/live";
 import { SYDNEY_TZ } from "../lib/sydney";
 
 const POLL_MS = 30000;
-const STALE_MS = 90000;
+// A single failed round-trip to MovePro takes ~15-20s (its own fetch timeout
+// budget), so 25s is enough to have seen at least one real failure — long
+// enough not to flash an error during a normal slow-but-working first load,
+// short enough that the wall board doesn't sit on "Loading…" forever when
+// something's actually broken.
+const STALE_MS = 25000;
 
 /** Briefly true right after `value` changes, for a subtle number-change pulse
  * (no layout shift — just a colour flash on the digits themselves). */
@@ -143,7 +148,14 @@ export function ActionsBoard({ initial }: { initial: ActionsResponseDTO }) {
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-brand-900 p-4 text-white sm:p-5">
       {loading && (
         <div className="absolute inset-0 z-20 grid place-items-center bg-brand-900/95">
-          <p className="animate-pulse text-xl font-semibold text-white/60">Loading activity…</p>
+          {stale ? (
+            <div className="max-w-sm px-6 text-center">
+              <p className="text-xl font-semibold text-red-300">Can't reach the activity feed</p>
+              <p className="mt-2 text-sm text-white/50">Retrying every 30s.</p>
+            </div>
+          ) : (
+            <p className="animate-pulse text-xl font-semibold text-white/60">Loading activity…</p>
+          )}
         </div>
       )}
 
