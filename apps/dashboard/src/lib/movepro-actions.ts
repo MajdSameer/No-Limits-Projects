@@ -125,53 +125,38 @@ function toDTO(byAgent: Map<string, AgentAgg>): ActionRowDTO[] {
 let jwtCache: { token: string; at: number } | null = null;
 const JWT_TTL_MS = 24 * 60 * 60 * 1000;
 
-/** Recursively search a parsed JSON value for a Metabase embed JWT — either a
- * bare JWT string or one embedded in a "…/dashboard/<jwt>…" URL. Defensive
- * because the exact field name in MovePro's report-mint response is unknown
- * until the first real call in production (no token available to test with
- * here); logs the raw shape on failure so that can be diagnosed from there. */
-function findJwtIn(value: unknown, depth = 0): string | null {
-  if (depth > 6) return null;
-  if (typeof value === "string") {
-    const urlMatch = value.match(/\/dashboard\/([A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)/);
-    if (urlMatch) return urlMatch[1]!;
-    if (/^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$/.test(value)) return value;
-    return null;
+/** Verified report-mint response shape: { report: { metabase_token: "<jwt>" } }. */
+export function extractEmbedJwt(body: unknown): string {
+  const jwt = (body as { report?: { metabase_token?: unknown } })?.report?.metabase_token;
+  if (typeof jwt !== "string" || !jwt) {
+    throw new Error(
+      `MovePro report mint: expected report.metabase_token, got: ${JSON.stringify(body).slice(0, 500)}`,
+    );
   }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findJwtIn(item, depth + 1);
-      if (found) return found;
-    }
-    return null;
-  }
-  if (value && typeof value === "object") {
-    for (const v of Object.values(value)) {
-      const found = findJwtIn(v, depth + 1);
-      if (found) return found;
-    }
-  }
-  return null;
+  return jwt;
 }
 
 async function mintEmbedJwt(): Promise<string> {
   const token = process.env.MOVEPRO_TOKEN;
   if (!token) throw new Error("MOVEPRO_TOKEN is not set");
 
+  // Headers match MovePro's own app request exactly (verified externally) —
+  // the API appears to expect this shape (origin/referer/x-request-with),
+  // not just the bearer token.
   const res = await fetch(REPORT_URL, {
-    headers: { authorization: `Bearer ${token}` },
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: "application/json, text/plain, */*",
+      origin: "https://app.movepro.com.au",
+      referer: "https://app.movepro.com.au/",
+      "x-request-with": "XMLHttpRequest",
+    },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`MovePro report mint ${res.status}: ${await res.text()}`);
   }
-  const body: unknown = await res.json();
-  const jwt = findJwtIn(body);
-  if (!jwt) {
-    throw new Error(
-      `MovePro report mint: no embed JWT found in response shape: ${JSON.stringify(body).slice(0, 500)}`,
-    );
-  }
+  const jwt = extractEmbedJwt(await res.json());
   jwtCache = { token: jwt, at: Date.now() };
   return jwt;
 }
@@ -183,7 +168,7 @@ async function getEmbedJwt(forceFresh = false): Promise<string> {
 
 // ── Row fetch ────────────────────────────────────────────────────────────
 
-function dashcardUrl(jwt: string, dateFilter: string, salesAgent?: string): string {
+export function dashcardUrl(jwt: string, dateFilter: string, salesAgent?: string): string {
   const parameters = salesAgent ? { date: dateFilter, sales_agent: salesAgent } : { date: dateFilter };
   return `${DASHCARD_URL}/${jwt}/dashcard/${DASHCARD_ID}/card/${CARD_ID}?parameters=${encodeURIComponent(JSON.stringify(parameters))}`;
 }
@@ -213,7 +198,8 @@ export async function fetchActionRows(dateFilter: string, salesAgent?: string): 
   return extractRows(await res.json());
 }
 
-function extractRows(body: unknown): ActionRow[] {
+/** Verified dashcard response shape: { status: "completed", data: { rows: [...] } }. */
+export function extractRows(body: unknown): ActionRow[] {
   const rows =
     (body as { data?: { rows?: unknown } })?.data?.rows ??
     (body as { rows?: unknown })?.rows ??

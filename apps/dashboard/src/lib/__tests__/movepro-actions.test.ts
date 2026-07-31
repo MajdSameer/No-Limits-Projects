@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { parseActionAgentName, sumRowsByAgent, type ActionRow } from "../movepro-actions";
+import {
+  dashcardUrl,
+  extractEmbedJwt,
+  extractRows,
+  parseActionAgentName,
+  sumRowsByAgent,
+  type ActionRow,
+} from "../movepro-actions";
 
 describe("parseActionAgentName", () => {
   it("strips a NoLimits/No Limits suffix and takes the last remaining word", () => {
@@ -44,5 +51,60 @@ describe("sumRowsByAgent", () => {
     const rows: ActionRow[] = [row("", 5, 1, 1, 1)];
     const result = sumRowsByAgent(rows);
     expect(result.size).toBe(0);
+  });
+});
+
+// Verified live response shapes (2026-07-31) — see PR discussion for the exact
+// externally-confirmed request/response pair each of these guards against.
+describe("extractEmbedJwt", () => {
+  const MINT_FIXTURE = {
+    report: {
+      metabase_token:
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZXNvdXJjZSI6eyJkYXNoYm9hcmQiOjE2N30sInBhcmFtcyI6e319.9y8x7w6v5u4t3s2r1q0p",
+    },
+  };
+
+  it("reads the JWT from report.metabase_token", () => {
+    expect(extractEmbedJwt(MINT_FIXTURE)).toBe(MINT_FIXTURE.report.metabase_token);
+  });
+
+  it("throws a diagnosable error when the shape doesn't match", () => {
+    expect(() => extractEmbedJwt({ token: "not-where-we-look" })).toThrow(/report\.metabase_token/);
+    expect(() => extractEmbedJwt({ report: {} })).toThrow(/report\.metabase_token/);
+    expect(() => extractEmbedJwt(null)).toThrow(/report\.metabase_token/);
+  });
+});
+
+describe("extractRows", () => {
+  const DASHCARD_FIXTURE = {
+    status: "completed",
+    data: {
+      rows: [
+        ["ord-1", "REF-1", "Ann Ablahad", "Cust A", "won", "2026-07-31T00:00:00Z", 5, 2, 2, 1],
+        ["ord-2", "REF-2", "Luka No Limits", "Cust B", "won", "2026-07-31T01:00:00Z", 3, 1, 1, 1],
+      ],
+    },
+  };
+
+  it("reads rows from data.rows", () => {
+    expect(extractRows(DASHCARD_FIXTURE)).toEqual(DASHCARD_FIXTURE.data.rows);
+  });
+
+  it("throws a diagnosable error when the shape doesn't match", () => {
+    expect(() => extractRows({ status: "completed" })).toThrow(/unexpected response shape/);
+  });
+});
+
+describe("dashcardUrl", () => {
+  it("URL-encodes the parameters JSON to match the verified query shape", () => {
+    const url = dashcardUrl("JWT123", "thisday");
+    expect(url).toBe(
+      "https://movepro.metabaseapp.com/api/embed/dashboard/JWT123/dashcard/269/card/628?parameters=%7B%22date%22%3A%22thisday%22%7D",
+    );
+  });
+
+  it("includes sales_agent when provided (truncation-guard re-query)", () => {
+    const url = dashcardUrl("JWT123", "2026-07-01~2026-07-01", "Ann Ablahad");
+    expect(url).toContain("parameters=%7B%22date%22%3A%222026-07-01~2026-07-01%22%2C%22sales_agent%22%3A%22Ann%20Ablahad%22%7D");
   });
 });
