@@ -3,11 +3,12 @@ import { NextResponse } from "next/server";
 import { getActionsSnapshot } from "../../../lib/movepro-actions";
 
 export const dynamic = "force-dynamic";
-// A cold instance's monthly assembly is ~30 external requests, parallelized;
-// give it room to finish instead of 504ing on a slow cold start. 60s (not 25)
-// because a live probe showed these MovePro/Metabase endpoints run close to
-// 15s per request from Vercel's network, and a truncated day needs a second
-// (also parallel) round of per-agent requests on top of that.
+// A true first-time month build (nothing in the durable day cache yet) is
+// ~31 days at DASHCARD_CONCURRENCY (5) in flight, each ~6s once Metabase
+// isn't being hit with an unbounded concurrent burst (confirmed via
+// /api/debug-movepro's ?concurrency probe) — ceil(31/5) * 6s ≈ 40s. 60s
+// gives that genuine one-time cost room to finish; every poll after that
+// only fetches today (~6s), since completed days come from the cache.
 export const maxDuration = 60;
 
 /**

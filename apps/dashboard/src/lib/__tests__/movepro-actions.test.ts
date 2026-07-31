@@ -4,6 +4,7 @@ import {
   dashcardUrl,
   extractEmbedJwt,
   extractRows,
+  mapWithConcurrency,
   parseActionAgentName,
   sumRowsByAgent,
   type ActionRow,
@@ -92,6 +93,34 @@ describe("extractRows", () => {
 
   it("throws a diagnosable error when the shape doesn't match", () => {
     expect(() => extractRows({ status: "completed" })).toThrow(/unexpected response shape/);
+  });
+});
+
+describe("mapWithConcurrency", () => {
+  it("preserves input order regardless of completion order", async () => {
+    const delays = [30, 10, 20, 5]; // item 0 resolves last, item 3 resolves first
+    const result = await mapWithConcurrency(delays, 4, (ms) => new Promise((r) => setTimeout(() => r(ms), ms)));
+    expect(result).toEqual(delays);
+  });
+
+  it("never runs more than `limit` calls at once", async () => {
+    const items = Array.from({ length: 10 }, (_, i) => i);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    await mapWithConcurrency(items, 3, async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+    });
+    expect(maxInFlight).toBeLessThanOrEqual(3);
+    expect(maxInFlight).toBeGreaterThan(1); // sanity: it did run concurrently, not serially
+  });
+
+  it("runs every item even when limit exceeds the item count", async () => {
+    const items = [1, 2, 3];
+    const result = await mapWithConcurrency(items, 10, (n) => Promise.resolve(n * 2));
+    expect(result).toEqual([2, 4, 6]);
   });
 });
 
