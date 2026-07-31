@@ -21,12 +21,15 @@ const CARD_ID = 628;
 // A hung/unresponsive external request has no default Node timeout — without
 // one, a single stuck fetch silently burns the entire route's maxDuration and
 // the caller gets an opaque platform 504 with nothing logged. This bounds
-// each request so a real failure surfaces fast, as a readable error. 15s
-// (not the original 8s) because a live production probe showed 8s was too
-// tight for these endpoints' actual latency from Vercel's network — 8s was
-// firing as a timeout on requests that just needed more time, not ones that
-// were genuinely stuck.
-const FETCH_TIMEOUT_MS = 15000;
+// each request so a real failure surfaces fast, as a readable error.
+//
+// 5s, not 15s: curling both endpoints directly (bypassing Vercel) returns in
+// well under 1s even for error responses — a working call here should be
+// just as fast. The current production failure is total silence from
+// Vercel's network (never a slow-but-real response), which reads as an
+// IP/firewall block, not latency — waiting longer than a few seconds for
+// that kind of failure buys nothing, it will never come back.
+const FETCH_TIMEOUT_MS = 5000;
 
 export interface ActionRowDTO {
   name: string;
