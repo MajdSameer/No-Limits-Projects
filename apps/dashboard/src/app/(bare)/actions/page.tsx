@@ -3,7 +3,8 @@ import { ActionsBoard } from "../../../components/ActionsBoard";
 
 export const metadata = { title: "Rep activity" };
 export const dynamic = "force-dynamic";
-export const maxDuration = 25;
+// Matches /api/actions's maxDuration — see that file for why 60s.
+export const maxDuration = 60;
 
 function emptySnapshot(): ActionsResponseDTO {
   return { updatedAt: new Date().toISOString(), daily: [], monthly: [] };

@@ -21,8 +21,12 @@ const CARD_ID = 628;
 // A hung/unresponsive external request has no default Node timeout — without
 // one, a single stuck fetch silently burns the entire route's maxDuration and
 // the caller gets an opaque platform 504 with nothing logged. This bounds
-// each request so a real failure surfaces fast, as a readable error.
-const FETCH_TIMEOUT_MS = 8000;
+// each request so a real failure surfaces fast, as a readable error. 15s
+// (not the original 8s) because a live production probe showed 8s was too
+// tight for these endpoints' actual latency from Vercel's network — 8s was
+// firing as a timeout on requests that just needed more time, not ones that
+// were genuinely stuck.
+const FETCH_TIMEOUT_MS = 15000;
 
 export interface ActionRowDTO {
   name: string;
@@ -299,17 +303,20 @@ export async function getActionsSnapshot(): Promise<ActionsResponseDTO> {
 
   const today = sydneyToday();
 
-  // Known roster so far: every agent seen in already-cached prior days. Today's
-  // own fetch below may grow this further for the prior-days fetch that follows.
+  // Known roster: every agent seen in already-cached prior days. Today isn't
+  // fetched yet at this point (it runs in the same parallel batch as the
+  // prior days below, not serialized ahead of it — the day-level requests
+  // don't depend on each other), so it can't contribute to its own roster,
+  // but the truncation guard only needs "good enough," not exhaustive.
   const known = agentKeys(dayCache.values());
-  const dailyMap = await fetchDayAggregate(today, known);
-  if (dailyMap) for (const k of dailyMap.keys()) known.add(k);
 
   const monthDates = sydneyDatesFromMonthStart(today);
   const priorDates = monthDates.filter((d) => d !== today);
   const uncached = priorDates.filter((d) => !dayCache.has(d));
-  const fetched = await Promise.all(uncached.map((d) => fetchDayAggregate(d, known)));
-  fetched.forEach((agg, i) => {
+  const daysToFetch = [today, ...uncached];
+  const fetched = await Promise.all(daysToFetch.map((d) => fetchDayAggregate(d, known)));
+  const dailyMap = fetched[0]!;
+  fetched.slice(1).forEach((agg, i) => {
     if (agg) dayCache.set(uncached[i]!, agg);
   });
 
