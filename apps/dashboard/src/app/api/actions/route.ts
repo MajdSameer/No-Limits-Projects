@@ -19,6 +19,11 @@ export async function GET() {
     return NextResponse.json(data, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     console.error("GET /api/actions failed:", err);
-    return NextResponse.json({ error: "Failed to load activity data" }, { status: 502 });
+    // Surfaced in the response (not just server logs) because this route has
+    // no other diagnostics channel available when things go wrong — the
+    // message is an HTTP status / response-shape description from our own
+    // fetch code (see movepro-actions.ts), never customer or credential data.
+    const detail = err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300);
+    return NextResponse.json({ error: "Failed to load activity data", detail }, { status: 502 });
   }
 }
