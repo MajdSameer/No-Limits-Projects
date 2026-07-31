@@ -106,9 +106,9 @@ function toDTO(byAgent: Map<string, AgentAgg>): ActionRowDTO[] {
       calls: agg.calls,
       emails: agg.emails,
       messages: agg.messages,
-      // "Numbers must exactly match MovePro" — total_actions is the report's
-      // own rollup and may cover action types beyond these 3, so it's the
-      // safer literal read of "sum indexes 6-9" than deriving calls+emails+messages.
+      // total is the report's own total_actions column (row index 6), summed —
+      // never derived from calls+emails+messages, since total_actions can cover
+      // action types beyond those 3 and the numbers must exactly match MovePro.
       total: agg.totalActions,
     }))
     .sort((a, b) => b.total - a.total);
@@ -213,34 +213,50 @@ function extractRows(body: unknown): ActionRow[] {
 
 const TRUNCATION_LIMIT = 2000;
 
-/** Every agent name ever seen across processed days — the best available
- * roster for the truncation-guard re-query (there's no other source of "all
- * possible sales agents" in this codebase). Imperfect on a cold start whose
- * very first query is itself truncated (an agent who only appears there and
- * never again wouldn't be known to re-query), but that's a narrow edge case
- * against a real risk (silently summing a truncated response). */
-const knownAgents = new Set<string>();
-
 /** Per-agent totals for one Sydney calendar day, applying the 2000-row
- * truncation guard: if the plain query hits the row cap, re-query per known
- * agent instead of trusting the (possibly incomplete) batch. */
-export async function fetchDayAggregate(dateStr: string): Promise<Map<string, AgentAgg>> {
+ * truncation guard: if the plain query hits the row cap, re-query per agent
+ * in `knownAgents` — the union of sales_agent values already seen this month
+ * (prior fetched days + today's response), passed in by the caller rather
+ * than kept as a hardcoded roster, since there's no other source of "all
+ * possible sales agents" in this codebase. If even a per-agent re-query still
+ * hits the cap (one agent alone produced 2000+ rows that day — implausible
+ * but not impossible), or `knownAgents` is empty (nothing yet known to
+ * re-query against), the day can't be safely disaggregated: log it and
+ * return null so the caller excludes it from totals rather than risk a
+ * silent undercount. */
+export async function fetchDayAggregate(
+  dateStr: string,
+  knownAgents: ReadonlySet<string>,
+): Promise<Map<string, AgentAgg> | null> {
   const dateFilter = `${dateStr}~${dateStr}`;
   const rows = await fetchActionRows(dateFilter);
-  for (const row of rows) if (row[2]) knownAgents.add(row[2]);
 
   if (rows.length !== TRUNCATION_LIMIT) {
     return sumRowsByAgent(rows);
   }
 
+  if (knownAgents.size === 0) {
+    console.error(
+      `MovePro dashcard truncation guard: ${dateStr} hit the ${TRUNCATION_LIMIT}-row cap with no known agent ` +
+        `roster to re-query yet — marking ${dateStr} suspect (excluded from totals) rather than risk an undercount.`,
+    );
+    return null;
+  }
+
   const perAgent = await Promise.all(
-    [...knownAgents].map(async (agent) => {
-      const agentRows = await fetchActionRows(dateFilter, agent);
-      return sumRowsByAgent(agentRows);
-    }),
+    [...knownAgents].map(async (agent) => ({ agent, rows: await fetchActionRows(dateFilter, agent) })),
   );
+  const stillTruncated = perAgent.find((r) => r.rows.length === TRUNCATION_LIMIT);
+  if (stillTruncated) {
+    console.error(
+      `MovePro dashcard truncation guard: per-agent re-query for "${stillTruncated.agent}" on ${dateStr} still ` +
+        `hit the ${TRUNCATION_LIMIT}-row cap — marking ${dateStr} suspect (excluded from totals) rather than sum it.`,
+    );
+    return null;
+  }
+
   const merged = new Map<string, AgentAgg>();
-  for (const m of perAgent) mergeAgg(merged, m);
+  for (const { rows: agentRows } of perAgent) mergeAgg(merged, sumRowsByAgent(agentRows));
   return merged;
 }
 
@@ -266,29 +282,48 @@ function sydneyDatesFromMonthStart(today: string): string[] {
 const RESPONSE_TTL_MS = 20000;
 let responseCache: { at: number; data: ActionsResponseDTO } | null = null;
 
+function agentKeys(maps: Iterable<Map<string, AgentAgg>>): Set<string> {
+  const keys = new Set<string>();
+  for (const m of maps) for (const k of m.keys()) keys.add(k);
+  return keys;
+}
+
 /** Assembled /api/actions payload: today's per-agent totals, and this
  * calendar month's (Sydney) per-agent totals built from a day-cached sum.
  * Coalesced behind a short in-memory cache so many polling tabs don't each
- * trigger a fresh ~30-request month rebuild. */
+ * trigger a fresh ~30-request month rebuild. Suspect days (truncation guard
+ * couldn't safely disaggregate them) are excluded from the monthly total and
+ * left uncached, so they're retried on the next poll rather than permanently
+ * undercounting the month. */
 export async function getActionsSnapshot(): Promise<ActionsResponseDTO> {
   if (responseCache && Date.now() - responseCache.at < RESPONSE_TTL_MS) return responseCache.data;
 
   const today = sydneyToday();
-  const dailyMap = await fetchDayAggregate(today);
+
+  // Known roster so far: every agent seen in already-cached prior days. Today's
+  // own fetch below may grow this further for the prior-days fetch that follows.
+  const known = agentKeys(dayCache.values());
+  const dailyMap = await fetchDayAggregate(today, known);
+  if (dailyMap) for (const k of dailyMap.keys()) known.add(k);
 
   const monthDates = sydneyDatesFromMonthStart(today);
   const priorDates = monthDates.filter((d) => d !== today);
   const uncached = priorDates.filter((d) => !dayCache.has(d));
-  const fetched = await Promise.all(uncached.map((d) => fetchDayAggregate(d)));
-  fetched.forEach((agg, i) => dayCache.set(uncached[i]!, agg));
+  const fetched = await Promise.all(uncached.map((d) => fetchDayAggregate(d, known)));
+  fetched.forEach((agg, i) => {
+    if (agg) dayCache.set(uncached[i]!, agg);
+  });
 
   const monthlyMap = new Map<string, AgentAgg>();
-  for (const d of priorDates) mergeAgg(monthlyMap, dayCache.get(d)!);
-  mergeAgg(monthlyMap, dailyMap);
+  for (const d of priorDates) {
+    const agg = dayCache.get(d);
+    if (agg) mergeAgg(monthlyMap, agg);
+  }
+  if (dailyMap) mergeAgg(monthlyMap, dailyMap);
 
   const data: ActionsResponseDTO = {
     updatedAt: new Date().toISOString(),
-    daily: toDTO(dailyMap),
+    daily: toDTO(dailyMap ?? new Map()),
     monthly: toDTO(monthlyMap),
   };
   responseCache = { at: Date.now(), data };
