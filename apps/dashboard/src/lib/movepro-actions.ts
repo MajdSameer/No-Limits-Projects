@@ -112,7 +112,16 @@ function mergeAgg(into: Map<string, AgentAgg>, from: Map<string, AgentAgg>): voi
   }
 }
 
-function toDTO(byAgent: Map<string, AgentAgg>): ActionRowDTO[] {
+// Not sales reps for this board — site inspectors, inactive staff, and
+// non-person placeholders (e.g. an "Unassigned" bucket) that show up in
+// MovePro's activity data but don't belong on a rep leaderboard.
+const EXCLUDED_NAMES = new Set(
+  ["Liam", "Max", "Danny", "Unassigned", "Kate", "Youi", "Avan", "Hermez", "Ace", "Martin"].map((n) =>
+    n.toLowerCase(),
+  ),
+);
+
+export function toDTO(byAgent: Map<string, AgentAgg>): ActionRowDTO[] {
   return [...byAgent.entries()]
     .map(([raw, agg]) => ({
       name: parseActionAgentName(raw),
@@ -124,6 +133,7 @@ function toDTO(byAgent: Map<string, AgentAgg>): ActionRowDTO[] {
       // action types beyond those 3 and the numbers must exactly match MovePro.
       total: agg.totalActions,
     }))
+    .filter((r) => !EXCLUDED_NAMES.has(r.name.toLowerCase()))
     .sort((a, b) => b.total - a.total);
 }
 

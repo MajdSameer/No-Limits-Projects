@@ -7,6 +7,7 @@ import {
   mapWithConcurrency,
   parseActionAgentName,
   sumRowsByAgent,
+  toDTO,
   type ActionRow,
 } from "../movepro-actions";
 
@@ -52,6 +53,30 @@ describe("sumRowsByAgent", () => {
     const rows: ActionRow[] = [row("", 5, 1, 1, 1)];
     const result = sumRowsByAgent(rows);
     expect(result.size).toBe(0);
+  });
+});
+
+describe("toDTO", () => {
+  function row(agent: string): ActionRow {
+    return ["o1", "r1", agent, "cust", "status", "2026-07-01", 5, 2, 2, 1];
+  }
+
+  it("excludes non-rep names (inspectors, inactive staff, placeholders) case-insensitively", () => {
+    const rows: ActionRow[] = [
+      row("Ann Ablahad"),
+      row("Liam"),
+      row("Max"),
+      row("Danny"),
+      row("Unassigned"),
+      row("kate"), // lowercase — must still match
+      row("Youi"),
+      row("Avan"),
+      row("Hermez"),
+      row("Ace"),
+      row("MARTIN"), // uppercase — must still match
+    ];
+    const dto = toDTO(sumRowsByAgent(rows));
+    expect(dto.map((r) => r.name)).toEqual(["Ann"]);
   });
 });
 
