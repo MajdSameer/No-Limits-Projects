@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "@nlr/ui";
 
 import { crossedGongThreshold, loadGongSeen, saveGongSeen, type GongEvent } from "../lib/actions-gong";
+import { pace as computePace } from "../lib/actions-pace";
 import { armAudio, audioRunning, playGong, startAudioKeepAlive } from "../lib/celebrate";
 import { useLiveRefresh } from "../lib/live";
 import type { ActionRowDTO, ActionsResponseDTO } from "../lib/movepro-actions";
@@ -34,6 +35,62 @@ function usePulseOnChange(value: number): boolean {
     return () => window.clearTimeout(t);
   }, [value]);
   return pulsing;
+}
+
+/** Decimal Sydney wall-clock hours (e.g. 13.5 for 1:30pm) for a given
+ * instant — feeds actions-pace.ts's pure pace math, which stays timezone-
+ * agnostic and testable by taking hours as a plain number. */
+function sydneyHoursNow(now: number): number {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: SYDNEY_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return get("hour") + get("minute") / 60 + get("second") / 3600;
+}
+
+const FLASH_MS = 1500;
+
+/** Tracks each row's rank across polls and briefly flags any name that moved
+ * to a LOWER index (i.e. up the leaderboard) since the previous data. Seed-
+ * silent like every other celebration in this codebase — the very first
+ * render has no prior ranks to compare against, so nothing flashes on load,
+ * only on an observed reorder. */
+function useRankFlash(rows: { name: string }[]): Set<string> {
+  const prevRanksRef = useRef<Map<string, number> | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const [flashing, setFlashing] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const nextRanks = new Map<string, number>();
+    rows.forEach((r, i) => nextRanks.set(r.name, i));
+
+    if (prevRanksRef.current) {
+      const moved = new Set<string>();
+      for (const [name, i] of nextRanks) {
+        const prevIndex = prevRanksRef.current.get(name);
+        if (prevIndex !== undefined && i < prevIndex) moved.add(name);
+      }
+      if (moved.size > 0) {
+        setFlashing(moved);
+        if (timerRef.current) window.clearTimeout(timerRef.current);
+        timerRef.current = window.setTimeout(() => setFlashing(new Set()), FLASH_MS);
+      }
+    }
+    prevRanksRef.current = nextRanks;
+  }, [rows]);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    },
+    [],
+  );
+
+  return flashing;
 }
 
 /** Fixed ch-based width (scales with the element's own font-size, so it
@@ -75,14 +132,36 @@ function EmptyPanel({ stale, label }: { stale: boolean; label: string }) {
 
 // ── Panel: rep activity (Today / This month) ────────────────────────────
 
-function Row({ r, i }: { r: ActionRowDTO; i: number }) {
+function Row({
+  r,
+  i,
+  flash,
+  now,
+  crowned,
+}: {
+  r: ActionRowDTO;
+  i: number;
+  flash: boolean;
+  /** Only passed by the Today panel — enables the pace arrow. Omitted (This
+   * month) means no arrow, regardless of mtdDailyAvg. */
+  now?: number;
+  /** Only passed by the Today panel — yesterday's #1 gets a 👑 wherever they
+   * land in today's list. */
+  crowned?: boolean;
+}) {
   const top3 = i < 3;
   const pulse = usePulseOnChange(r.total);
+  const paceDir =
+    now != null && r.mtdDailyAvg != null && r.mtdDailyAvg > 0 ? computePace(r.total, r.mtdDailyAvg, sydneyHoursNow(now)) : null;
   return (
     <li
       className={cx(
-        "flex min-w-0 items-center gap-2 overflow-hidden rounded-lg px-3 py-1",
-        top3 ? "border border-accent-400/40 bg-accent-400/[0.06]" : "border border-white/5 bg-white/[0.04]",
+        "flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border px-3 py-1 transition-colors duration-[1500ms]",
+        flash
+          ? "border-accent-300 bg-accent-300/25"
+          : top3
+            ? "border-accent-400/40 bg-accent-400/[0.06]"
+            : "border-white/5 bg-white/[0.04]",
       )}
     >
       <span
@@ -99,12 +178,28 @@ function Row({ r, i }: { r: ActionRowDTO; i: number }) {
           top3 ? "text-[clamp(0.65rem,2vmin,1.2rem)]" : "text-[clamp(0.6rem,1.7vmin,1rem)]",
         )}
       >
+        {crowned && (
+          <span aria-label="Yesterday's top performer" className="mr-1">
+            👑
+          </span>
+        )}
         {r.name}
       </span>
       <div className="flex shrink-0 items-end gap-1.5">
         <NumStat label="calls" value={r.calls} />
         <NumStat label="emails" value={r.emails} />
         <NumStat label="msgs" value={r.messages} />
+        {paceDir && (
+          <span
+            aria-label={paceDir === "ahead" ? "ahead of pace" : "behind pace"}
+            className={cx(
+              "shrink-0 self-center text-[clamp(0.5rem,1.4vmin,0.85rem)] leading-none font-bold",
+              paceDir === "ahead" ? "text-emerald-400" : "text-red-400/70",
+            )}
+          >
+            {paceDir === "ahead" ? "▲" : "▼"}
+          </span>
+        )}
         {/* Monthly totals reach 6 digits — a fixed ch-based width reserves
             room for that ("123,456" is 7 chars incl. the comma) so
             calls/emails/msgs never collide with it, without hardcoding a
@@ -123,8 +218,24 @@ function Row({ r, i }: { r: ActionRowDTO; i: number }) {
   );
 }
 
-function Section({ title, rows, stale }: { title: string; rows: ActionRowDTO[]; stale: boolean }) {
+function Section({
+  title,
+  rows,
+  stale,
+  now,
+  crownName,
+}: {
+  title: string;
+  rows: ActionRowDTO[];
+  stale: boolean;
+  /** Passed by the Today panel only — threads through to Row for the pace
+   * arrow (This month has no meaningful "pace" concept). */
+  now?: number;
+  /** Passed by the Today panel only — yesterday's #1, for the daily crown. */
+  crownName?: string | null;
+}) {
   const total = rows.reduce((s, r) => s + r.total, 0);
+  const flashing = useRankFlash(rows);
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 items-baseline justify-between">
@@ -139,7 +250,7 @@ function Section({ title, rows, stale }: { title: string; rows: ActionRowDTO[]; 
         // dead space and no scroll, regardless of rep count.
         <ul className="mt-2 grid min-h-0 flex-1 grid-cols-1 gap-1 overflow-hidden [grid-auto-rows:1fr]">
           {rows.map((r, i) => (
-            <Row key={r.name} r={r} i={i} />
+            <Row key={r.name} r={r} i={i} flash={flashing.has(r.name)} now={now} crowned={r.name === crownName} />
           ))}
         </ul>
       )}
@@ -351,6 +462,18 @@ function usePolledData<T>(url: string, initial: T) {
   return { data, stale, lastSuccess };
 }
 
+/** Same encouraging-copy style as /live's team monthly goal bar
+ * (monthlyMessage in LiveBoard.tsx), tailored to a same-day pace instead of
+ * a month-long one. */
+function dailyPaceMessage(pct: number): string {
+  if (pct >= 100) return "Pace crushed — keep it up! 🎉";
+  if (pct >= 90) return "Almost there for the day 🏁";
+  if (pct >= 75) return "Strong pace — keep firing 🔥";
+  if (pct >= 50) return "Over halfway to today's pace 💪";
+  if (pct >= 25) return "Building — keep the calls going 🚚";
+  return "Early days — let's get moving 🚀";
+}
+
 /**
  * Static three-panel wall board — Unseen communications | Today | This
  * month, side by side, always all visible (no rotation). Both underlying
@@ -410,6 +533,10 @@ export function ActionsBoard({
     month: "short",
   }).format(now);
 
+  const teamTotal = activity.data.daily.reduce((s, r) => s + r.total, 0);
+  const teamTarget = activity.data.teamDailyTarget;
+  const teamPct = teamTarget > 0 ? Math.round((teamTotal / teamTarget) * 100) : 0;
+
   return (
     <main className="flex h-dvh flex-col gap-3 overflow-hidden bg-brand-900 p-4 text-white sm:p-5">
       <GongBanner active={gong} />
@@ -424,19 +551,46 @@ export function ActionsBoard({
         </button>
       )}
 
-      <header className="flex shrink-0 items-baseline justify-between">
-        <h1 className="text-2xl font-bold text-white">Rep activity</h1>
-        <p className="flex items-baseline gap-3 text-sm font-medium text-white/50">
-          <span>{dateLabel}</span>
-          <span className={cx(anyStale && "text-red-400")}>
-            {anyStale ? "connection lost" : `updated ${secsAgo}s ago`}
-          </span>
-        </p>
+      <header className="flex shrink-0 flex-col gap-1.5">
+        <div className="flex items-baseline justify-between">
+          <h1 className="text-2xl font-bold text-white">Rep activity</h1>
+          <p className="flex items-baseline gap-3 text-sm font-medium text-white/50">
+            <span>{dateLabel}</span>
+            <span className={cx(anyStale && "text-red-400")}>
+              {anyStale ? "connection lost" : `updated ${secsAgo}s ago`}
+            </span>
+          </p>
+        </div>
+        {/* Target is auto-derived server-side (sum of active reps' MTD daily
+            averages) — no config, and absent (0) with no monthly history
+            yet, e.g. the 1st of the month. */}
+        {teamTarget > 0 && (
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-accent-400 to-accent-300 shadow-[0_0_10px_rgba(255,212,46,0.6)] transition-all duration-1000"
+                style={{ width: `${Math.min(100, teamPct)}%` }}
+              />
+            </div>
+            <span className="shrink-0 text-xs font-bold whitespace-nowrap text-accent-300">
+              {teamTotal.toLocaleString()} / {Math.round(teamTarget).toLocaleString()} team actions
+            </span>
+            <span className="hidden shrink-0 text-xs font-medium whitespace-nowrap text-white/40 sm:inline">
+              {dailyPaceMessage(teamPct)}
+            </span>
+          </div>
+        )}
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-3 gap-5">
         <UnseenSection rows={unseen.data.rows} stale={unseen.stale} />
-        <Section title="Today" rows={activity.data.daily} stale={activity.stale} />
+        <Section
+          title="Today"
+          rows={activity.data.daily}
+          stale={activity.stale}
+          now={now}
+          crownName={activity.data.yesterdayTop}
+        />
         <Section title="This month" rows={activity.data.monthly} stale={activity.stale} />
       </div>
     </main>

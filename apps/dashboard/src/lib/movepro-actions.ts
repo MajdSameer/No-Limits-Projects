@@ -33,12 +33,24 @@ export interface ActionRowDTO {
   emails: number;
   messages: number;
   total: number;
+  /** Today rows only: month-to-date average daily total_actions from PRIOR
+   * completed days (excludes today's own still-partial number, so it can't
+   * skew the very baseline it's being compared against). null/undefined
+   * when there's no prior-day history yet this month (e.g. the 1st) — the
+   * client shows no pace arrow in that case. Always absent on monthly rows. */
+  mtdDailyAvg?: number | null;
 }
 
 export interface ActionsResponseDTO {
   updatedAt: string;
   daily: ActionRowDTO[];
   monthly: ActionRowDTO[];
+  /** Sum of active reps' month-to-date daily averages — the team's
+   * auto-derived expected total_actions volume for today, no config. */
+  teamDailyTarget: number;
+  /** Yesterday's #1 rep by total_actions (same exclusion/ranking rules as
+   * every other list), or null if yesterday has no usable data. */
+  yesterdayTop: string | null;
 }
 
 interface AgentAgg {
@@ -207,6 +219,41 @@ export async function fetchDayAggregate(
   return merged;
 }
 
+/** Per-rep month-to-date average of total_actions from PRIOR completed days
+ * only — today's still-partial number is excluded so it can't skew the very
+ * baseline it's later compared against (pace arrows, team target). Keyed by
+ * PARSED display name (matching toDTO's output) and summed across any raw
+ * agent-name variants that parse to the same display name, mirroring
+ * toDTO's own aggregation. Non-reps are excluded, same as everywhere else.
+ * Empty when `priorDaysCount` is 0 (e.g. the 1st of the month) — nothing has
+ * "no monthly history" yet. */
+export function mtdDailyAverages(
+  monthlyMap: Map<string, AgentAgg>,
+  dailyMap: Map<string, AgentAgg> | null,
+  priorDaysCount: number,
+): Map<string, number> {
+  const result = new Map<string, number>();
+  if (priorDaysCount <= 0) return result;
+
+  const priorByName = new Map<string, number>();
+  for (const [raw, agg] of monthlyMap) {
+    const name = parseActionAgentName(raw);
+    if (isExcludedName(name)) continue;
+    const todayContribution = dailyMap?.get(raw)?.totalActions ?? 0;
+    const priorTotal = agg.totalActions - todayContribution;
+    priorByName.set(name, (priorByName.get(name) ?? 0) + priorTotal);
+  }
+  for (const [name, priorTotal] of priorByName) {
+    result.set(name, priorTotal / priorDaysCount);
+  }
+  return result;
+}
+
+function sydneyYesterday(today: string): string {
+  const zonedToday = toZonedTime(`${today}T00:00:00`, SYDNEY_TZ);
+  return format(addDays(zonedToday, -1), "yyyy-MM-dd", { timeZone: SYDNEY_TZ });
+}
+
 // ── Monthly assembly ─────────────────────────────────────────────────────
 
 /** Runs `fn` over `items` with at most `limit` in flight at once, not
@@ -317,10 +364,26 @@ export async function getActionsSnapshot(): Promise<ActionsResponseDTO> {
   const monthlyMap = new Map<string, AgentAgg>();
   for (const r of results) if (r) mergeAgg(monthlyMap, r);
 
+  const avgByName = mtdDailyAverages(monthlyMap, dailyMap, priorDates.length);
+  const teamDailyTarget = [...avgByName.values()].reduce((s, v) => s + v, 0);
+  const dailyDTO = toDTO(dailyMap ?? new Map()).map((r) => ({
+    ...r,
+    mtdDailyAvg: avgByName.get(r.name) ?? null,
+  }));
+
+  // Almost always a cache hit: yesterday is normally already one of
+  // priorDates and gets fetched in the pool above — this only becomes a
+  // genuine extra network call on the 1st of the month, and even then it's
+  // one isolated request, not a fan-out, so it doesn't need pooling.
+  const yesterdayMap = await getCachedDayAggregate(sydneyYesterday(today));
+  const yesterdayTop = toDTO(yesterdayMap ?? new Map())[0]?.name ?? null;
+
   const data: ActionsResponseDTO = {
     updatedAt: new Date().toISOString(),
-    daily: toDTO(dailyMap ?? new Map()),
+    daily: dailyDTO,
     monthly: toDTO(monthlyMap),
+    teamDailyTarget,
+    yesterdayTop,
   };
   responseCache = { at: Date.now(), data };
   return data;
