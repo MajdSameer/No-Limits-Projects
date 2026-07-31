@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   dashcardUrl,
-  extractEmbedJwt,
   extractRows,
   mapWithConcurrency,
   parseActionAgentName,
@@ -82,24 +81,8 @@ describe("toDTO", () => {
 
 // Verified live response shapes (2026-07-31) — see PR discussion for the exact
 // externally-confirmed request/response pair each of these guards against.
-describe("extractEmbedJwt", () => {
-  const MINT_FIXTURE = {
-    report: {
-      metabase_token:
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZXNvdXJjZSI6eyJkYXNoYm9hcmQiOjE2N30sInBhcmFtcyI6e319.9y8x7w6v5u4t3s2r1q0p",
-    },
-  };
-
-  it("reads the JWT from report.metabase_token", () => {
-    expect(extractEmbedJwt(MINT_FIXTURE)).toBe(MINT_FIXTURE.report.metabase_token);
-  });
-
-  it("throws a diagnosable error when the shape doesn't match", () => {
-    expect(() => extractEmbedJwt({ token: "not-where-we-look" })).toThrow(/report\.metabase_token/);
-    expect(() => extractEmbedJwt({ report: {} })).toThrow(/report\.metabase_token/);
-    expect(() => extractEmbedJwt(null)).toThrow(/report\.metabase_token/);
-  });
-});
+// extractEmbedJwt is tested in movepro-client.test.ts (its canonical home —
+// movepro-actions.ts only re-exports it for backward-compatible imports).
 
 describe("extractRows", () => {
   const DASHCARD_FIXTURE = {
