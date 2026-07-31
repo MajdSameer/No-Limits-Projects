@@ -8,14 +8,7 @@ describe("toUnseenDTO", () => {
     expect(toUnseenDTO(rows)[0]!.name).toBe("Issac");
   });
 
-  it("keeps 'Unassigned' as-is — meaningful here, unlike the activity board's exclusion list", () => {
-    const rows: UnseenRow[] = [["Unassigned", 12, 8, 4]];
-    const dto = toUnseenDTO(rows);
-    expect(dto).toHaveLength(1);
-    expect(dto[0]!.name).toBe("Unassigned");
-  });
-
-  it("excludes the same non-rep names as the activity board, except 'Unassigned'", () => {
+  it("excludes the same non-rep names as the activity board, including 'Unassigned'", () => {
     const rows: UnseenRow[] = [
       ["Ann Ablahad", 3, 2, 1],
       ["Unassigned", 12, 8, 4],
@@ -26,7 +19,7 @@ describe("toUnseenDTO", () => {
       ["Liam", 2, 2, 0],
     ];
     const dto = toUnseenDTO(rows);
-    expect(dto.map((r) => r.name).sort()).toEqual(["Ann", "Unassigned"]);
+    expect(dto.map((r) => r.name)).toEqual(["Ann"]);
   });
 
   it("treats null counts as 0", () => {
