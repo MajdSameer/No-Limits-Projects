@@ -18,6 +18,12 @@ const DASHCARD_URL = "https://movepro.metabaseapp.com/api/embed/dashboard";
 const DASHCARD_ID = 269;
 const CARD_ID = 628;
 
+// A hung/unresponsive external request has no default Node timeout — without
+// one, a single stuck fetch silently burns the entire route's maxDuration and
+// the caller gets an opaque platform 504 with nothing logged. This bounds
+// each request so a real failure surfaces fast, as a readable error.
+const FETCH_TIMEOUT_MS = 8000;
+
 export interface ActionRowDTO {
   name: string;
   calls: number;
@@ -152,7 +158,10 @@ async function mintEmbedJwt(): Promise<string> {
   const token = process.env.MOVEPRO_TOKEN;
   if (!token) throw new Error("MOVEPRO_TOKEN is not set");
 
-  const res = await fetch(REPORT_URL, { headers: { authorization: `Bearer ${token}` } });
+  const res = await fetch(REPORT_URL, {
+    headers: { authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (!res.ok) {
     throw new Error(`MovePro report mint ${res.status}: ${await res.text()}`);
   }
@@ -183,11 +192,15 @@ function dashcardUrl(jwt: string, dateFilter: string, salesAgent?: string): stri
  * 401/400 (an expired or invalid embed JWT). */
 export async function fetchActionRows(dateFilter: string, salesAgent?: string): Promise<ActionRow[]> {
   const jwt = await getEmbedJwt();
-  const res = await fetch(dashcardUrl(jwt, dateFilter, salesAgent), { headers: { accept: "application/json" } });
+  const res = await fetch(dashcardUrl(jwt, dateFilter, salesAgent), {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (res.status === 401 || res.status === 400) {
     const freshJwt = await getEmbedJwt(true);
     const retryRes = await fetch(dashcardUrl(freshJwt, dateFilter, salesAgent), {
       headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!retryRes.ok) {
       throw new Error(`MovePro dashcard fetch ${retryRes.status} (after JWT re-mint): ${await retryRes.text()}`);
