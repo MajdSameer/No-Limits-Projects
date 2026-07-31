@@ -2,6 +2,7 @@ import { addDays } from "date-fns";
 import { format, toZonedTime } from "date-fns-tz";
 import { unstable_cache } from "next/cache";
 
+import { fetchWithJwtRetry } from "./movepro-client";
 import { SYDNEY_TZ, sydneyToday } from "./sydney";
 
 /**
@@ -10,26 +11,21 @@ import { SYDNEY_TZ, sydneyToday } from "./sydney";
  * calculator's mock/live adapter for the marketing site, MOVEPRO_MODE/
  * MOVEPRO_API_KEY/MOVEPRO_BASE_URL) — this talks to a different MovePro API
  * (api.movepro.com.au + movepro.metabaseapp.com) using its own token,
- * MOVEPRO_TOKEN. Report/dashcard/card ids (17, 269, 628) are fixed — they
- * identify this specific saved report in MovePro, not something to configure.
+ * MOVEPRO_TOKEN, via the shared client in movepro-client.ts (also used by
+ * movepro-unseen.ts for report 9). Report/dashcard/card ids (17, 269, 628)
+ * are fixed — they identify this specific saved report in MovePro, not
+ * something to configure.
  */
 
 const REPORT_URL = "https://api.movepro.com.au/nolimitsremovalists/api/v1/reports/17";
 const DASHCARD_URL = "https://movepro.metabaseapp.com/api/embed/dashboard";
 const DASHCARD_ID = 269;
 const CARD_ID = 628;
+// Cache key for this report's JWT in movepro-client's per-report cache —
+// arbitrary, just needs to be unique per report (see movepro-unseen.ts's "unseen").
+const JWT_CACHE_KEY = "actions";
 
-// A hung/unresponsive external request has no default Node timeout — without
-// one, a single stuck fetch silently burns the entire route's maxDuration and
-// the caller gets an opaque platform 504 with nothing logged. This bounds
-// each request so a real failure surfaces fast, as a readable error.
-//
-// 20s: /api/debug-movepro proved there is no network block — from Vercel,
-// mint returns 200 in ~1s and the dashcard call legitimately takes 5s+
-// (Metabase actually executing the report query) before returning 202 with
-// the full body. The earlier 5s/15s values were both wrong guesses; this is
-// generous headroom over a real, observed ~5.3s response, not another guess.
-const FETCH_TIMEOUT_MS = 20000;
+export { extractEmbedJwt } from "./movepro-client";
 
 export interface ActionRowDTO {
   name: string;
@@ -137,52 +133,6 @@ export function toDTO(byAgent: Map<string, AgentAgg>): ActionRowDTO[] {
     .sort((a, b) => b.total - a.total);
 }
 
-// ── JWT minting ──────────────────────────────────────────────────────────
-
-let jwtCache: { token: string; at: number } | null = null;
-const JWT_TTL_MS = 24 * 60 * 60 * 1000;
-
-/** Verified report-mint response shape: { report: { metabase_token: "<jwt>" } }. */
-export function extractEmbedJwt(body: unknown): string {
-  const jwt = (body as { report?: { metabase_token?: unknown } })?.report?.metabase_token;
-  if (typeof jwt !== "string" || !jwt) {
-    throw new Error(
-      `MovePro report mint: expected report.metabase_token, got: ${JSON.stringify(body).slice(0, 500)}`,
-    );
-  }
-  return jwt;
-}
-
-async function mintEmbedJwt(): Promise<string> {
-  const token = process.env.MOVEPRO_TOKEN;
-  if (!token) throw new Error("MOVEPRO_TOKEN is not set");
-
-  // Headers match MovePro's own app request exactly (verified externally) —
-  // the API appears to expect this shape (origin/referer/x-request-with),
-  // not just the bearer token.
-  const res = await fetch(REPORT_URL, {
-    headers: {
-      authorization: `Bearer ${token}`,
-      accept: "application/json, text/plain, */*",
-      origin: "https://app.movepro.com.au",
-      referer: "https://app.movepro.com.au/",
-      "x-request-with": "XMLHttpRequest",
-    },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    throw new Error(`MovePro report mint ${res.status}: ${await res.text()}`);
-  }
-  const jwt = extractEmbedJwt(await res.json());
-  jwtCache = { token: jwt, at: Date.now() };
-  return jwt;
-}
-
-async function getEmbedJwt(forceFresh = false): Promise<string> {
-  if (!forceFresh && jwtCache && Date.now() - jwtCache.at < JWT_TTL_MS) return jwtCache.token;
-  return mintEmbedJwt();
-}
-
 // ── Row fetch ────────────────────────────────────────────────────────────
 
 export function dashcardUrl(jwt: string, dateFilter: string, salesAgent?: string): string {
@@ -190,25 +140,15 @@ export function dashcardUrl(jwt: string, dateFilter: string, salesAgent?: string
   return `${DASHCARD_URL}/${jwt}/dashcard/${DASHCARD_ID}/card/${CARD_ID}?parameters=${encodeURIComponent(JSON.stringify(parameters))}`;
 }
 
-/** Fetches rows for one query, re-minting the JWT once and retrying on a
- * 401/400 (an expired or invalid embed JWT). */
+/** Fetches rows for one query, via the shared client's JWT mint + one-retry-
+ * on-401/400 logic. */
 export async function fetchActionRows(dateFilter: string, salesAgent?: string): Promise<ActionRow[]> {
-  const jwt = await getEmbedJwt();
-  const res = await fetch(dashcardUrl(jwt, dateFilter, salesAgent), {
-    headers: { accept: "application/json" },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (res.status === 401 || res.status === 400) {
-    const freshJwt = await getEmbedJwt(true);
-    const retryRes = await fetch(dashcardUrl(freshJwt, dateFilter, salesAgent), {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    if (!retryRes.ok) {
-      throw new Error(`MovePro dashcard fetch ${retryRes.status} (after JWT re-mint): ${await retryRes.text()}`);
-    }
-    return extractRows(await retryRes.json());
-  }
+  const res = await fetchWithJwtRetry(
+    REPORT_URL,
+    JWT_CACHE_KEY,
+    (jwt) => dashcardUrl(jwt, dateFilter, salesAgent),
+    { accept: "application/json" },
+  );
   if (!res.ok) {
     throw new Error(`MovePro dashcard fetch ${res.status}: ${await res.text()}`);
   }

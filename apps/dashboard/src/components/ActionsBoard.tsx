@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "@nlr/ui";
 
 import type { ActionRowDTO, ActionsResponseDTO } from "../lib/movepro-actions";
+import type { UnseenRowDTO, UnseenResponseDTO } from "../lib/movepro-unseen";
 import { useLiveRefresh } from "../lib/live";
 import { SYDNEY_TZ } from "../lib/sydney";
 
@@ -17,6 +18,7 @@ const POLL_MS = 30000;
 // own 60s maxDuration, so this only flips to an error after the server
 // itself would have already given up.
 const STALE_MS = 45000;
+const ROTATION_MS = 30000;
 
 /** Briefly true right after `value` changes, for a subtle number-change pulse
  * (no layout shift — just a colour flash on the digits themselves). */
@@ -49,6 +51,8 @@ function NumStat({ label, value }: { label: string; value: number }) {
     </span>
   );
 }
+
+// ── View 1: rep activity ────────────────────────────────────────────────
 
 function Row({ r, i }: { r: ActionRowDTO; i: number }) {
   const top3 = i < 3;
@@ -110,12 +114,9 @@ function Section({ title, rows }: { title: string; rows: ActionRowDTO[] }) {
           <p className="text-sm font-medium text-white/40">No activity yet.</p>
         </div>
       ) : (
-        // Single ranked column, not the old columns-2 split (that's what was
-        // clipping off the right edge — half a section is too narrow to fit
-        // another 2-column layout inside it). [grid-auto-rows:1fr] divides
-        // the section's full height evenly across however many rows exist,
-        // so ~18 rows span the viewport with no dead space and no scroll,
-        // regardless of daily vs monthly having a different rep count.
+        // [grid-auto-rows:1fr] divides the section's full height evenly
+        // across however many rows exist, so the list spans the viewport
+        // with no dead space and no scroll, regardless of rep count.
         <ul className="mt-2 grid min-h-0 flex-1 grid-cols-1 gap-1 overflow-hidden [grid-auto-rows:1fr]">
           {rows.map((r, i) => (
             <Row key={r.name} r={r} i={i} />
@@ -126,19 +127,112 @@ function Section({ title, rows }: { title: string; rows: ActionRowDTO[] }) {
   );
 }
 
-export function ActionsBoard({ initial }: { initial: ActionsResponseDTO }) {
-  const [data, setData] = useState<ActionsResponseDTO>(initial);
+function ActivityView({ data }: { data: ActionsResponseDTO }) {
+  return (
+    <div className="grid h-full min-h-0 grid-cols-2 gap-5">
+      <Section title="Today" rows={data.daily} />
+      <Section title="This month" rows={data.monthly} />
+    </div>
+  );
+}
+
+// ── View 2: unseen communications ───────────────────────────────────────
+
+/** Accountability metric — high is bad. Top 3 (the worst backlog) get an
+ * amber/red highlight instead of activity's gold; a rep with nothing unseen
+ * is dimmed green instead of the default neutral row. */
+function UnseenRow({ r, i }: { r: UnseenRowDTO; i: number }) {
+  const top3 = i < 3;
+  const isZero = r.totalUnseen === 0;
+  const pulse = usePulseOnChange(r.totalUnseen);
+  return (
+    <li
+      className={cx(
+        "flex min-w-0 items-center gap-2 overflow-hidden rounded-lg px-3 py-1 border",
+        top3
+          ? "border-red-400/40 bg-red-400/[0.07]"
+          : isZero
+            ? "border-emerald-400/15 bg-emerald-400/[0.03]"
+            : "border-white/5 bg-white/[0.04]",
+      )}
+    >
+      <span
+        className={cx(
+          "w-[2ch] shrink-0 text-center font-bold text-[clamp(0.5rem,1.4vmin,0.9rem)]",
+          i === 0 ? "text-red-400" : top3 ? "text-amber-300" : isZero ? "text-emerald-400/50" : "text-white/40",
+        )}
+      >
+        {i + 1}
+      </span>
+      <span
+        className={cx(
+          "min-w-0 flex-1 truncate font-semibold",
+          isZero ? "text-emerald-200/70" : "text-white",
+          top3 ? "text-[clamp(0.65rem,2vmin,1.2rem)]" : "text-[clamp(0.6rem,1.7vmin,1rem)]",
+        )}
+      >
+        {r.name}
+      </span>
+      <div className="flex shrink-0 items-end gap-1.5">
+        <NumStat label="email/sms" value={r.emailSms} />
+        <NumStat label="calls" value={r.callsCallbacks} />
+        <span
+          className={cx(
+            "w-[7ch] shrink-0 text-right leading-none font-black tabular-nums transition-colors duration-500",
+            top3 ? "text-[clamp(0.8rem,2.4vmin,1.6rem)]" : "text-[clamp(0.7rem,2vmin,1.3rem)]",
+            isZero ? "text-emerald-300" : pulse ? "text-amber-300" : top3 ? "text-red-300" : "text-white",
+          )}
+        >
+          {r.totalUnseen.toLocaleString()}
+        </span>
+      </div>
+    </li>
+  );
+}
+
+function UnseenView({ data }: { data: UnseenResponseDTO }) {
+  const rows = data.rows;
+  const twoCol = rows.length > 14;
+  const rowsPerCol = twoCol ? Math.ceil(rows.length / 2) : rows.length;
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      {rows.length === 0 ? (
+        <div className="grid flex-1 place-items-center rounded-2xl border border-dashed border-white/15">
+          <p className="text-sm font-medium text-white/40">No data yet.</p>
+        </div>
+      ) : (
+        <ul
+          className="grid min-h-0 flex-1 gap-1 overflow-hidden"
+          style={{
+            gridTemplateColumns: twoCol ? "repeat(2, 1fr)" : "1fr",
+            gridTemplateRows: `repeat(${rowsPerCol}, 1fr)`,
+            gridAutoFlow: twoCol ? "column" : "row",
+            columnGap: twoCol ? "1.5rem" : undefined,
+          }}
+        >
+          {rows.map((r, i) => (
+            <UnseenRow key={r.name} r={r} i={i} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ── Shared polling + rotation orchestration ─────────────────────────────
+
+function usePolledData<T>(url: string, initial: T) {
+  const [data, setData] = useState<T>(initial);
   const [stale, setStale] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
   const lastSuccess = useRef(Date.now());
   const inFlight = useRef(false);
 
   const refetch = useCallback(() => {
     if (inFlight.current) return;
     inFlight.current = true;
-    fetch("/api/actions", { cache: "no-store" })
+    fetch(url, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: ActionsResponseDTO) => {
+      .then((d: T) => {
         setData(d);
         lastSuccess.current = Date.now();
         setStale(false);
@@ -147,18 +241,61 @@ export function ActionsBoard({ initial }: { initial: ActionsResponseDTO }) {
       .finally(() => {
         inFlight.current = false;
       });
-  }, []);
+  }, [url]);
   useLiveRefresh([], refetch, POLL_MS);
 
   useEffect(() => {
-    const tick = setInterval(() => {
-      setNow(Date.now());
-      setStale(Date.now() - lastSuccess.current > STALE_MS);
-    }, 1000);
+    const tick = setInterval(() => setStale(Date.now() - lastSuccess.current > STALE_MS), 1000);
     return () => clearInterval(tick);
   }, []);
 
-  const secsAgo = Math.max(0, Math.round((now - lastSuccess.current) / 1000));
+  return { data, stale, lastSuccess };
+}
+
+type View = "activity" | "unseen";
+
+function readPinnedView(): View | null {
+  const v = new URLSearchParams(window.location.search).get("view");
+  return v === "activity" || v === "unseen" ? v : null;
+}
+
+export function ActionsBoard({
+  initialActivity,
+  initialUnseen,
+}: {
+  initialActivity: ActionsResponseDTO;
+  initialUnseen: UnseenResponseDTO;
+}) {
+  // Both datasets poll unconditionally, regardless of which view (or
+  // whether a view is pinned) is showing — so a view is never stale when it
+  // becomes visible, and so pinning doesn't need to special-case anything.
+  const activity = usePolledData<ActionsResponseDTO>("/api/actions", initialActivity);
+  const unseen = usePolledData<UnseenResponseDTO>("/api/unseen", initialUnseen);
+
+  const [pinnedView, setPinnedView] = useState<View | null>(null);
+  useEffect(() => setPinnedView(readPinnedView()), []);
+
+  const [rotatedView, setRotatedView] = useState<View>("activity");
+  useEffect(() => {
+    if (pinnedView) return;
+    const t = setInterval(() => setRotatedView((v) => (v === "activity" ? "unseen" : "activity")), ROTATION_MS);
+    return () => clearInterval(t);
+  }, [pinnedView]);
+  const activeView: View = pinnedView ?? rotatedView;
+
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }, []);
+
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, []);
+
+  const active = activeView === "activity" ? activity : unseen;
+  const secsAgo = Math.max(0, Math.round((now - active.lastSuccess.current) / 1000));
   const dateLabel = new Intl.DateTimeFormat("en-AU", {
     timeZone: SYDNEY_TZ,
     weekday: "short",
@@ -166,37 +303,79 @@ export function ActionsBoard({ initial }: { initial: ActionsResponseDTO }) {
     month: "short",
   }).format(now);
 
-  const loading = data.daily.length === 0 && data.monthly.length === 0;
+  const activityEmpty = activity.data.daily.length === 0 && activity.data.monthly.length === 0;
+  const unseenEmpty = unseen.data.rows.length === 0;
+  const activeEmpty = activeView === "activity" ? activityEmpty : unseenEmpty;
+
+  const title = activeView === "activity" ? "Rep activity" : "Unseen communications";
 
   return (
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-brand-900 p-4 text-white sm:p-5">
-      {loading && (
+      {activeEmpty && (
         <div className="absolute inset-0 z-20 grid place-items-center bg-brand-900/95">
-          {stale ? (
+          {active.stale ? (
             <div className="max-w-sm px-6 text-center">
-              <p className="text-xl font-semibold text-red-300">Can't reach the activity feed</p>
+              <p className="text-xl font-semibold text-red-300">Can't reach the {title.toLowerCase()} feed</p>
               <p className="mt-2 text-sm text-white/50">Retrying every 30s.</p>
             </div>
           ) : (
-            <p className="animate-pulse text-xl font-semibold text-white/60">Loading activity…</p>
+            <p className="animate-pulse text-xl font-semibold text-white/60">Loading…</p>
           )}
         </div>
       )}
 
       <header className="flex shrink-0 items-baseline justify-between">
-        <h1 className="text-2xl font-bold text-white">Rep activity</h1>
+        <h1 className="text-2xl font-bold text-white">{title}</h1>
         <p className="flex items-baseline gap-3 text-sm font-medium text-white/50">
           <span>{dateLabel}</span>
-          <span className={cx(stale && "text-red-400")}>
-            {stale ? "connection lost" : `updated ${secsAgo}s ago`}
+          <span className={cx(active.stale && "text-red-400")}>
+            {active.stale ? "connection lost" : `updated ${secsAgo}s ago`}
           </span>
         </p>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-5">
-        <Section title="Today" rows={data.daily} />
-        <Section title="This month" rows={data.monthly} />
+      {/* Both views render stacked in the same fixed-size box the whole
+          time (never mounted/unmounted on rotation) and crossfade via
+          opacity, so switching views never shifts layout. */}
+      <div className="relative min-h-0 flex-1">
+        <div
+          className={cx(
+            "absolute inset-0",
+            !reducedMotion && "transition-opacity duration-500",
+            activeView === "activity" ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
+          aria-hidden={activeView !== "activity"}
+        >
+          <ActivityView data={activity.data} />
+        </div>
+        <div
+          className={cx(
+            "absolute inset-0",
+            !reducedMotion && "transition-opacity duration-500",
+            activeView === "unseen" ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
+          aria-hidden={activeView !== "unseen"}
+        >
+          <UnseenView data={unseen.data} />
+        </div>
       </div>
+
+      {!pinnedView && (
+        <div className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2" aria-hidden>
+          <span
+            className={cx(
+              "size-2 rounded-full transition-colors",
+              activeView === "activity" ? "bg-accent-400" : "bg-white/20",
+            )}
+          />
+          <span
+            className={cx(
+              "size-2 rounded-full transition-colors",
+              activeView === "unseen" ? "bg-accent-400" : "bg-white/20",
+            )}
+          />
+        </div>
+      )}
     </main>
   );
 }
