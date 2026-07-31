@@ -4,6 +4,7 @@ import {
   dashcardUrl,
   extractRows,
   mapWithConcurrency,
+  mtdDailyAverages,
   parseActionAgentName,
   sumRowsByAgent,
   toDTO,
@@ -78,6 +79,43 @@ describe("toDTO", () => {
     ];
     const dto = toDTO(sumRowsByAgent(rows));
     expect(dto.map((r) => r.name)).toEqual(["Ann"]);
+  });
+});
+
+describe("mtdDailyAverages", () => {
+  function row(agent: string, total: number): ActionRow {
+    return ["o1", "r1", agent, "cust", "status", "2026-07-01", total, 0, 0, 0];
+  }
+
+  it("averages prior-days-only total (monthly minus today) over priorDaysCount", () => {
+    const monthly = sumRowsByAgent([row("Ann Ablahad", 300)]); // includes today's 50
+    const daily = sumRowsByAgent([row("Ann Ablahad", 50)]); // today's contribution
+    const avgs = mtdDailyAverages(monthly, daily, 5);
+    expect(avgs.get("Ann")).toBe((300 - 50) / 5);
+  });
+
+  it("returns empty when there are no prior days yet (e.g. the 1st of the month)", () => {
+    const monthly = sumRowsByAgent([row("Ann Ablahad", 50)]);
+    const daily = sumRowsByAgent([row("Ann Ablahad", 50)]);
+    expect(mtdDailyAverages(monthly, daily, 0).size).toBe(0);
+  });
+
+  it("treats a null dailyMap (today's fetch failed) as zero today-contribution", () => {
+    const monthly = sumRowsByAgent([row("Ann Ablahad", 300)]);
+    const avgs = mtdDailyAverages(monthly, null, 5);
+    expect(avgs.get("Ann")).toBe(300 / 5);
+  });
+
+  it("excludes non-rep names", () => {
+    const monthly = sumRowsByAgent([row("Ann Ablahad", 300), row("Liam", 300)]);
+    const avgs = mtdDailyAverages(monthly, null, 5);
+    expect([...avgs.keys()]).toEqual(["Ann"]);
+  });
+
+  it("sums across raw agent-name variants that parse to the same display name", () => {
+    const monthly = sumRowsByAgent([row("Ann Ablahad", 200), row("Ann NoLimits", 100)]);
+    const avgs = mtdDailyAverages(monthly, null, 3);
+    expect(avgs.get("Ann")).toBe((200 + 100) / 3);
   });
 });
 
