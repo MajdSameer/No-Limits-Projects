@@ -15,6 +15,20 @@ describe("toUnseenDTO", () => {
     expect(dto[0]!.name).toBe("Unassigned");
   });
 
+  it("excludes the same non-rep names as the activity board, except 'Unassigned'", () => {
+    const rows: UnseenRow[] = [
+      ["Ann Ablahad", 3, 2, 1],
+      ["Unassigned", 12, 8, 4],
+      ["Andy", 1, 1, 0],
+      ["Youi", 1, 1, 0],
+      ["Hermez", 1, 1, 0],
+      ["kinan", 2, 2, 0],
+      ["Liam", 2, 2, 0],
+    ];
+    const dto = toUnseenDTO(rows);
+    expect(dto.map((r) => r.name).sort()).toEqual(["Ann", "Unassigned"]);
+  });
+
   it("treats null counts as 0", () => {
     const rows: UnseenRow[] = [["Ann Ablahad", null, null, null]];
     expect(toUnseenDTO(rows)[0]).toEqual({ name: "Ann", totalUnseen: 0, emailSms: 0, callsCallbacks: 0 });
