@@ -12,8 +12,9 @@
 // one, a single stuck fetch silently burns the entire route's maxDuration and
 // the caller gets an opaque platform 504 with nothing logged. This bounds
 // each request so a real failure surfaces fast, as a readable error. 20s:
-// /api/debug-movepro proved these endpoints legitimately take 5s+ (Metabase
-// actually executing the report query), not a network block.
+// a diagnostic probe (since removed — /api/debug-movepro) proved these
+// endpoints legitimately take 5s+ (Metabase actually executing the report
+// query), not a network block.
 export const FETCH_TIMEOUT_MS = 20000;
 
 // Not sales reps — site inspectors, inactive staff, and other non-roster

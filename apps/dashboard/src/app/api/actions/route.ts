@@ -5,10 +5,10 @@ import { getActionsSnapshot } from "../../../lib/movepro-actions";
 export const dynamic = "force-dynamic";
 // A true first-time month build (nothing in the durable day cache yet) is
 // ~31 days at DASHCARD_CONCURRENCY (5) in flight, each ~6s once Metabase
-// isn't being hit with an unbounded concurrent burst (confirmed via
-// /api/debug-movepro's ?concurrency probe) — ceil(31/5) * 6s ≈ 40s. 60s
-// gives that genuine one-time cost room to finish; every poll after that
-// only fetches today (~6s), since completed days come from the cache.
+// isn't being hit with an unbounded concurrent burst (confirmed via a since-
+// removed diagnostic probe's ?concurrency mode) — ceil(31/5) * 6s ≈ 40s.
+// 60s gives that genuine one-time cost room to finish; every poll after
+// that only fetches today (~6s), since completed days come from the cache.
 export const maxDuration = 60;
 
 /**
