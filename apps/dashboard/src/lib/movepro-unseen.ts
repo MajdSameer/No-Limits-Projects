@@ -1,4 +1,4 @@
-import { fetchWithJwtRetry } from "./movepro-client";
+import { fetchWithJwtRetry, isExcludedName } from "./movepro-client";
 import { parseActionAgentName } from "./movepro-actions";
 
 /**
@@ -42,10 +42,11 @@ export function extractUnseenRows(body: unknown): UnseenRow[] {
 
 /** Same display-name normalisation as the activity board — "Unassigned" has
  * no NoLimits suffix and is a single word, so parseActionAgentName already
- * returns it unchanged; no special-casing needed. Unlike the activity
- * board, nothing is excluded here — "Unassigned" is meaningful on an unseen-
- * communications queue (it's a real bucket of outstanding contact), not
- * noise. */
+ * returns it unchanged; no special-casing needed. Shares the activity
+ * board's non-rep exclusion list (movepro-client's isExcludedName), except
+ * "Unassigned" is exempted here — it's a meaningful bucket of outstanding
+ * contact on an unseen-communications queue, not noise, unlike on the
+ * activity leaderboard where it's excluded. */
 export function toUnseenDTO(rows: UnseenRow[]): UnseenRowDTO[] {
   return rows
     .filter((r) => r[0])
@@ -55,6 +56,7 @@ export function toUnseenDTO(rows: UnseenRow[]): UnseenRowDTO[] {
       emailSms: r[2] ?? 0,
       callsCallbacks: r[3] ?? 0,
     }))
+    .filter((r) => r.name.toLowerCase() === "unassigned" || !isExcludedName(r.name))
     .sort((a, b) => b.totalUnseen - a.totalUnseen);
 }
 
