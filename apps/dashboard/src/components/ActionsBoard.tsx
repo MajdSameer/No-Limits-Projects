@@ -36,7 +36,7 @@ function usePulseOnChange(value: number): boolean {
 function NumStat({ label, value }: { label: string; value: number }) {
   return (
     <span className="text-right leading-none">
-      <span className="block text-sm font-bold text-white/70 tabular-nums">{value}</span>
+      <span className="block text-sm font-bold text-white/70 tabular-nums">{value.toLocaleString()}</span>
       <span className="block text-[0.55rem] font-semibold tracking-wide text-white/35 uppercase">{label}</span>
     </span>
   );
@@ -48,33 +48,36 @@ function Row({ r, i }: { r: ActionRowDTO; i: number }) {
   return (
     <li
       className={cx(
-        "mb-2 flex min-w-0 items-center gap-3 rounded-xl px-3 py-2 break-inside-avoid",
+        "mb-2 flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 break-inside-avoid",
         top3 ? "border border-accent-400/40 bg-accent-400/[0.06]" : "border border-white/5 bg-white/[0.04]",
       )}
     >
       <span
         className={cx(
-          "w-6 shrink-0 text-center text-sm font-bold",
+          "w-5 shrink-0 text-center text-sm font-bold",
           i === 0 ? "text-accent-400" : top3 ? "text-brand-200" : "text-white/40",
         )}
       >
         {i + 1}
       </span>
-      <span className={cx("min-w-0 flex-1 truncate font-semibold text-white", top3 ? "text-xl" : "text-lg")}>
+      <span className={cx("min-w-0 flex-1 truncate font-semibold text-white", top3 ? "text-lg" : "text-base")}>
         {r.name}
       </span>
-      <div className="flex shrink-0 items-end gap-3">
+      {/* Real totals run into the thousands (monthly), so the total figure
+          gets no fixed width — it sizes to its own content instead of
+          clipping/overflowing past a box tuned for 1-2 digit numbers. */}
+      <div className="flex shrink-0 items-end gap-2">
         <NumStat label="calls" value={r.calls} />
         <NumStat label="emails" value={r.emails} />
         <NumStat label="msgs" value={r.messages} />
         <span
           className={cx(
-            "w-12 shrink-0 text-right leading-none font-black tabular-nums transition-colors duration-500",
-            top3 ? "text-4xl" : "text-3xl",
+            "shrink-0 text-right leading-none font-black tabular-nums transition-colors duration-500",
+            top3 ? "text-2xl" : "text-xl",
             pulse ? "text-accent-300" : "text-white",
           )}
         >
-          {r.total}
+          {r.total.toLocaleString()}
         </span>
       </div>
     </li>
@@ -87,7 +90,7 @@ function Section({ title, rows }: { title: string; rows: ActionRowDTO[] }) {
     <section className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-baseline justify-between">
         <h2 className="text-lg font-bold text-white">{title}</h2>
-        <span className="text-sm font-medium text-white/50">{total} total</span>
+        <span className="text-sm font-medium text-white/50">{total.toLocaleString()} total</span>
       </div>
       {rows.length === 0 ? (
         <div className="mt-2 grid flex-1 place-items-center rounded-2xl border border-dashed border-white/15">
