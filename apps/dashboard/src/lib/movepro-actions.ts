@@ -211,11 +211,11 @@ export async function fetchDayAggregate(
 
 /** Runs `fn` over `items` with at most `limit` in flight at once, not
  * Promise.all's unbounded fan-out. Metabase serialises concurrent report
- * queries on its own backend — confirmed via /api/debug-movepro's
- * ?concurrency probe: 20 parallel dashcard calls each took 12-16s (vs ~5s
- * solo), so the original unbounded ~31-wide cold-start fan-out was timing
- * everything out by overloading Metabase, not by hitting any per-request
- * problem. */
+ * queries on its own backend — confirmed via a diagnostic probe's (since
+ * removed — /api/debug-movepro) ?concurrency mode: 20 parallel dashcard
+ * calls each took 12-16s (vs ~5s solo), so the original unbounded ~31-wide
+ * cold-start fan-out was timing everything out by overloading Metabase, not
+ * by hitting any per-request problem. */
 export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let next = 0;

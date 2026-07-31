@@ -9,8 +9,7 @@ import { SESSION_COOKIE } from "./lib/session";
  * /api/unseen, /api/version and /sounds (the wall display's celebration
  * audio) are deliberately public (data-minimal board numbers for the wall
  * display); /api/ingest is public but guarded by its own INGEST_SECRET
- * bearer token. /api/debug-movepro is deliberately NOT public — see that
- * route for why.
+ * bearer token.
  *
  * /api/version was missing from this list until now — wall displays have no
  * session cookie, so every poll was silently redirected to /sign-in instead
