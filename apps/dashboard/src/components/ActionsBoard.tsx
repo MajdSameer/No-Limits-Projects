@@ -276,12 +276,18 @@ export function ActionsBoard({
   useEffect(() => setPinnedView(readPinnedView()), []);
 
   const [rotatedView, setRotatedView] = useState<View>("activity");
+  // Self-rescheduling timeout (not setInterval) so it depends on rotatedView
+  // itself: a manual click via selectView below changes rotatedView, which
+  // re-runs this effect and starts a fresh 30s countdown from that moment —
+  // otherwise the old interval would still be mid-countdown and could flip
+  // the view again seconds after someone just picked one by hand.
   useEffect(() => {
     if (pinnedView) return;
-    const t = setInterval(() => setRotatedView((v) => (v === "activity" ? "unseen" : "activity")), ROTATION_MS);
-    return () => clearInterval(t);
-  }, [pinnedView]);
+    const t = setTimeout(() => setRotatedView((v) => (v === "activity" ? "unseen" : "activity")), ROTATION_MS);
+    return () => clearTimeout(t);
+  }, [pinnedView, rotatedView]);
   const activeView: View = pinnedView ?? rotatedView;
+  const selectView = useCallback((v: View) => setRotatedView(v), []);
 
   const [reducedMotion, setReducedMotion] = useState(false);
   useEffect(() => {
@@ -360,20 +366,41 @@ export function ActionsBoard({
         </div>
       </div>
 
+      {/* Doubles as the manual view switch — clicking a dot jumps straight to
+          that view and resets the 30s rotation countdown from that moment
+          (see the effect above), so it doesn't flip back a few seconds
+          later. Hidden when a view is pinned via ?view=, since there's
+          nothing to switch to in that mode. */}
       {!pinnedView && (
-        <div className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2" aria-hidden>
-          <span
-            className={cx(
-              "size-2 rounded-full transition-colors",
-              activeView === "activity" ? "bg-accent-400" : "bg-white/20",
-            )}
-          />
-          <span
-            className={cx(
-              "size-2 rounded-full transition-colors",
-              activeView === "unseen" ? "bg-accent-400" : "bg-white/20",
-            )}
-          />
+        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1">
+          <button
+            type="button"
+            onClick={() => selectView("activity")}
+            aria-label="Show rep activity"
+            aria-current={activeView === "activity"}
+            className="p-3"
+          >
+            <span
+              className={cx(
+                "block size-2 rounded-full transition-colors",
+                activeView === "activity" ? "bg-accent-400" : "bg-white/20",
+              )}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => selectView("unseen")}
+            aria-label="Show unseen communications"
+            aria-current={activeView === "unseen"}
+            className="p-3"
+          >
+            <span
+              className={cx(
+                "block size-2 rounded-full transition-colors",
+                activeView === "unseen" ? "bg-accent-400" : "bg-white/20",
+              )}
+            />
+          </button>
         </div>
       )}
     </main>
