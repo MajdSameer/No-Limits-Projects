@@ -4,10 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
+import { crossedGongThreshold, loadGongSeen, saveGongSeen, type GongEvent } from "../lib/actions-gong";
+import { armAudio, audioRunning, playGong, startAudioKeepAlive } from "../lib/celebrate";
+import { useLiveRefresh } from "../lib/live";
 import type { ActionRowDTO, ActionsResponseDTO } from "../lib/movepro-actions";
 import type { UnseenRowDTO, UnseenResponseDTO } from "../lib/movepro-unseen";
-import { useLiveRefresh } from "../lib/live";
-import { SYDNEY_TZ } from "../lib/sydney";
+import { SYDNEY_TZ, sydneyToday } from "../lib/sydney";
 
 const POLL_MS = 30000;
 // /api/debug-movepro (since removed) showed there's no network block — the
@@ -220,6 +222,102 @@ function UnseenSection({ rows, stale }: { rows: UnseenRowDTO[]; stale: boolean }
   );
 }
 
+// ── Celebration gong ─────────────────────────────────────────────────────
+
+// Cycle timing between successive queued gongs: HOLD + FADE is the banner's
+// own visible lifetime, GAP is the pause after — the three sum to the ~2s
+// spacing between gongs the spec asks for, with room to spare so they never
+// overlap. FADE_MS matches globals.css's nl-overlay-out (0.5s), reused for
+// the banner's exit rather than inventing a new timing.
+const GONG_HOLD_MS = 1300;
+const GONG_FADE_MS = 500;
+const GONG_GAP_MS = 200;
+
+const METRIC_LABEL: Record<GongEvent["metric"], string> = {
+  calls: "calls",
+  emails: "emails",
+  messages: "messages",
+};
+
+/** Watches Today's per-rep calls/emails/messages and queues a gong + banner
+ * event each time one crosses 100, ~2s apart so they never overlap. Seeded
+ * silently per Sydney day (a fresh page load, or a rep already over 100
+ * before anyone was watching, never gongs — only an observed crossing
+ * does), and persisted to localStorage keyed by day so a refresh or
+ * redeploy doesn't replay a gong that already fired, resetting naturally at
+ * midnight since a new day's storage key starts empty. */
+function useGongCelebration(rows: { name: string; calls: number; emails: number; messages: number }[]) {
+  const seenRef = useRef<Set<string>>(new Set());
+  const dayRef = useRef<string | null>(null);
+  const seededRef = useRef(false);
+  const queueRef = useRef<GongEvent[]>([]);
+  const runningRef = useRef(false);
+  const timersRef = useRef<number[]>([]);
+  const [active, setActive] = useState<{ event: GongEvent; out: boolean } | null>(null);
+
+  const drain = useCallback(() => {
+    if (runningRef.current) return;
+    const next = queueRef.current.shift();
+    if (!next) return;
+    runningRef.current = true;
+    setActive({ event: next, out: false });
+    playGong();
+    timersRef.current.push(
+      window.setTimeout(() => setActive((a) => (a ? { ...a, out: true } : a)), GONG_HOLD_MS),
+    );
+    timersRef.current.push(
+      window.setTimeout(
+        () => {
+          setActive(null);
+          runningRef.current = false;
+          timersRef.current.push(window.setTimeout(drain, GONG_GAP_MS));
+        },
+        GONG_HOLD_MS + GONG_FADE_MS,
+      ),
+    );
+  }, []);
+
+  useEffect(() => {
+    const today = sydneyToday();
+    if (dayRef.current !== today) {
+      dayRef.current = today;
+      seenRef.current = loadGongSeen(today);
+      seededRef.current = false;
+    }
+    const seed = !seededRef.current;
+    seededRef.current = true;
+    const events = crossedGongThreshold(rows, seenRef.current, seed);
+    if (events.length === 0) return;
+    saveGongSeen(today, seenRef.current);
+    queueRef.current.push(...events);
+    drain();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
+  useEffect(() => () => timersRef.current.forEach((t) => window.clearTimeout(t)), []);
+
+  return active;
+}
+
+function GongBanner({ active }: { active: { event: GongEvent; out: boolean } | null }) {
+  if (!active) return null;
+  const { event, out } = active;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cx(
+        "pointer-events-none fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-accent-400/60 bg-black/85 px-6 py-2.5 shadow-[0_0_30px_-6px_rgba(255,212,46,0.6)] backdrop-blur",
+        out ? "nl-overlay-out" : "nl-rise",
+      )}
+    >
+      <span className="text-base font-bold text-accent-200 sm:text-lg">
+        🔔 {event.name} hit 100 {METRIC_LABEL[event.metric]}!
+      </span>
+    </div>
+  );
+}
+
 // ── Shared polling ───────────────────────────────────────────────────────
 
 function usePolledData<T>(url: string, initial: T) {
@@ -269,6 +367,32 @@ export function ActionsBoard({
 }) {
   const activity = usePolledData<ActionsResponseDTO>("/api/actions", initialActivity);
   const unseen = usePolledData<UnseenResponseDTO>("/api/unseen", initialUnseen);
+  const gong = useGongCelebration(activity.data.daily);
+
+  // Browsers block audio until the page is interacted with. On a wall TV
+  // nobody clicks, so keep arming on ANY interaction (not just once) and
+  // surface a "tap to enable sound" prompt until the context is actually
+  // running — else the gong silently never plays. Same pattern as /live's
+  // LiveBoard.
+  const [soundLocked, setSoundLocked] = useState(true);
+  useEffect(() => {
+    const sync = () => setSoundLocked(!audioRunning());
+    const arm = () => {
+      armAudio();
+      window.setTimeout(sync, 80); // resume() is async — re-check just after
+    };
+    sync();
+    window.addEventListener("pointerdown", arm);
+    window.addEventListener("keydown", arm);
+    document.addEventListener("visibilitychange", sync);
+    const stopKeepAlive = startAudioKeepAlive();
+    return () => {
+      window.removeEventListener("pointerdown", arm);
+      window.removeEventListener("keydown", arm);
+      document.removeEventListener("visibilitychange", sync);
+      stopKeepAlive();
+    };
+  }, []);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -288,6 +412,18 @@ export function ActionsBoard({
 
   return (
     <main className="flex h-dvh flex-col gap-3 overflow-hidden bg-brand-900 p-4 text-white sm:p-5">
+      <GongBanner active={gong} />
+
+      {soundLocked && (
+        <button
+          type="button"
+          onClick={() => armAudio()}
+          className="fixed right-4 bottom-4 z-50 flex animate-pulse items-center gap-2 rounded-full border border-accent-400/50 bg-black/85 px-4 py-2 text-sm font-semibold text-accent-200 shadow-lg backdrop-blur"
+        >
+          <span aria-hidden>🔇</span> Tap anywhere to enable sound
+        </button>
+      )}
+
       <header className="flex shrink-0 items-baseline justify-between">
         <h1 className="text-2xl font-bold text-white">Rep activity</h1>
         <p className="flex items-baseline gap-3 text-sm font-medium text-white/50">
