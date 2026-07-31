@@ -4,8 +4,11 @@ import { getActionsSnapshot } from "../../../lib/movepro-actions";
 
 export const dynamic = "force-dynamic";
 // A cold instance's monthly assembly is ~30 external requests, parallelized;
-// give it room to finish instead of 504ing on a slow cold start.
-export const maxDuration = 25;
+// give it room to finish instead of 504ing on a slow cold start. 60s (not 25)
+// because a live probe showed these MovePro/Metabase endpoints run close to
+// 15s per request from Vercel's network, and a truncated day needs a second
+// (also parallel) round of per-agent requests on top of that.
+export const maxDuration = 60;
 
 /**
  * Public by design, like /api/boards — the wall TV has no session. Serves
