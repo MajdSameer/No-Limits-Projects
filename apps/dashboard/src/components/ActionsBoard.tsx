@@ -9,13 +9,14 @@ import { useLiveRefresh } from "../lib/live";
 import { SYDNEY_TZ } from "../lib/sydney";
 
 const POLL_MS = 30000;
-// A single failed round-trip to MovePro now times out at ~5s (see
-// FETCH_TIMEOUT_MS in movepro-actions.ts — both endpoints respond in well
-// under 1s when reachable, so 5s is already generous for a real failure).
-// 7s covers one failed attempt plus a little slack, so the board flips from
-// "Loading…" to an honest error as fast as it reasonably can without
-// flashing an error mid a normal working load.
-const STALE_MS = 7000;
+// /api/debug-movepro showed there's no network block — the dashcard call
+// legitimately takes 5s+ (Metabase actually executing the report query), and
+// a cold-start monthly assembly (~30 parallel per-day calls, each up to the
+// 20s FETCH_TIMEOUT_MS in movepro-actions.ts) can genuinely take a while.
+// 45s is comfortably above that realistic range but still below the route's
+// own 60s maxDuration, so this only flips to an error after the server
+// itself would have already given up.
+const STALE_MS = 45000;
 
 /** Briefly true right after `value` changes, for a subtle number-change pulse
  * (no layout shift — just a colour flash on the digits themselves). */

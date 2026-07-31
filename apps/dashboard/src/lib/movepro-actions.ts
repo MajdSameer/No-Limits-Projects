@@ -23,13 +23,12 @@ const CARD_ID = 628;
 // the caller gets an opaque platform 504 with nothing logged. This bounds
 // each request so a real failure surfaces fast, as a readable error.
 //
-// 5s, not 15s: curling both endpoints directly (bypassing Vercel) returns in
-// well under 1s even for error responses — a working call here should be
-// just as fast. The current production failure is total silence from
-// Vercel's network (never a slow-but-real response), which reads as an
-// IP/firewall block, not latency — waiting longer than a few seconds for
-// that kind of failure buys nothing, it will never come back.
-const FETCH_TIMEOUT_MS = 5000;
+// 20s: /api/debug-movepro proved there is no network block — from Vercel,
+// mint returns 200 in ~1s and the dashcard call legitimately takes 5s+
+// (Metabase actually executing the report query) before returning 202 with
+// the full body. The earlier 5s/15s values were both wrong guesses; this is
+// generous headroom over a real, observed ~5.3s response, not another guess.
+const FETCH_TIMEOUT_MS = 20000;
 
 export interface ActionRowDTO {
   name: string;
