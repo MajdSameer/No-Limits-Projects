@@ -100,10 +100,10 @@ function useRankFlash(rows: { name: string }[]): Set<string> {
 function NumStat({ label, value }: { label: string; value: number }) {
   return (
     <span className="w-[5ch] shrink-0 text-right leading-none">
-      <span className="block text-[clamp(0.5rem,1.5vmin,0.95rem)] font-bold text-white/70 tabular-nums">
+      <span className="block text-[clamp(0.6rem,1.8vmin,1.1rem)] font-bold text-white/70 tabular-nums">
         {value.toLocaleString()}
       </span>
-      <span className="block text-[clamp(0.35rem,0.8vmin,0.55rem)] font-semibold tracking-wide text-white/35 uppercase">
+      <span className="block text-[clamp(0.4rem,0.9vmin,0.65rem)] font-semibold tracking-wide text-white/35 uppercase">
         {label}
       </span>
     </span>
@@ -207,7 +207,7 @@ function Row({
         <span
           className={cx(
             "w-[7ch] shrink-0 text-right leading-none font-black tabular-nums transition-colors duration-500",
-            top3 ? "text-[clamp(0.8rem,2.4vmin,1.6rem)]" : "text-[clamp(0.7rem,2vmin,1.3rem)]",
+            top3 ? "text-[clamp(0.95rem,2.7vmin,1.8rem)]" : "text-[clamp(0.85rem,2.3vmin,1.5rem)]",
             pulse ? "text-accent-300" : "text-white",
           )}
         >
@@ -301,7 +301,7 @@ function UnseenRow({ r, i }: { r: UnseenRowDTO; i: number }) {
         <span
           className={cx(
             "w-[7ch] shrink-0 text-right leading-none font-black tabular-nums transition-colors duration-500",
-            top3 ? "text-[clamp(0.8rem,2.4vmin,1.6rem)]" : "text-[clamp(0.7rem,2vmin,1.3rem)]",
+            top3 ? "text-[clamp(0.95rem,2.7vmin,1.8rem)]" : "text-[clamp(0.85rem,2.3vmin,1.5rem)]",
             isZero ? "text-emerald-300" : pulse ? "text-amber-300" : top3 ? "text-red-300" : "text-white",
           )}
         >
