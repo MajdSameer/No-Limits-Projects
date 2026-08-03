@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 function emptyActivity(): ActionsResponseDTO {
-  return { updatedAt: new Date().toISOString(), daily: [], monthly: [], teamDailyTarget: 0, yesterdayTop: null };
+  return { updatedAt: new Date().toISOString(), daily: [], monthly: [], yesterdayTop: null };
 }
 
 function emptyUnseen(): UnseenResponseDTO {

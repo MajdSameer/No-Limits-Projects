@@ -45,9 +45,6 @@ export interface ActionsResponseDTO {
   updatedAt: string;
   daily: ActionRowDTO[];
   monthly: ActionRowDTO[];
-  /** Sum of active reps' month-to-date daily averages — the team's
-   * auto-derived expected total_actions volume for today, no config. */
-  teamDailyTarget: number;
   /** Yesterday's #1 rep by total_actions (same exclusion/ranking rules as
    * every other list), or null if yesterday has no usable data. */
   yesterdayTop: string | null;
@@ -221,7 +218,7 @@ export async function fetchDayAggregate(
 
 /** Per-rep month-to-date average of total_actions from PRIOR completed days
  * only — today's still-partial number is excluded so it can't skew the very
- * baseline it's later compared against (pace arrows, team target). Keyed by
+ * baseline it's later compared against (the client's pace arrows). Keyed by
  * PARSED display name (matching toDTO's output) and summed across any raw
  * agent-name variants that parse to the same display name, mirroring
  * toDTO's own aggregation. Non-reps are excluded, same as everywhere else.
@@ -365,7 +362,6 @@ export async function getActionsSnapshot(): Promise<ActionsResponseDTO> {
   for (const r of results) if (r) mergeAgg(monthlyMap, r);
 
   const avgByName = mtdDailyAverages(monthlyMap, dailyMap, priorDates.length);
-  const teamDailyTarget = [...avgByName.values()].reduce((s, v) => s + v, 0);
   const dailyDTO = toDTO(dailyMap ?? new Map()).map((r) => ({
     ...r,
     mtdDailyAvg: avgByName.get(r.name) ?? null,
@@ -382,7 +378,6 @@ export async function getActionsSnapshot(): Promise<ActionsResponseDTO> {
     updatedAt: new Date().toISOString(),
     daily: dailyDTO,
     monthly: toDTO(monthlyMap),
-    teamDailyTarget,
     yesterdayTop,
   };
   responseCache = { at: Date.now(), data };
