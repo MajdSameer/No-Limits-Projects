@@ -22,6 +22,9 @@ const POLL_MS = 30000;
 // error after the server itself would have already given up.
 const STALE_MS = 45000;
 
+/** Fixed team daily goal, set by request — not auto-derived. */
+const TEAM_DAILY_TARGET = 4800;
+
 /** Briefly true right after `value` changes, for a subtle number-change pulse
  * (no layout shift — just a colour flash on the digits themselves). */
 function usePulseOnChange(value: number): boolean {
@@ -534,7 +537,7 @@ export function ActionsBoard({
   }).format(now);
 
   const teamTotal = activity.data.daily.reduce((s, r) => s + r.total, 0);
-  const teamTarget = activity.data.teamDailyTarget;
+  const teamTarget = TEAM_DAILY_TARGET;
   const teamPct = teamTarget > 0 ? Math.round((teamTotal / teamTarget) * 100) : 0;
 
   return (
@@ -561,9 +564,9 @@ export function ActionsBoard({
             </span>
           </p>
         </div>
-        {/* Target is auto-derived server-side (sum of active reps' MTD daily
-            averages) — no config, and absent (0) with no monthly history
-            yet, e.g. the 1st of the month. */}
+        {/* Fixed team target (TEAM_DAILY_TARGET) — was auto-derived from
+            active reps' MTD daily averages, changed to a flat 4800 by
+            request. */}
         {teamTarget > 0 && (
           <div className="flex shrink-0 items-center gap-3">
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
