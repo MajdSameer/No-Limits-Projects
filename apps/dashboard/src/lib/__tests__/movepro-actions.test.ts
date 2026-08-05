@@ -76,6 +76,7 @@ describe("toDTO", () => {
       row("MARTIN"), // uppercase — must still match
       row("Andy"),
       row("kinan"),
+      row("Sales"),
     ];
     const dto = toDTO(sumRowsByAgent(rows));
     expect(dto.map((r) => r.name)).toEqual(["Ann"]);

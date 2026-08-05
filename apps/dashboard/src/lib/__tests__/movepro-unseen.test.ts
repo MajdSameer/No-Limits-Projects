@@ -17,6 +17,7 @@ describe("toUnseenDTO", () => {
       ["Hermez", 1, 1, 0],
       ["kinan", 2, 2, 0],
       ["Liam", 2, 2, 0],
+      ["Sales", 3, 3, 0],
     ];
     const dto = toUnseenDTO(rows);
     expect(dto.map((r) => r.name)).toEqual(["Ann"]);

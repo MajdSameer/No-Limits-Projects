@@ -25,9 +25,21 @@ export const FETCH_TIMEOUT_MS = 20000;
 // movepro-unseen.ts exempts "Unassigned" from this list on its own board,
 // where it's a meaningful bucket rather than noise.
 const EXCLUDED_NAMES = new Set(
-  ["Liam", "Max", "Danny", "Unassigned", "Kate", "Youi", "Avan", "Hermez", "Ace", "Martin", "Andy", "kinan"].map(
-    (n) => n.toLowerCase(),
-  ),
+  [
+    "Liam",
+    "Max",
+    "Danny",
+    "Unassigned",
+    "Kate",
+    "Youi",
+    "Avan",
+    "Hermez",
+    "Ace",
+    "Martin",
+    "Andy",
+    "kinan",
+    "Sales",
+  ].map((n) => n.toLowerCase()),
 );
 
 export function isExcludedName(name: string): boolean {
