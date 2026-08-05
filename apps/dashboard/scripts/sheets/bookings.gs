@@ -177,7 +177,18 @@ function onBookingEdit(e) {
   pushBookings();
 }
 
-/** Run once to (re)install the booking edit + 15-minute triggers. */
+/**
+ * Run once to (re)install the booking edit + time-based triggers. The
+ * time-based one is a 5-minute backup (down from 15) for anything that
+ * doesn't fire onEdit — a formula/IMPORTRANGE-driven change, a bulk API
+ * write, etc. — since onEdit only fires for a direct user edit to the sheet.
+ * A direct edit should already push within seconds via onEdit; if it's
+ * still taking minutes even for a manual edit, the deployed onEdit trigger
+ * may have gone stale — re-running this function refreshes both triggers.
+ * Not set to the fastest possible 1 minute: this sheet has previously timed
+ * out on its own reads when large (~3,600 rows), and a 1-minute cadence
+ * risks a slow run still executing when the next one fires.
+ */
 function installBookingTriggers() {
   var ours = { onBookingEdit: true, pushBookings: true };
   ScriptApp.getProjectTriggers().forEach(function (t) {
@@ -185,5 +196,5 @@ function installBookingTriggers() {
   });
   var ss = SpreadsheetApp.getActive();
   ScriptApp.newTrigger("onBookingEdit").forSpreadsheet(ss).onEdit().create();
-  ScriptApp.newTrigger("pushBookings").timeBased().everyMinutes(15).create();
+  ScriptApp.newTrigger("pushBookings").timeBased().everyMinutes(5).create();
 }
