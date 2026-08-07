@@ -210,3 +210,36 @@ export const leadInbox = pgTable(
   },
   (t) => [uniqueIndex("lead_inbox_sheet_id_unique").on(t.sheetId)],
 );
+
+/**
+ * A daily snapshot of Game Day's final Red vs Blue result, captured by the
+ * 7pm Sydney cron (api/cron/game-day-capture) so results survive past
+ * midnight — Game Day itself has no other archive; team totals are always
+ * just a live re-split of today's `bookings` rows (via dailyBoard()),
+ * overwritten the moment the next day's counts start coming in. One row
+ * per Sydney calendar date (upserted on `date`, so a re-run of the cron for
+ * the same day updates in place rather than duplicating).
+ */
+export const gameDayResults = pgTable(
+  "game_day_results",
+  {
+    id: text("id").primaryKey(),
+    date: date("date").notNull(),
+    orangeTotal: integer("orange_total").notNull(),
+    blueTotal: integer("blue_total").notNull(),
+    /** null on a tie. */
+    winner: team("winner"),
+    /** staffIds sharing the day's top individual count (ties all included). */
+    topScorerIds: jsonb("top_scorer_ids").$type<string[]>().notNull(),
+    /** Every teamed rep's count for the day, as captured. */
+    reps: jsonb("reps")
+      .$type<{ staffId: string; name: string; team: "orange" | "blue"; count: number }[]>()
+      .notNull(),
+    /** Prize amounts at capture time — GameDayWall.tsx's constants can change
+     * later, so a historical result keeps what was actually promised then. */
+    teamPrize: integer("team_prize").notNull(),
+    topScorerPrize: integer("top_scorer_prize").notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("game_day_results_date_unique").on(t.date)],
+);

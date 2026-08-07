@@ -1,3 +1,6 @@
 {
-  "crons": [{ "path": "/api/cron/midnight", "schedule": "5 14 * * *" }]
+  "crons": [
+    { "path": "/api/cron/midnight", "schedule": "5 14 * * *" },
+    { "path": "/api/cron/game-day-capture", "schedule": "0 9 * * *" }
+  ]
 }
