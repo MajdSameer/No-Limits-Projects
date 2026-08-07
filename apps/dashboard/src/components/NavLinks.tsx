@@ -12,6 +12,7 @@ const NAV = [
   { label: "Bookings", href: "/bookings" },
   { label: "Subcontractor", href: "/subcontractor" },
   { label: "Roster", href: "/roster" },
+  { label: "Game Day", href: "/game-day-history" },
 ];
 
 export function NavLinks({ isManager }: { isManager: boolean }) {

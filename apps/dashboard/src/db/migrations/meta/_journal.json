@@ -36,6 +36,13 @@
       "when": 1781503893383,
       "tag": "0004_lucky_chameleon",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786064811589,
+      "tag": "0005_panoramic_leader",
+      "breakpoints": true
     }
   ]
 }
