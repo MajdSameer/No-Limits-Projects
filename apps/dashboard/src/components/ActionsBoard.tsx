@@ -12,15 +12,14 @@ import type { ActionRowDTO, ActionsResponseDTO } from "../lib/movepro-actions";
 import type { UnseenRowDTO, UnseenResponseDTO } from "../lib/movepro-unseen";
 import { SYDNEY_TZ, sydneyToday } from "../lib/sydney";
 
-const POLL_MS = 30000;
-// /api/debug-movepro (since removed) showed there's no network block — the
-// dashcard call legitimately takes 5s+ (Metabase actually executing the
-// report query), and a cold-start monthly assembly (~30 parallel per-day
-// calls, each up to the 20s FETCH_TIMEOUT_MS in movepro-actions.ts) can
-// genuinely take a while. 45s is comfortably above that realistic range but
-// still below the route's own 60s maxDuration, so this only flips to an
-// error after the server itself would have already given up.
-const STALE_MS = 45000;
+const POLL_MS = 300000;
+// Checked every 1s against lastSuccess regardless of whether a poll is even
+// due yet, so this must stay comfortably above POLL_MS itself (not just
+// above a single fetch's realistic duration) or the board would flash
+// "stale" partway through every normal 5-minute cycle. 1.5x POLL_MS mirrors
+// the original 30s/45s ratio — one missed cycle's worth of slack before
+// actually warning.
+const STALE_MS = 450000;
 
 /** Fixed team daily goal, set by request — not auto-derived. */
 const TEAM_DAILY_TARGET = 4800;
@@ -480,8 +479,8 @@ function dailyPaceMessage(pct: number): string {
 /**
  * Static three-panel wall board — Unseen communications | Today | This
  * month, side by side, always all visible (no rotation). Both underlying
- * feeds poll independently on the same 30s cycle; the header's "updated Xs
- * ago" reflects whichever of the two is currently the more stale, so it
+ * feeds poll independently on the same 5-minute cycle; the header's "updated
+ * Xs ago" reflects whichever of the two is currently the more stale, so it
  * never claims to be fresher than the slower-updating panel actually is.
  */
 export function ActionsBoard({
