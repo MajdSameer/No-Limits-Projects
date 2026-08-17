@@ -3,7 +3,7 @@
  *
  * Bound to the "Follow-Up" spreadsheet. Reads the "Leaderboard" tab and POSTs a
  * snapshot (roster, today's booking counts + job codes, clock) to the
- * dashboard's /api/ingest/leaderboard endpoint. Runs on edit and on a 5-minute
+ * dashboard's /api/ingest/leaderboard endpoint. Runs on edit and on a 1-minute
  * timer. Because it runs as you inside Google, there's no OAuth token to expire.
  *
  * SETUP — see scripts/sheets/README.md. In short:
@@ -112,7 +112,15 @@ function onLeaderboardEdit(e) {
   pushLeaderboard();
 }
 
-/** Run once to (re)install the edit + 5-minute triggers. Safe to re-run. */
+/**
+ * Run once to (re)install the edit + 1-minute triggers. Safe to re-run — if
+ * a direct edit to the Leaderboard tab is taking minutes instead of seconds
+ * to show up on /live, the deployed onEdit trigger has likely gone stale;
+ * re-running this refreshes both triggers. The backup timer is 1 minute
+ * (not the 5-minute interval used on the much bigger Booking tab elsewhere)
+ * since ROSTER_RANGE/COUNTS_RANGE here are only ~20 rows each — no history
+ * of slow reads, so there's no overlap risk at this cadence.
+ */
 function installTriggers() {
   var ours = { onLeaderboardEdit: true, pushLeaderboard: true };
   ScriptApp.getProjectTriggers().forEach(function (t) {
@@ -120,5 +128,5 @@ function installTriggers() {
   });
   var ss = SpreadsheetApp.getActive();
   ScriptApp.newTrigger("onLeaderboardEdit").forSpreadsheet(ss).onEdit().create();
-  ScriptApp.newTrigger("pushLeaderboard").timeBased().everyMinutes(5).create();
+  ScriptApp.newTrigger("pushLeaderboard").timeBased().everyMinutes(1).create();
 }

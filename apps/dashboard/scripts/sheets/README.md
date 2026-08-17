@@ -6,7 +6,7 @@ updating" path: it runs as the sheet owner, so there's no Google OAuth token to
 expire (unlike the `pnpm db:sync-sheet` pull).
 
 ```
-Leaderboard tab ──(onEdit + 5-min timer)──▶ POST /api/ingest/leaderboard ──▶ rep_live ──▶ /live board
+Leaderboard tab ──(onEdit + 1-min timer)──▶ POST /api/ingest/leaderboard ──▶ rep_live ──▶ /live board
 ```
 
 ## One-time setup
@@ -20,7 +20,7 @@ Leaderboard tab ──(onEdit + 5-min timer)──▶ POST /api/ingest/leaderboa
    - `INGEST_SECRET` = the same secret you set in Vercel
 4. Back in the editor, select **`installTriggers`** in the function dropdown and
    click **Run**. Approve the authorization prompt (it's your own sheet).
-   This installs the `onEdit` trigger + a 5-minute safety timer.
+   This installs the `onEdit` trigger + a 1-minute safety timer.
 5. Test now: select **`pushLeaderboard`** → **Run**. Check the execution log for
    the JSON response, then open `/live` on the dashboard.
 
