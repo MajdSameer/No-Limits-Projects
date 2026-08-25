@@ -69,6 +69,15 @@ revenue under their name in the `/live` "This month" column. The read range was
 widened to col BB, so re-paste `bookings.gs` and run `pushBookings` once after
 updating.
 
+Every `pushBookings` run also tallies the **Cleaning Bookings** and **Car
+reallocation Bookings** tabs (same spreadsheet) into the same monthCounts/
+pipelineCounts as the Booking tab — a rep's `/live` "This month"/"Next 3
+months" totals are moving + cleaning + car-relocation combined (counts only,
+no revenue from these two). See `EXTRA_TALLY_TABS` at the top of the script if
+either tab gets renamed or its Date/Sales Person columns move. `onBookingEdit`
+also watches both tabs now, so booking one pushes near-instantly, same as a
+Booking-tab edit.
+
 ## Leads push (`leads.gs`)
 
 `leads.gs` is bound to the **Quote Leads Auto Process** spreadsheet (its own
