@@ -11,12 +11,30 @@
  * Only the last WINDOW_DAYS of move dates (plus all future) are sent; the
  * dashboard side skips non-NL/RRR/PM companies and any sales rep that isn't a
  * roster rep or the subcontractor "Domanic".
+ *
+ * Also tallies the "Cleaning Bookings" and "Car reallocation Bookings" tabs
+ * (same spreadsheet) into the SAME monthCounts/pipelineCounts a rep's /live
+ * "This month"/"Next 3 months" totals come from — see EXTRA_TALLY_TABS below.
+ * Those two tabs aren't part of the bookings-table sync (rows array), just the
+ * count tally, so /bookings and /subcontractor are unaffected.
  */
 
 var BOOK_TAB = "Booking";
 var HEADER_ROWS = 2; // real headers are on row 2; data starts row 3
 var WINDOW_DAYS = 90;
 var BATCH = 300;
+
+// Extra tabs whose rows should count toward a rep's monthly/pipeline totals
+// on /live, on top of the Booking tab above — cleaning and car-relocation
+// jobs, so booking one of those also moves a rep up the board. Both tabs
+// share this layout: header row 2, data from row 3, Date in col D, Sales
+// Person in col E (1-indexed columns, unlike the 0-based COL map above).
+// Missing a tab (renamed/deleted) is skipped, not fatal — the main Booking
+// tally still pushes.
+var EXTRA_TALLY_TABS = [
+  { name: "Cleaning Bookings", dateCol: 4, salesCol: 5 },
+  { name: "Car reallocation Bookings", dateCol: 4, salesCol: 5 },
+];
 
 // 0-based column indexes within the row (col A = 0).
 var COL = {
@@ -54,6 +72,35 @@ function bookNum_(v) {
   if (typeof v === "number") return isFinite(v) ? v : 0;
   var n = parseFloat(String(v).replace(/[^0-9.\-]/g, ""));
   return isFinite(n) ? n : 0;
+}
+
+/** Adds each EXTRA_TALLY_TABS tab's rows into monthCounts/pipelineCounts, in
+ * place — same "row with a Sales Person, bucketed by move-date month" rule as
+ * the Booking tab's own tally, just on a 2-column read (Date, Sales Person
+ * only) so it doesn't pay for those tabs' much wider/heavier columns (long
+ * confirmation-message text etc). Car reallocation Bookings' Date column is a
+ * spreadsheet-wide ARRAYFORMULA — fine for Apps Script's own getValues() (the
+ * Booking/Leaderboard tabs already lean on formula cells like this), just
+ * slow over the external Sheets API, which is why it has to be read here
+ * rather than fetched externally when this was being designed. */
+function tallyExtraBookings_(ss, tz, thisMonth, pipeMonths, monthCounts, pipelineCounts) {
+  EXTRA_TALLY_TABS.forEach(function (tab) {
+    var sheet = ss.getSheetByName(tab.name);
+    if (!sheet) return;
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= HEADER_ROWS) return;
+    var numRows = lastRow - HEADER_ROWS;
+    var dates = sheet.getRange(HEADER_ROWS + 1, tab.dateCol, numRows, 1).getValues();
+    var sales = sheet.getRange(HEADER_ROWS + 1, tab.salesCol, numRows, 1).getValues();
+    for (var i = 0; i < numRows; i++) {
+      var person = String(sales[i][0] || "").trim();
+      var date = dates[i][0];
+      if (!person || !(date instanceof Date) || isNaN(date.getTime())) continue;
+      var ym = Utilities.formatDate(date, tz, "yyyy-MM");
+      if (ym === thisMonth) monthCounts[person] = (monthCounts[person] || 0) + 1;
+      if (pipeMonths[ym]) pipelineCounts[person] = (pipelineCounts[person] || 0) + 1;
+    }
+  });
 }
 
 function pushBookings() {
@@ -135,6 +182,10 @@ function pushBookings() {
     });
   }
 
+  // Fold cleaning + car-relocation bookings into the same rep totals, on top
+  // of the Booking tab's own moving counts — see EXTRA_TALLY_TABS.
+  tallyExtraBookings_(ss, tz, thisMonth, pipeMonths, monthCounts, pipelineCounts);
+
   // Push the month tally first so the board's headline total is right even if
   // the bigger bookings sync below is slow.
   var monthlyRes = UrlFetchApp.fetch(url.replace(/\/$/, "") + "/api/ingest/monthly", {
@@ -173,7 +224,14 @@ function pushBookings() {
 }
 
 function onBookingEdit(e) {
-  if (e && e.range && e.range.getSheet().getName() !== BOOK_TAB) return;
+  if (e && e.range) {
+    var name = e.range.getSheet().getName();
+    var watched = name === BOOK_TAB;
+    for (var i = 0; !watched && i < EXTRA_TALLY_TABS.length; i++) {
+      if (EXTRA_TALLY_TABS[i].name === name) watched = true;
+    }
+    if (!watched) return;
+  }
   pushBookings();
 }
 
