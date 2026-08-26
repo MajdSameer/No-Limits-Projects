@@ -231,6 +231,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   const dailyTotal = data.daily.reduce((s, r) => s + r.count, 0);
   const monthly = [...data.monthly].sort((a, b) => b.count - a.count);
   const pipeline = [...data.pipeline].sort((a, b) => b.count - a.count);
+  const pipelineTotal = pipeline.reduce((s, r) => s + r.count, 0);
   const pct = data.monthlyGoal > 0 ? Math.round((data.monthlyTotal / data.monthlyGoal) * 100) : 0;
   const dailyTarget = data.dailyTarget ?? 0;
   const dailyPct = dailyTarget > 0 ? Math.round((dailyTotal / dailyTarget) * 100) : 0;
@@ -375,7 +376,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
         <section className="flex min-h-0 flex-col lg:col-span-3">
           <div className="flex shrink-0 items-baseline justify-between">
             <h2 className="text-lg font-bold text-white">This month</h2>
-            <span className="text-sm font-medium text-white/50">{data.monthlyTotal}</span>
+            <span className="text-lg font-bold text-white">{data.monthlyTotal}</span>
           </div>
           <ol className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
             {monthly.map((r, i) => (
@@ -386,7 +387,10 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
 
         {/* NEXT 3 MONTHS */}
         <section className="flex min-h-0 flex-col lg:col-span-2">
-          <h2 className="shrink-0 text-lg font-bold text-white">Next 3 months</h2>
+          <div className="flex shrink-0 items-baseline justify-between">
+            <h2 className="text-lg font-bold text-white">Next 3 months</h2>
+            <span className="text-lg font-bold text-white">{pipelineTotal}</span>
+          </div>
           <ol className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
             {pipeline.map((r, i) => (
               <RankRow key={r.staffId} r={r} i={i} />
