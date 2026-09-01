@@ -1,7 +1,7 @@
 /**
- * Site-inspector board: today's inspections per inspector (Martin, Danny…),
- * each job number tagged with the SALES rep whose customer it's for. Read from
- * the "inspectors_live" snapshot the bookings sheet pushes (ingest-inspectors).
+ * Site-inspector board: today's inspections per inspector (Danny…), each job
+ * number tagged with the SALES rep whose customer it's for. Read from the
+ * "inspectors_live" snapshot the bookings sheet pushes (ingest-inspectors).
  *
  * The inspector BOXES persist day to day (so the wall always shows them), but
  * the COUNT resets when the snapshot is for an older day — a fresh morning
@@ -33,10 +33,12 @@ export interface InspectorRow {
  * pushes anything. Ids are the name slugs the Apps Script pushes, so a real
  * push overlays straight onto the right box. (Slug names here if more are added.)
  */
-const DEFAULT_INSPECTORS: { id: string; name: string }[] = [
-  { id: "martin", name: "Martin" },
-  { id: "danny", name: "Danny" },
-];
+const DEFAULT_INSPECTORS: { id: string; name: string }[] = [{ id: "danny", name: "Danny" }];
+
+/** Inspectors hidden from the wall even if the sheet still pushes a row for
+ * them — Martin is no longer a site inspector, but inspectors.gs is a
+ * manually-deployed script that may not be updated to match right away. */
+const HIDDEN_INSPECTOR_IDS = new Set(["martin"]);
 
 export async function inspectorBoard(now: Date = new Date()): Promise<InspectorRow[]> {
   const db = await getDb();
@@ -47,13 +49,14 @@ export async function inspectorBoard(now: Date = new Date()): Promise<InspectorR
   // resets when the snapshot is from a previous month.
   const sameMonth = snap?.asOfDate.slice(0, 7) === today.slice(0, 7);
 
-  // Always start with the two fixed boxes so the wall shows Martin & Danny even
-  // with nothing pushed yet (counts 0).
+  // Always start with the fixed boxes so the wall shows them even with
+  // nothing pushed yet (counts 0).
   const byId = new Map<string, InspectorRow>(
     DEFAULT_INSPECTORS.map((d) => [d.id, { id: d.id, name: d.name, count: 0, month: 0, jobs: [] }]),
   );
 
   for (const r of snap?.rows ?? []) {
+    if (HIDDEN_INSPECTOR_IDS.has(r.id)) continue;
     const jobs = fresh
       ? r.jobs
           .filter((j) => j.code && String(j.code).trim())
