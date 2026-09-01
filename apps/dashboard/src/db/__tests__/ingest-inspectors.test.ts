@@ -11,9 +11,9 @@ beforeAll(async () => {
   await getDb();
 });
 
-test("with nothing pushed, the wall still shows the two fixed boxes at 0", async () => {
+test("with nothing pushed, the wall still shows the fixed box at 0", async () => {
   const board = await inspectorBoard();
-  expect(board.map((r) => r.id)).toEqual(["danny", "martin"]); // both 0 → name order
+  expect(board.map((r) => r.id)).toEqual(["danny"]);
   expect(board.every((r) => r.count === 0 && r.jobs.length === 0)).toBe(true);
 });
 
@@ -21,7 +21,7 @@ test("ingest stores today's inspections per inspector, with job # + sales rep", 
   const today = sydneyToday();
   const res = await ingestInspectors(db, [
     {
-      name: "Martin",
+      name: "Alex",
       jobs: [
         { code: "7QAB6", forRep: "Hadeel" },
         { code: "", forRep: "Ann" }, // no job number — dropped
@@ -33,15 +33,15 @@ test("ingest stores today's inspections per inspector, with job # + sales rep", 
   ]);
 
   expect(res.inspectors).toBe(2);
-  expect(res.jobs).toBe(3); // Martin's three job-numbered rows — a repeated code is still its own submission
+  expect(res.jobs).toBe(3); // Alex's three job-numbered rows — a repeated code is still its own submission
   expect(res.asOfDate).toBe(today);
 
   const board = await inspectorBoard();
-  // sorted by count desc: Martin (3) then Danny (0)
-  expect(board.map((r) => r.id)).toEqual(["martin", "danny"]);
-  const martin = board.find((r) => r.id === "martin")!;
-  expect(martin.count).toBe(3);
-  expect(martin.jobs).toEqual([
+  // sorted by count desc: Alex (3) then Danny (0)
+  expect(board.map((r) => r.id)).toEqual(["alex", "danny"]);
+  const alex = board.find((r) => r.id === "alex")!;
+  expect(alex.count).toBe(3);
+  expect(alex.jobs).toEqual([
     { code: "7QAB6", forRep: "Hadeel" },
     { code: "7QAB6", forRep: "Hadeel" },
     { code: "55BKK", forRep: "Jenifer" },
@@ -56,7 +56,7 @@ test("job code format is never validated — only a truly blank cell is dropped"
     db,
     [
       {
-        name: "Martin",
+        name: "Alex",
         jobs: [
           { code: "AY3VA", forRep: "Luka" }, // a normal 5-char code
           { code: "X8B96M", forRep: "Issac" }, // a 6-char code
@@ -75,9 +75,9 @@ test("job code format is never validated — only a truly blank cell is dropped"
   // reference count doesn't validate format either, so neither do we.
   expect(res.jobs).toBe(6);
   const board = await inspectorBoard();
-  const martin = board.find((r) => r.id === "martin")!;
-  expect(martin.count).toBe(6);
-  expect(martin.jobs.map((j) => j.code)).toEqual([
+  const alex = board.find((r) => r.id === "alex")!;
+  expect(alex.count).toBe(6);
+  expect(alex.jobs.map((j) => j.code)).toEqual([
     "AY3VA",
     "X8B96M",
     "EDPAG",
@@ -87,33 +87,30 @@ test("job code format is never validated — only a truly blank cell is dropped"
   ]);
 });
 
-test("a snapshot from an earlier day shows the boxes but resets the count to 0", async () => {
+test("a snapshot from an earlier day shows the box but resets the count to 0", async () => {
   await ingestInspectors(
     db,
-    [{ name: "Martin", jobs: [{ code: "OLD11", forRep: "Hadeel" }] }],
+    [{ name: "Alex", jobs: [{ code: "OLD11", forRep: "Hadeel" }] }],
     "2026-01-01", // an old day
   );
   const board = await inspectorBoard();
-  const martin = board.find((r) => r.id === "martin")!;
-  expect(martin.count).toBe(0);
-  expect(martin.jobs).toEqual([]);
+  const alex = board.find((r) => r.id === "alex")!;
+  expect(alex.count).toBe(0);
+  expect(alex.jobs).toEqual([]);
 });
 
-test("re-ingesting overwrites the snapshot; the fixed boxes always remain", async () => {
+test("re-ingesting overwrites the snapshot; the fixed box always remains", async () => {
   const today = sydneyToday();
-  await ingestInspectors(
-    db,
-    [{ name: "Danny", jobs: [{ code: "Z1B7K", forRep: "Randee" }] }],
-    today,
-  );
+  await ingestInspectors(db, [{ name: "Alex", jobs: [{ code: "Z1B7K", forRep: "Randee" }] }], today);
   const board = await inspectorBoard();
-  // Danny now has one inspection; Martin's fixed box stays at 0 (sorted by count).
-  expect(board.map((r) => r.id)).toEqual(["danny", "martin"]);
-  expect(board.find((r) => r.id === "danny")).toMatchObject({
+  // Alex now has one inspection; Danny's fixed box stays at 0 (sorted by count)
+  // even though this push didn't mention him at all.
+  expect(board.map((r) => r.id)).toEqual(["alex", "danny"]);
+  expect(board.find((r) => r.id === "alex")).toMatchObject({
     count: 1,
     jobs: [{ code: "Z1B7K", forRep: "Randee" }],
   });
-  expect(board.find((r) => r.id === "martin")).toMatchObject({ name: "Martin", count: 0, jobs: [] });
+  expect(board.find((r) => r.id === "danny")).toMatchObject({ name: "Danny", count: 0, jobs: [] });
 });
 
 test("month total: pushed monthCount shows on the board, resets on a new month", async () => {
@@ -121,23 +118,37 @@ test("month total: pushed monthCount shows on the board, resets on a new month",
   await ingestInspectors(
     db,
     [
-      { name: "Martin", jobs: [{ code: "J1X2M", forRep: "Ann" }], monthCount: 17 },
+      { name: "Alex", jobs: [{ code: "J1X2M", forRep: "Ann" }], monthCount: 17 },
       { name: "Danny", jobs: [], monthCount: 9 },
     ],
     today,
   );
   let board = await inspectorBoard();
-  // sorted by month desc → Martin (17) then Danny (9)
-  expect(board.map((r) => r.id)).toEqual(["martin", "danny"]);
-  expect(board.find((r) => r.id === "martin")).toMatchObject({ count: 1, month: 17 });
+  // sorted by month desc → Alex (17) then Danny (9)
+  expect(board.map((r) => r.id)).toEqual(["alex", "danny"]);
+  expect(board.find((r) => r.id === "alex")).toMatchObject({ count: 1, month: 17 });
   expect(board.find((r) => r.id === "danny")).toMatchObject({ count: 0, month: 9 });
 
   // A snapshot from a previous month → today's count AND the month reset to 0.
-  await ingestInspectors(
-    db,
-    [{ name: "Martin", jobs: [{ code: "OLD", forRep: "Ann" }], monthCount: 99 }],
-    "2020-01-15",
-  );
+  await ingestInspectors(db, [{ name: "Alex", jobs: [{ code: "OLD", forRep: "Ann" }], monthCount: 99 }], "2020-01-15");
   board = await inspectorBoard();
-  expect(board.find((r) => r.id === "martin")).toMatchObject({ count: 0, month: 0 });
+  expect(board.find((r) => r.id === "alex")).toMatchObject({ count: 0, month: 0 });
+});
+
+test("a pushed row for Martin is stored by ingest but never shown on the board", async () => {
+  const today = sydneyToday();
+  const res = await ingestInspectors(
+    db,
+    [{ name: "Martin", jobs: [{ code: "M1X2M", forRep: "Ann" }], monthCount: 5 }],
+    today,
+  );
+  // The ingest layer doesn't know about hiding — it stores whatever the sheet
+  // sends (so nothing is lost if the hide is ever reverted).
+  expect(res.inspectors).toBe(1);
+  expect(res.jobs).toBe(1);
+
+  // The board (display layer) filters him out entirely — no zero-count box,
+  // no trace at all — regardless of the sheet still pushing his row.
+  const board = await inspectorBoard();
+  expect(board.find((r) => r.id === "martin")).toBeUndefined();
 });
