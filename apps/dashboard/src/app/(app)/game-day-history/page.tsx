@@ -5,9 +5,9 @@ export const metadata = { title: "Game Day history" };
 export const dynamic = "force-dynamic";
 
 // GameDayWall.tsx keeps "orange"/"blue" as the DB/code values (so
-// BoardRowDTO.team doesn't need a migration) but renamed the visible teams
-// to Red/Blue — same rename-in-UI-only applies here.
-const TEAM_LABEL: Record<"orange" | "blue", string> = { orange: "Red", blue: "Blue" };
+// BoardRowDTO.team doesn't need a migration) but shows the teams as
+// Green/Purple — same rename-in-UI-only applies here.
+const TEAM_LABEL: Record<"orange" | "blue", string> = { orange: "Green", blue: "Purple" };
 
 export default async function GameDayHistoryPage() {
   await requireSession();
@@ -28,8 +28,8 @@ export default async function GameDayHistoryPage() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-500">
                 <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">Red</th>
-                <th className="px-3 py-2">Blue</th>
+                <th className="px-3 py-2">Green</th>
+                <th className="px-3 py-2">Purple</th>
                 <th className="px-3 py-2">Winner</th>
                 <th className="px-3 py-2">Top scorer(s)</th>
               </tr>

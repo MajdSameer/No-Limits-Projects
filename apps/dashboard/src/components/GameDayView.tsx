@@ -11,26 +11,28 @@ import { useLiveRefresh } from "../lib/live";
 
 type TopJob = { staffId: string; name: string } | null;
 
+// Data keys stay "orange"/"blue" (DB values); the teams show as Green/Purple
+// to match the /live/game-day wall (GameDayWall.tsx).
 const TEAM = {
   orange: {
-    label: "Orange team",
-    emoji: "🟠",
-    heading: "text-orange-400",
-    box: "border-orange-500/70 bg-orange-500/10",
-    name: "text-orange-300",
-    num: "text-orange-400",
-    total: "text-orange-400",
-    glow: "shadow-[0_0_40px_-8px_rgba(249,115,22,0.8)]",
+    label: "Green team",
+    emoji: "🟢",
+    heading: "text-lime-400",
+    box: "border-lime-400/70 bg-lime-400/10",
+    name: "text-lime-200",
+    num: "text-lime-400",
+    total: "text-lime-400",
+    glow: "shadow-[0_0_40px_-8px_rgba(183,255,0,0.8)]",
   },
   blue: {
-    label: "Blue team",
-    emoji: "🔵",
-    heading: "text-cyan-300",
-    box: "border-cyan-400/70 bg-cyan-400/10",
-    name: "text-cyan-200",
-    num: "text-cyan-300",
-    total: "text-cyan-300",
-    glow: "shadow-[0_0_40px_-8px_rgba(34,211,238,0.8)]",
+    label: "Purple team",
+    emoji: "🟣",
+    heading: "text-purple-400",
+    box: "border-purple-400/70 bg-purple-400/10",
+    name: "text-purple-200",
+    num: "text-purple-400",
+    total: "text-purple-400",
+    glow: "shadow-[0_0_40px_-8px_rgba(184,77,255,0.8)]",
   },
 } as const;
 
