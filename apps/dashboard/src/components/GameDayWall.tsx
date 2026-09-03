@@ -1,7 +1,7 @@
 "use client";
 
 import confetti from "canvas-confetti";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
@@ -17,29 +17,54 @@ import {
   playGong,
   playWhoosh,
 } from "../lib/celebrate";
+import {
+  FINAL_PUSH_TIERS,
+  buildFacts,
+  buildRoster,
+  countdownPhase,
+  countIncreases,
+  formatCountdown,
+  leadLine,
+  milestoneCrossed,
+  overMoney,
+  rankRows,
+  scoreState,
+  secsUntilGameEnd,
+  taglineFor,
+  takesLeadLine,
+  type RosterCard,
+  type Side,
+} from "../lib/game-day";
 import { useLiveRefresh } from "../lib/live";
 import { tierProgress } from "../lib/tiers";
 
 /**
- * Full-screen DARK "Game Day" wall board for /live/game-day — a head-to-head
- * neon RED vs BLUE sales battle: reps split into two squads, competing for
- * who lands the most bookings before the 7 PM whistle. Opens with a hype
- * CEREMONY: a slam-in title, then every rostered rep is introduced one-by-one
- * (name rises in, with a soft whoosh — or a cha-ching + money splash for the
- * big earners, or a fanfare + shout-out for the Tier 3 club), then "LET THE
- * GAMES BEGIN" with a triple ding and crowd cheer, and only then the live
- * scoreboard. The whole wall stays visually alive even between bookings —
- * drifting neon sparks, a slow scanning light sweep, and a pulsing centre
- * "VS" seam where the two team colours clash, like a game's menu screen. The
- * board also has real CSS flames + an aura that grow the further ahead the
- * leading team is, a live countdown to the 7 PM final whistle (with an
- * escalating "last push" inside the final 30 min), periodic scoreboard "fun
- * facts", and the day's top scorer crowned for the prize. Every booking
- * still fires the shared gong + celebration (site inspections included), and
- * it polls /api/boards, replaying the ceremony whenever Game Day flips on.
+ * Full-screen "Game Day" wall for /live/game-day — an esports-style GREEN vs
+ * PURPLE sales battle built to sit on the office TV all day at 1920×1080
+ * without scrolling. Header (title + countdown/rewards bar), a big matchup
+ * banner (hex badges, huge live totals, breathing VS, dynamic lead line), two
+ * row-based leaderboards (avatar, thin progress bar scaled to the board's max,
+ * gold crown on the overall top scorer) and a rewards footer.
+ *
+ * It stays alive between bookings with very slow ambient glows, faint specks
+ * around the VS and a light sweep across the banner, and REACTS when the data
+ * moves: a booking flashes the rep's row in their team colour, swaps the
+ * number, eases the bar, shows "+1 BOOKING", pulses the team total, and FLIP-
+ * slides rows into their new rank; a lead change sweeps the new leader's
+ * colour across its half of the banner with "X TAKES THE LEAD!"; ties pulse
+ * gold with "⚡ GAME TIED"; team milestones and a new overall #1 get a toast.
+ *
+ * Everything that isn't visual is unchanged from the previous wall: the
+ * opening roll-call ceremony (music, whoosh/cha-ching/fanfare per rep, "LET
+ * THE GAMES BEGIN"), the 1-second countdown to 7 PM with the final-push gong
+ * tiers, periodic fun facts, the shared BookingCelebration gong beat, the
+ * manager-picked top-revenue job, /api/boards polling, and the audio keep-
+ * alive for a TV nobody clicks. Scoring semantics live in lib/game-day.ts and
+ * are mirrored by db/queries/game-day-results.ts for the nightly archive.
  */
 
-// Prize money — edit these to change what's on the line.
+// Prize money — edit these to change what's on the line. TOP_SCORER_PRIZE and
+// TEAM_PRIZE are hand-mirrored in db/queries/game-day-results.ts.
 const TOP_SCORER_PRIZE = 50; // day's single highest individual scorer (most bookings)
 const JOB_REVENUE_PRIZE = 50; // highest-revenue single job booked today
 const TEAM_PRIZE = 50; // every member of the winning team
@@ -48,149 +73,56 @@ const TEAM_PRIZE = 50; // every member of the winning team
 const MONEY_THRESHOLD = 80000; // revenue ($) that earns the cha-ching + money splash
 
 // Periodic scoreboard "fun facts".
-const FACT_INTERVAL_MS = 30 * 60 * 1000; // surface a fresh fact about this often
-const FACT_HOLD_MS = 9000; // how long each fact banner stays up
+const FACT_INTERVAL_MS = 30 * 60 * 1000;
+const FACT_HOLD_MS = 9000;
 
-// Game Day runs until 7 PM on the floor's clock.
-const GAME_END_HOUR = 19;
-const SYDNEY_TZ = "Australia/Sydney";
-const URGENT_S = 30 * 60; // countdown turns red inside the last 30 min
-const STOPPAGE_S = 5 * 60; // "stoppage time" — faster pulse inside the last 5 min
+// Event timing (ms).
+const TOAST_MS = 2600; // lead change / tie / milestone / new #1 toasts
+const EVENT_MS = 1800; // row flash + "+1 BOOKING" tag lifetime
 
 // Ceremony timing (ms).
-const TITLE_MS = 3500; // opening "GAME DAY" slam
-const ROSTER_TOTAL_MS = 44000; // the rep roll-call lasts EXACTLY this long (44s)
-const GO_MS = 3000; // "LET THE GAMES BEGIN"
-const FADE_MS = 550; // veil fade-out tail
+const TITLE_MS = 3500;
+const ROSTER_TOTAL_MS = 44000; // the rep roll-call lasts EXACTLY this long
+const GO_MS = 3000;
+const FADE_MS = 550;
 
 // Background hype anthem for the roll-call (in public/sounds). 57s, longer
-// than the 44s roll-call window, so it never runs dry before the "Let the
-// games begin" fade-out.
+// than the 44s roll-call window, so it never runs dry.
 const MUSIC_SRC = "/sounds/f1-opening-titles-2026.mp3";
 const MUSIC_VOL = 0.55;
 
-type Side = "orange" | "blue";
-
+/** Visual identity per data key. Keys stay "orange"/"blue" (DB values) — only
+ * the look is Green/Purple. BookingCelebration.tsx's GOAL_TEAM mirrors these. */
 const TEAM: Record<
   Side,
-  {
-    label: string;
-    emoji: string;
-    rgb: string; // "r, g, b" for building rgba() glows/auras
-    wash: number; // opacity of the always-on panel background wash (tuned per team for contrast)
-    washBase?: string; // solid backdrop colour under the wash, for teams whose wash needs a saturated anchor
-    leaderRgb?: string; // "r, g, b" override for the team-leader glow/ring, when brighter than the base rgb
-    fire: { core: string; mid: string; edge: string };
-    box: string;
-    name: string;
-    num: string;
-    heading: string;
-    barFrom: string;
-    barTo: string;
-  }
+  { label: string; cls: string; hex: string; dark: string; rgb: string; burst: string[]; dir: 1 | -1 }
 > = {
   orange: {
-    // Team Red — neon crimson. Kept on key "orange" so BoardRowDTO.team
-    // values ("orange"/"blue" from the roster assignment) don't need a
-    // migration; only the visual identity changed.
-    label: "Red",
-    emoji: "🔴",
-    rgb: "255, 40, 40",
-    wash: 0.12,
-    washBase: "#160406",
-    leaderRgb: "255, 90, 90",
-    // Real fire reads as fire because of the red→orange→yellow-white hue
-    // SHIFT, not just shades of one hue — a mono-red gradient (what this was
-    // before) looks like a flat glow, not flames. Core/mid stay classic
-    // fire warm tones; only the outer edge carries the team's actual red, so
-    // it's still unmistakably "Team Red" at a glance while the flame itself
-    // looks real.
-    fire: { core: "#fff8e1", mid: "#ff8a00", edge: "#ff2828" },
-    box: "border-[#ff3b3b]/70 bg-[#ff3b3b]/10",
-    name: "text-[#ffd9d9]",
-    num: "text-[#ff3b3b]",
-    heading: "text-[#ff3b3b]",
-    barFrom: "from-[#7a0010]",
-    barTo: "to-[#ff3b3b]",
+    label: "Green",
+    cls: "gd-t-green",
+    hex: "#b7ff00",
+    dark: "#648c00",
+    rgb: "183, 255, 0",
+    burst: ["#b7ff00", "#648c00", "#e2ff80", "#ffffff"],
+    dir: 1,
   },
   blue: {
-    // Team Blue — neon electric blue. Wash sits on a near-black navy backdrop
-    // so the blue has something saturated to pop against, mirroring Red's
-    // dark base — and the leader-glow tint is a brighter cyan-blue so this
-    // side doesn't read flat next to Red's hotter neon.
-    label: "Blue",
-    emoji: "🔵",
-    rgb: "0, 179, 255",
-    wash: 0.16,
-    washBase: "#020814",
-    leaderRgb: "56, 210, 255",
-    fire: { core: "#eafcff", mid: "#00b3ff", edge: "#003a66" },
-    box: "border-[#00c2ff]/70 bg-[#00c2ff]/10",
-    name: "text-white",
-    num: "text-[#00c2ff]",
-    heading: "text-[#00c2ff]",
-    barFrom: "from-[#003a66]",
-    barTo: "to-[#00c2ff]",
+    label: "Purple",
+    cls: "gd-t-purple",
+    hex: "#b84dff",
+    dark: "#6522a6",
+    rgb: "184, 77, 255",
+    burst: ["#b84dff", "#6522a6", "#d9a6ff", "#ffffff"],
+    dir: -1,
   },
 };
-
-const TAGLINES = [
-  "Closer. 🔒",
-  "Always be booking. 📞",
-  "Ice in the veins. 🧊",
-  "Brings the heat. 🔥",
-  "Phone never stops ringing. ☎️",
-  "Built different. 💪",
-  "Here to win. 🏆",
-  "Lethal on the leads. 🎯",
-  "Pure hustle. ⚡",
-  "Books in their sleep. 😴",
-];
-
-/** Stable per-rep tagline (deterministic hash of their id — same every show). */
-function taglineFor(id: string): string {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return TAGLINES[h % TAGLINES.length] ?? "Here to win. 🏆";
-}
-
-/** "over $140,000" — rounds revenue DOWN to a clean figure so it's never a lie. */
-function overMoney(n: number): string {
-  let v: number;
-  if (n >= 100000) v = Math.floor(n / 10000) * 10000;
-  else if (n >= 10000) v = Math.floor(n / 1000) * 1000;
-  else v = Math.floor(n / 100) * 100;
-  return `$${v.toLocaleString()}`;
-}
-
-/** How "hot" the lead is (0 = tied, 4 = blowout) — drives flames + aura size. */
-function heatOf(margin: number): 0 | 1 | 2 | 3 | 4 {
-  if (margin <= 0) return 0;
-  if (margin <= 2) return 1;
-  if (margin <= 4) return 2;
-  if (margin <= 7) return 3;
-  return 4;
-}
+const LABELS: Record<Side, string> = { orange: TEAM.orange.label, blue: TEAM.blue.label };
+const GOLD_BURST = ["#ffc928", "#ffe08a", "#ffffff", "#b7ff00", "#b84dff"];
 
 function reducedMotion(): boolean {
   return (
     typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
-}
-
-/** Seconds until the 7 PM final whistle on the Sydney clock (negative once past). */
-function secsUntilGameEnd(): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: SYDNEY_TZ,
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(new Date());
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
-  let h = get("hour");
-  if (h === 24) h = 0; // some engines render midnight as 24
-  return GAME_END_HOUR * 3600 - (h * 3600 + get("minute") * 60 + get("second"));
 }
 
 // Money-emoji confetti shapes, built once on first use (needs the browser).
@@ -213,348 +145,462 @@ function moneySplash(): void {
   confetti({ particleCount: 12, angle: 120, spread: 55, origin: { x: 0.92, y: 0.7 }, ticks: 200, ...base });
 }
 
-interface RosterCard {
-  staffId: string;
-  name: string;
-  team: Side;
-  month: number;
-  revenue: number | null;
-}
-
-/** Build the roll-call: every rep on a team, with this month's count + revenue
- * (from the monthly board), underdogs first so it crescendos to the top earner. */
-function buildRoster(daily: BoardRowDTO[], monthly: BoardRowDTO[]): RosterCard[] {
-  const byId = new Map<string, RosterCard>();
-  for (const r of monthly) {
-    if (r.team === "orange" || r.team === "blue") {
-      byId.set(r.staffId, {
-        staffId: r.staffId,
-        name: r.name,
-        team: r.team,
-        month: r.count,
-        revenue: typeof r.revenue === "number" ? r.revenue : null,
-      });
-    }
-  }
-  for (const r of daily) {
-    if ((r.team === "orange" || r.team === "blue") && !byId.has(r.staffId)) {
-      byId.set(r.staffId, { staffId: r.staffId, name: r.name, team: r.team, month: 0, revenue: null });
-    }
-  }
-  return [...byId.values()].sort((a, b) => a.month - b.month || a.name.localeCompare(b.name));
-}
-
-// Deterministic ember field — seeded by index (not Math.random()) so server
-// and client render the exact same positions/timings, avoiding a hydration
-// mismatch on first paint.
-const BACKDROP_SPARKS = Array.from({ length: 26 }, (_, i) => ({
+// Deterministic speck field around the VS — seeded by index (not Math.random)
+// so server and client render identical positions (no hydration mismatch).
+const VS_SPECKS = Array.from({ length: 14 }, (_, i) => ({
   side: (i % 2 === 0 ? "orange" : "blue") as Side,
-  left: (i * 37) % 100,
-  drift: ((i * 53) % 40) - 20, // px sideways drift over the rise
-  delay: (i * 1.7) % 16,
-  dur: 11 + (i % 6) * 2,
-  size: 3 + (i % 4),
+  left: 38 + ((i * 29) % 24), // 38%..62% — hugging the centre
+  top: 10 + ((i * 41) % 80),
+  dx: ((i * 13) % 18) - 9,
+  delay: (i * 1.9) % 12,
+  dur: 10 + (i % 5) * 2,
+  size: 2 + (i % 3),
+  alpha: 0.25 + (i % 4) * 0.1,
 }));
 
-/** Always-on ambient arena backdrop: a red/blue base wash meeting at a
- * pulsing centre "VS" seam, a slow diagonal light sweep, a faint panning
- * tech grid, and drifting neon sparks in each team's colour — so the wall
- * has game-menu-screen energy even between bookings, not just static
- * colour blocks. Purely decorative; every animation here is disabled under
- * prefers-reduced-motion (see the gd-* classes in globals.css). */
-function GameDayBackdrop() {
+/** Ambient arena: a slow-drifting glow blob behind each half (the leading
+ * side's is brighter), the centre kept mostly black. Decorative only. */
+function Backdrop({ leader }: { leader: Side | null }) {
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-30 overflow-hidden bg-[#050608]">
-      <div
-        className="absolute inset-y-0 left-0 w-3/5"
-        style={{
-          background: `radial-gradient(120% 100% at 0% 45%, rgba(${TEAM.orange.rgb}, 0.16), transparent 65%)`,
-        }}
-      />
-      <div
-        className="absolute inset-y-0 right-0 w-3/5"
-        style={{
-          background: `radial-gradient(120% 100% at 100% 45%, rgba(${TEAM.blue.rgb}, 0.16), transparent 65%)`,
-        }}
-      />
-      {/* Faint panning tech grid for arena texture. */}
-      <div
-        aria-hidden
-        className="gd-grid-pan absolute inset-0 opacity-[0.04]"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)",
-          backgroundSize: "56px 56px",
-        }}
-      />
-      {/* Centre VS seam — the bright line where Red and Blue's light clashes. */}
-      <div className="gd-seam-pulse absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-white/50 to-transparent" />
-      {/* Slow diagonal spotlight sweep. */}
-      <div className="gd-scan-sweep absolute -inset-y-1/4 -left-1/3 w-1/4 rotate-12 bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-      {/* Drifting neon sparks, tinted per team. */}
-      {BACKDROP_SPARKS.map((s, i) => {
-        const rgb = TEAM[s.side].rgb;
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-30 overflow-hidden bg-[var(--bg)]">
+      {(["orange", "blue"] as const).map((side) => {
+        const t = TEAM[side];
+        const lead = leader === side;
         return (
-          <span
-            key={i}
-            className="gd-particle-drift absolute rounded-full"
+          <div
+            key={side}
+            className={cx(
+              "gd-ambient absolute inset-y-[-10%] w-[55%] transition-opacity duration-700",
+              side === "orange" ? "left-[-12%]" : "right-[-12%]",
+            )}
             style={{
-              left: `${s.left}%`,
-              bottom: "-4%",
-              width: s.size,
-              height: s.size,
-              background: `rgb(${rgb})`,
-              boxShadow: `0 0 ${s.size * 3}px rgba(${rgb}, 0.9)`,
-              ["--pdx" as string]: `${s.drift}px`,
-              ["--pd" as string]: `${s.dur}s`,
-              animationDelay: `${s.delay}s`,
+              opacity: lead ? 1 : 0.55,
+              background: `radial-gradient(60% 55% at ${side === "orange" ? "35%" : "65%"} 45%, rgba(${t.rgb}, ${lead ? 0.2 : 0.13}), transparent 70%)`,
             }}
           />
         );
       })}
+      {/* Extremely subtle texture so the black never reads flat. */}
+      <div
+        className="absolute inset-0 opacity-[0.035]"
+        style={{
+          backgroundImage: "radial-gradient(rgba(255,255,255,0.9) 0.6px, transparent 0.8px)",
+          backgroundSize: "26px 26px",
+        }}
+      />
     </div>
   );
 }
 
-/** Thin flames rising up BEHIND the leading team's score box — a curtain of thin,
- * lightly-blurred flame columns that merge into a thin wavering fire, visible
- * licking above the top edge and up the sides (the box itself is opaque, so the
- * fire never covers the number). Team-coloured, scaled by `heat`. */
-function Flames({ side, heat }: { side: Side; heat: number }) {
-  if (heat <= 0) return null;
-  const { core, mid, edge } = TEAM[side].fire;
-  const cols = 22 + heat * 4; // overlapping columns (26..38)
-  const baseH = 120 + heat * 16; // how high the centre flames lick (px)
-  return (
-    // Roots sit AT the box base (bottom-0) and the curtain reaches a touch past
-    // each side (−left/right-4) so the fire rises from the bottom and licks up
-    // the sides + over the top — the opaque box keeps the number clear.
-    <div
-      aria-hidden
-      className="pointer-events-none absolute -top-16 -right-4 bottom-0 -left-4 z-0"
-      style={{ ["--fc" as string]: core, ["--fm" as string]: mid, ["--fe" as string]: edge }}
-    >
-      {Array.from({ length: cols }).map((_, i) => {
-        const t = i / (cols - 1); // 0..1 across the width
-        // Mound: tallest in the middle, tapering at the edges (a real fire bed),
-        // multiplied by a per-column jitter so no two tongues match.
-        const mound = 0.4 + 0.6 * Math.sin(t * Math.PI);
-        const jitter = 0.6 + 0.4 * Math.abs(Math.sin(i * 2.7 + 1.3));
-        const h = Math.round(baseH * mound * jitter);
-        const w = 10 + (i % 4) * 4;
-        const xJit = ((i * 37) % 11) - 5; // small deterministic horizontal wobble
-        return (
-          <span
-            key={i}
-            className={cx("gd-flame-col", i % 2 ? "gd-flicker-b" : "gd-flicker-a")}
-            style={{
-              left: `calc(${t * 100}% - ${w / 2}px + ${xJit}px)`,
-              bottom: 0,
-              width: `${w}px`,
-              height: `${h}px`,
-              animationDelay: `${(i % 7) * 0.07}s`,
-              animationDuration: `${0.5 + (i % 5) * 0.1}s`,
-            }}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-/** Live countdown to the 7 PM final whistle — the time left to swing the score.
- * Turns urgent (red) inside the last 30 min, then escalates to a faster
- * "stoppage time" pulse inside the last 5 — with a one-off "Added time" flash
- * the moment it first crosses into that final stretch. Nothing here is
- * latched: every style is recomputed straight off `secs` each render, so if
- * the clock ever climbs back above a threshold it reverts immediately. */
+/** Live countdown to the 7 PM final whistle. Final hour reads slightly urgent
+ * (gold), final 10 minutes get a subtle pulse; never a constant flash. */
 function Countdown({ secs }: { secs: number | null }) {
-  const [showAdded, setShowAdded] = useState(false);
-  const wasStoppage = useRef(false);
-  const addedTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (secs === null) return;
-    const isStoppage = secs > 0 && secs <= STOPPAGE_S;
-    if (isStoppage && !wasStoppage.current) {
-      setShowAdded(true);
-      if (addedTimer.current) window.clearTimeout(addedTimer.current);
-      addedTimer.current = window.setTimeout(() => setShowAdded(false), 4000);
-    }
-    wasStoppage.current = isStoppage;
-  }, [secs]);
-
-  useEffect(
-    () => () => {
-      if (addedTimer.current) window.clearTimeout(addedTimer.current);
-    },
-    [],
-  );
-
   if (secs === null) return null; // computed in the parent; render only after mount
-
-  const over = secs <= 0;
-  const urgent = !over && secs <= URGENT_S;
-  const stoppage = !over && secs <= STOPPAGE_S;
-  const hh = Math.floor(secs / 3600);
-  const mm = Math.floor((secs % 3600) / 60);
-  const ss = secs % 60;
+  const phase = countdownPhase(secs);
+  const over = phase === "over";
   return (
-    <div className="relative">
-      {showAdded && (
-        <p className="gd-fact absolute -top-8 left-1/2 -translate-x-1/2 rounded-full border border-red-400/60 bg-red-950/90 px-3 py-1 text-[0.65rem] font-black tracking-[0.2em] whitespace-nowrap text-red-200 uppercase shadow-lg">
-          ⏱️ Added time
-        </p>
+    <div
+      className={cx(
+        "flex items-center gap-3 rounded-xl border px-4 py-2",
+        over
+          ? "border-[var(--border)] bg-white/[0.03]"
+          : phase === "final10"
+            ? "gd-timer-pulse border-[var(--gold)] bg-[rgba(255,201,40,0.08)]"
+            : phase === "finalHour"
+              ? "border-[rgba(255,201,40,0.55)] bg-[rgba(255,201,40,0.05)]"
+              : "border-[var(--border)] bg-white/[0.03]",
       )}
-      <div
+    >
+      <span
+        aria-hidden
         className={cx(
-          "flex items-center gap-2.5 rounded-full border px-4 py-1.5",
-          over
-            ? "border-white/15 bg-white/[0.04]"
-            : stoppage
-              ? "gd-stoppage-pulse border-red-500 bg-red-600/20"
-              : urgent
-                ? "border-red-400/60 bg-red-500/10"
-                : "border-accent-400/40 bg-white/[0.04]",
+          "grid size-8 shrink-0 place-items-center rounded-full border",
+          over ? "border-white/20 text-white/60" : "border-[var(--green)]/70 text-[var(--green)]",
         )}
       >
-        <span
-          className={cx("text-xl", stoppage ? "gd-stoppage-blink" : urgent && "animate-pulse")}
-          aria-hidden
-        >
-          {over ? "🏁" : "⏳"}
-        </span>
+        {over ? "🏁" : "⏱"}
+      </span>
+      <div className="flex flex-col leading-none">
         {over ? (
-          <span className="font-display text-lg font-black tracking-wide text-white/70 uppercase">
-            Full time
-          </span>
+          <span className="font-display text-xl font-black tracking-wide text-white/75 uppercase">Full time</span>
         ) : (
-          <span className="flex items-baseline gap-2">
+          <>
             <span
               className={cx(
-                "font-display text-2xl font-black tabular-nums sm:text-3xl",
-                urgent ? "text-red-300" : "text-white",
+                "font-display font-black tabular-nums [font-size:clamp(1.3rem,1.7vw,2rem)]",
+                phase === "normal" ? "text-white" : "text-[var(--gold)]",
               )}
             >
-              {hh}:{String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
+              {formatCountdown(secs)}
             </span>
-            <span className="text-[0.65rem] font-semibold tracking-wider text-white/45 uppercase">
-              left · ends 7 PM
+            <span className="mt-1 text-[0.62rem] font-bold tracking-[0.18em] text-[var(--muted)] uppercase">
+              Left · ends 7 PM
             </span>
-          </span>
+          </>
         )}
       </div>
     </div>
   );
 }
 
-/** Attention-grabbing "fun facts" from the live scoreboard — returns candidate
- * one-liners for the current standings; the caller picks one to flash up. */
-function buildFacts(daily: BoardRowDTO[]): string[] {
-  const teamed = daily.filter((r) => r.team === "orange" || r.team === "blue");
-  if (teamed.length === 0) return [];
-  const orange = teamed.filter((r) => r.team === "orange");
-  const blue = teamed.filter((r) => r.team === "blue");
-  const oT = orange.reduce((s, r) => s + r.count, 0);
-  const bT = blue.reduce((s, r) => s + r.count, 0);
-  const total = oT + bT;
-  const facts: string[] = [];
+/** One reward item in the header bar / footer. */
+function Reward({
+  icon,
+  label,
+  value,
+  tone,
+  sub,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  tone: "green" | "purple" | "gold";
+  sub?: string;
+}) {
+  const color = tone === "green" ? "var(--green)" : tone === "purple" ? "var(--purple)" : "var(--gold)";
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <span
+        aria-hidden
+        className="grid size-9 shrink-0 place-items-center rounded-lg border text-lg"
+        style={{ borderColor: `color-mix(in srgb, ${color} 45%, transparent)`, color }}
+      >
+        {icon}
+      </span>
+      <div className="flex min-w-0 flex-col leading-none">
+        <span className="text-[0.62rem] font-bold tracking-[0.18em] whitespace-nowrap text-[var(--muted)] uppercase">
+          {label}
+        </span>
+        <span
+          className="font-display mt-1 truncate font-black tracking-wide uppercase [font-size:clamp(1rem,1.25vw,1.5rem)]"
+          style={{ color }}
+        >
+          {value}
+        </span>
+        {sub && <span className="mt-0.5 truncate text-[0.7rem] font-semibold text-white/60">{sub}</span>}
+      </div>
+    </div>
+  );
+}
 
-  // Floor-wide top scorer.
-  const top = [...teamed].sort((a, b) => b.count - a.count)[0];
-  if (top && top.count > 0) {
-    facts.push(`🔥 ${top.name} is leading the whole floor with ${top.count} today — somebody catch them!`);
-  }
+/** Hexagonal team badge with a simple CSS/SVG glyph — no illustrations. */
+function TeamBadge({ side, lead }: { side: Side; lead: boolean }) {
+  const t = TEAM[side];
+  const hex = "polygon(25% 3%, 75% 3%, 97% 50%, 75% 97%, 25% 97%, 3% 50%)";
+  return (
+    <div
+      aria-hidden
+      className="relative shrink-0 transition-[filter] duration-700 [width:clamp(4.2rem,6.2vw,7rem)] [aspect-ratio:1]"
+      style={{ filter: `drop-shadow(0 0 ${lead ? 18 : 10}px rgba(${t.rgb}, ${lead ? 0.7 : 0.4}))` }}
+    >
+      <div className="absolute inset-0" style={{ clipPath: hex, background: t.hex }} />
+      <div className="absolute inset-[3px]" style={{ clipPath: hex, background: "var(--panel)" }} />
+      <div className="absolute inset-0 grid place-items-center">
+        {side === "orange" ? (
+          <svg viewBox="0 0 24 24" className="size-[46%]" fill={t.hex}>
+            <path d="M13 2 4 14h6l-1 8 9-12h-6z" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="size-[46%]" fill={t.hex}>
+            <path d="M12 2 3 7v6c0 5 4 8.5 9 9 5-.5 9-4 9-9V7zm0 4 5 3v4c0 3-2.5 5.5-5 6-2.5-.5-5-3-5-6V9z" />
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+}
 
-  // Someone carrying their team (≥40% of a multi-rep team's total).
-  for (const side of ["orange", "blue"] as const) {
-    const reps = side === "orange" ? orange : blue;
-    const tot = side === "orange" ? oT : bT;
-    if (reps.length >= 2 && tot >= 3) {
-      const star = [...reps].sort((a, b) => b.count - a.count)[0];
-      if (star && star.count > 0 && star.count / tot >= 0.4) {
-        facts.push(
-          `💪 ${star.name} is carrying ${TEAM[side].label} right now — ${star.count} of their ${tot}. Keep pushing, ${TEAM[side].label}!`,
-        );
+/** One half of the matchup banner: badge · team name · huge live total. */
+function MatchupSide({ side, total, lead, pulseKey }: { side: Side; total: number; lead: boolean; pulseKey: number }) {
+  const t = TEAM[side];
+  const left = side === "orange";
+  return (
+    <div
+      className={cx(
+        t.cls,
+        "relative flex min-w-0 flex-1 items-center gap-5 px-5 py-3",
+        left ? "flex-row" : "flex-row-reverse",
+      )}
+    >
+      {/* Leading side gets stronger illumination (eases in/out). */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 transition-opacity duration-700"
+        style={{
+          opacity: lead ? 1 : 0.35,
+          background: `linear-gradient(${left ? "90deg" : "270deg"}, rgba(${t.rgb}, 0.16), rgba(${t.rgb}, 0.04) 55%, transparent)`,
+        }}
+      />
+      <TeamBadge side={side} lead={lead} />
+      <div className={cx("relative flex min-w-0 flex-1 flex-col", left ? "items-start" : "items-end")}>
+        <span
+          className="font-display font-black tracking-[0.12em] uppercase [font-size:clamp(0.9rem,1.3vw,1.5rem)]"
+          style={{ color: t.hex }}
+        >
+          {t.label} team
+        </span>
+        <span
+          key={`${total}-${pulseKey}`}
+          className="gd-bump font-display leading-none font-black tabular-nums text-white [font-size:clamp(3.2rem,6vw,6.5rem)]"
+          style={{ textShadow: lead ? `0 0 28px rgba(${t.rgb}, 0.55)` : "none" }}
+        >
+          {total}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+interface RowEvent {
+  key: number;
+  delta: number;
+}
+
+/** One player row: rank · avatar · name (+1 tag) · progress · bookings. */
+function Row({
+  r,
+  side,
+  rank,
+  max,
+  isTop,
+  isTopJob,
+  crownKey,
+  event,
+}: {
+  r: BoardRowDTO;
+  side: Side;
+  rank: number;
+  max: number;
+  isTop: boolean;
+  isTopJob: boolean;
+  crownKey: number;
+  event: RowEvent | undefined;
+}) {
+  const t = TEAM[side];
+  const pct = max > 0 ? Math.round((r.count / max) * 100) : 0;
+  return (
+    <li
+      data-id={r.staffId}
+      className={cx(
+        "relative flex min-h-0 items-center gap-3 rounded-lg border px-3",
+        "border-[var(--border)] bg-white/[0.025]",
+        isTop && "gd-top-row",
+      )}
+    >
+      {/* One-shot team-colour flash on a new booking (re-keyed per event). */}
+      {event && <span key={event.key} aria-hidden className="gd-row-flash pointer-events-none absolute inset-0 rounded-lg" />}
+
+      {/* Rank — the overall #1 wears the crown. */}
+      <span
+        className={cx(
+          "grid size-7 shrink-0 place-items-center rounded-md border font-mono text-xs font-black tabular-nums",
+          isTop ? "border-[var(--gold)]/70 text-[var(--gold)]" : "border-white/15 text-white/70",
+        )}
+        style={{ borderColor: isTop ? undefined : `rgba(${t.rgb}, 0.45)` }}
+      >
+        {isTop ? (
+          <span key={crownKey} className="gd-crown-in gd-crown-glow text-sm leading-none">
+            👑
+          </span>
+        ) : (
+          rank
+        )}
+      </span>
+
+      {/* Avatar — circle with the initial. */}
+      <span
+        aria-hidden
+        className="grid size-7 shrink-0 place-items-center rounded-full font-display text-sm font-black"
+        style={{ background: t.hex, color: "#050607" }}
+      >
+        {r.name.trim().charAt(0).toUpperCase()}
+      </span>
+
+      {/* Name + optional pills. */}
+      <span className="relative flex min-w-0 flex-[1.1] items-center gap-2">
+        <span
+          className={cx(
+            "truncate font-display font-black tracking-wide uppercase [font-size:clamp(0.85rem,1.05vw,1.2rem)]",
+            isTop ? "text-white" : "text-white/90",
+          )}
+        >
+          {r.name}
+        </span>
+        {isTopJob && (
+          <span className="shrink-0 rounded-sm border border-[var(--gold)]/60 px-1.5 py-0.5 text-[0.55rem] font-black tracking-wider text-[var(--gold)] uppercase">
+            💼 Top job
+          </span>
+        )}
+        {event && event.delta > 0 && (
+          <span
+            key={event.key}
+            className="gd-plus-tag shrink-0 rounded-sm px-1.5 py-0.5 text-[0.6rem] font-black tracking-wider uppercase"
+            style={{ background: `rgba(${t.rgb}, 0.18)`, color: t.hex, border: `1px solid rgba(${t.rgb}, 0.6)` }}
+          >
+            +{event.delta} booking{event.delta === 1 ? "" : "s"}
+          </span>
+        )}
+      </span>
+
+      {/* Progress — thin bar scaled to the board-wide max; dark track at 0. */}
+      <span aria-hidden className="relative h-1.5 flex-[1.6] overflow-hidden rounded-full bg-white/[0.07]">
+        <span
+          className="gd-bar-fill absolute inset-y-0 left-0 rounded-full"
+          style={{
+            width: `${pct}%`,
+            background: `linear-gradient(90deg, ${t.dark}, ${t.hex})`,
+            boxShadow: r.count > 0 ? `0 0 10px rgba(${t.rgb}, 0.6)` : "none",
+          }}
+        />
+      </span>
+
+      {/* Bookings — re-keyed so the number swaps with a scale/fade. */}
+      <span
+        key={r.count}
+        className={cx(
+          "gd-num-swap w-[5.5rem] shrink-0 text-right font-display leading-none font-black tabular-nums [font-size:clamp(1.1rem,1.4vw,1.7rem)]",
+          isTop ? "text-[var(--gold)]" : "text-white",
+        )}
+      >
+        {r.count}
+      </span>
+    </li>
+  );
+}
+
+/** A team's leaderboard panel. Rows FLIP-slide into new ranks on reorder. */
+function TeamPanel({
+  side,
+  reps,
+  total,
+  lead,
+  boardMax,
+  topIds,
+  topJobId,
+  crownKey,
+  events,
+  totalPulse,
+}: {
+  side: Side;
+  reps: BoardRowDTO[];
+  total: number;
+  lead: boolean;
+  boardMax: number;
+  topIds: Set<string>;
+  topJobId: string | null;
+  crownKey: number;
+  events: ReadonlyMap<string, RowEvent>;
+  totalPulse: number;
+}) {
+  const t = TEAM[side];
+  const sorted = rankRows(reps);
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const rects = useRef(new Map<string, DOMRect>());
+  const orderKey = sorted.map((r) => r.staffId).join("|");
+
+  // FLIP: remember where each row was, and after a reorder start it at its
+  // old offset and let the CSS transition slide it into place.
+  useLayoutEffect(() => {
+    const ul = listRef.current;
+    if (!ul) return;
+    const items = Array.from(ul.querySelectorAll<HTMLElement>("[data-id]"));
+    const next = new Map<string, DOMRect>();
+    for (const el of items) next.set(el.dataset.id ?? "", el.getBoundingClientRect());
+    if (!reducedMotion()) {
+      for (const el of items) {
+        const id = el.dataset.id ?? "";
+        const prev = rects.current.get(id);
+        const now = next.get(id);
+        if (!prev || !now) continue;
+        const dy = prev.top - now.top;
+        if (Math.abs(dy) < 1) continue;
+        el.classList.remove("gd-flip-move");
+        el.style.transform = `translateY(${dy}px)`;
+        void el.offsetHeight; // commit the start position before transitioning
+        el.classList.add("gd-flip-move");
+        el.style.transform = "";
       }
     }
-  }
+    rects.current = next;
+  }, [orderKey]);
 
-  // The state of the scoreline.
-  if (total > 0 && oT !== bT) {
-    const leadSide = oT > bT ? "orange" : "blue";
-    const trailSide = oT > bT ? "blue" : "orange";
-    const margin = Math.abs(oT - bT);
-    if (margin >= 4) {
-      facts.push(
-        `${TEAM[leadSide].emoji} ${TEAM[leadSide].label} are pulling away — up by ${margin}. ${TEAM[trailSide].label}, time to respond! 🚀`,
-      );
-    } else {
-      facts.push(
-        `👀 Just ${margin} in it — ${TEAM[trailSide].label} are right on ${TEAM[leadSide].label}'s heels.`,
-      );
-    }
-  } else if (total > 0) {
-    facts.push(`🤝 Dead heat at ${oT}–${bT} — the next booking takes the lead!`);
-  }
-
-  // A one-booking individual chase for the crown.
-  const ranked = [...teamed].filter((r) => r.count > 0).sort((a, b) => b.count - a.count);
-  const first = ranked[0];
-  const second = ranked[1];
-  if (first && second && first.count - second.count === 1) {
-    facts.push(
-      `🎯 ${second.name} is one booking behind ${first.name} for top scorer — and that $${TOP_SCORER_PRIZE}!`,
-    );
-  }
-
-  if (total > 0) {
-    facts.push(`📈 ${total} bookings on the board today — let's run it up before 7 PM!`);
-  }
-  return facts;
-}
-
-// Escalating "last push" messaging through the closing stretch (most urgent last).
-const FINAL_PUSH_TIERS = [
-  { at: 1800, label: "Final 30 minutes", sub: "Last push — every booking counts" },
-  { at: 600, label: "Final 10 minutes", sub: "Leave nothing on the table" },
-  { at: 300, label: "Final 5 minutes", sub: "Every call counts now" },
-  { at: 60, label: "Final minute", sub: "Go go go — finish strong!" },
-] as const;
-
-/** The most urgent push tier we're currently inside, or null if outside the window. */
-function pushTier(secs: number): (typeof FINAL_PUSH_TIERS)[number] | null {
-  let chosen: (typeof FINAL_PUSH_TIERS)[number] | null = null;
-  for (const t of FINAL_PUSH_TIERS) if (secs <= t.at) chosen = t;
-  return chosen;
-}
-
-/** Final-stretch motivator: a pulsing red-alert banner (+ a screen vignette) that
- * appears inside the last 30 minutes and escalates as the 7 PM whistle nears. */
-function LastPush({ secs }: { secs: number | null }) {
-  if (secs === null || secs <= 0) return null;
-  const tier = pushTier(secs);
-  if (!tier) return null;
-  const mm = Math.floor(secs / 60);
-  const ss = secs % 60;
   return (
-    <>
-      <div aria-hidden className="gd-alert pointer-events-none fixed inset-0 z-[55]" />
-      <div className="gd-lastpush relative flex shrink-0 items-center justify-center gap-3 overflow-hidden rounded-2xl border border-red-400/50 px-5 py-2.5 text-center">
-        <span aria-hidden className="pointer-events-none absolute inset-0 gd-shimmer opacity-60" />
-        <span className="relative text-2xl sm:text-3xl">⚡</span>
-        <span className="relative font-display text-xl font-black tracking-wide text-white uppercase sm:text-3xl">
-          {tier.label} — last push!
-        </span>
-        <span className="relative hidden text-base font-semibold text-red-100/80 sm:inline">
-          {tier.sub}
-        </span>
-        <span className="relative font-display text-xl font-black tabular-nums text-red-200 sm:text-2xl">
-          {mm}:{String(ss).padStart(2, "0")}
-        </span>
-        <span aria-hidden className="relative text-2xl sm:text-3xl">⚡</span>
+    <section
+      className={cx(
+        t.cls,
+        "gd-panel relative flex min-h-0 flex-col overflow-hidden rounded-xl transition-shadow duration-700",
+      )}
+      style={{
+        borderColor: lead ? `rgba(${t.rgb}, 0.55)` : `rgba(${t.rgb}, 0.28)`,
+        boxShadow: lead ? `0 0 34px -10px rgba(${t.rgb}, 0.55)` : `0 0 0 0 rgba(${t.rgb}, 0)`,
+      }}
+    >
+      {/* Faint radial lighting behind the panel. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: `radial-gradient(70% 40% at 50% 0%, rgba(${t.rgb}, 0.07), transparent 70%)` }}
+      />
+      <header className="relative flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <span aria-hidden className="text-lg" style={{ color: t.hex }}>
+            ⬢
+          </span>
+          <h2
+            className="font-display font-black tracking-[0.08em] uppercase [font-size:clamp(1rem,1.3vw,1.5rem)]"
+            style={{ color: t.hex }}
+          >
+            {t.label} team
+          </h2>
+        </div>
+        <div className="flex items-center gap-3 text-[0.68rem] font-bold tracking-[0.14em] text-[var(--muted)] uppercase">
+          <span>
+            {reps.length} player{reps.length === 1 ? "" : "s"}
+          </span>
+          <span aria-hidden className="h-4 w-px bg-[var(--border)]" />
+          <span className="flex items-center gap-2">
+            Total bookings
+            <span
+              key={`${total}-${totalPulse}`}
+              className="gd-bump grid min-w-7 place-items-center rounded-full px-2 py-0.5 font-display text-sm font-black tabular-nums"
+              style={{ background: t.hex, color: "#050607" }}
+            >
+              {total}
+            </span>
+          </span>
+        </div>
+      </header>
+
+      <div className="relative grid shrink-0 grid-cols-[1.75rem_1.75rem_1.1fr_1.6fr_5.5rem] items-center gap-3 px-6 pt-2 pb-1 text-[0.6rem] font-bold tracking-[0.16em] text-[var(--muted)] uppercase">
+        <span>Rank</span>
+        <span />
+        <span>Player</span>
+        <span />
+        <span className="text-right">Bookings</span>
       </div>
-    </>
+
+      {sorted.length === 0 ? (
+        <div className="relative m-3 grid flex-1 place-items-center rounded-lg border border-dashed border-[var(--border)] p-4 text-center">
+          <p className="text-sm font-medium text-white/40">No {t.label} players yet — assign them in Manage.</p>
+        </div>
+      ) : (
+        <ul ref={listRef} className="relative grid min-h-0 flex-1 gap-1.5 px-3 pb-3 [grid-auto-rows:minmax(0,1fr)]">
+          {sorted.map((r, i) => (
+            <Row
+              key={r.staffId}
+              r={r}
+              side={side}
+              rank={i + 1}
+              max={boardMax}
+              isTop={topIds.has(r.staffId)}
+              isTopJob={r.staffId === topJobId}
+              crownKey={crownKey}
+              event={events.get(r.staffId)}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -565,11 +611,8 @@ function RosterIntroCard({ card, index, total }: { card: RosterCard; index: numb
   const rich = card.revenue != null && card.revenue >= MONEY_THRESHOLD;
   return (
     <div className="relative flex flex-col items-center gap-4 text-center">
-      <p
-        className="gd-rise-1 font-mono text-sm font-bold tracking-[0.5em] uppercase sm:text-lg"
-        style={{ color: `rgb(${t.rgb})` }}
-      >
-        Now introducing · {t.emoji} Team {t.label}
+      <p className="gd-rise-1 font-mono text-sm font-bold tracking-[0.5em] uppercase sm:text-lg" style={{ color: t.hex }}>
+        Now introducing · {t.label} team
       </p>
       <h2 className="gd-name-in font-display leading-none font-black text-white uppercase [font-size:clamp(3rem,13vw,9rem)]">
         {card.name}
@@ -577,11 +620,11 @@ function RosterIntroCard({ card, index, total }: { card: RosterCard; index: numb
 
       {tier3 && (
         <div className="gd-rise-2 flex flex-col items-center gap-1">
-          <span className="rounded-full border border-accent-400 bg-accent-400/15 px-5 py-1.5 text-lg font-black tracking-[0.18em] text-accent-200 uppercase shadow-[0_0_28px_-4px_rgba(255,212,46,0.75)]">
+          <span className="rounded-full border border-[var(--gold)] bg-[rgba(255,201,40,0.12)] px-5 py-1.5 text-lg font-black tracking-[0.18em] text-[var(--gold)] uppercase shadow-[0_0_28px_-4px_rgba(255,201,40,0.75)]">
             ✦ Tier 3 Club ✦
           </span>
-          <span className="text-base font-semibold text-accent-300/85 sm:text-lg">
-            Elite — <span className="font-black text-accent-200">{card.month}</span> booked this month
+          <span className="text-base font-semibold text-[rgba(255,201,40,0.85)] sm:text-lg">
+            Elite — <span className="font-black text-[var(--gold)]">{card.month}</span> booked this month
           </span>
         </div>
       )}
@@ -593,14 +636,11 @@ function RosterIntroCard({ card, index, total }: { card: RosterCard; index: numb
           </p>
         )}
         {rich && (
-          <p className="text-2xl font-black text-accent-300 sm:text-4xl">
-            💰 cha-ching — over <span className="text-accent-200">{overMoney(card.revenue!)}</span>{" "}
-            generated
+          <p className="text-2xl font-black text-[var(--gold)] sm:text-4xl">
+            💰 cha-ching — over <span className="text-white">{overMoney(card.revenue!)}</span> generated
           </p>
         )}
-        <p className="mt-1 text-xl font-semibold tracking-wide text-white/55 sm:text-2xl">
-          {taglineFor(card.staffId)}
-        </p>
+        <p className="mt-1 text-xl font-semibold tracking-wide text-white/55 sm:text-2xl">{taglineFor(card.staffId)}</p>
       </div>
 
       <p className="gd-rise-3 mt-2 font-mono text-sm font-semibold tracking-[0.3em] text-white/30">
@@ -610,247 +650,8 @@ function RosterIntroCard({ card, index, total }: { card: RosterCard; index: numb
   );
 }
 
-/** One player's box on the board — name + today's count. The day's top scorer
- * gets a gold crown pill, and the manager-picked top-revenue-job winner gets an
- * amber money pill (both stack if it's the same rep), each with a matching ring
- * and glow — both breathe with a slow pulse. Whoever leads their OWN team gets a
- * quieter version of the same ring/glow treatment (no pill — that's reserved for
- * the real prizes), so both sides read as "alive" even when the floor-wide crown
- * sits with the other team. */
-function PlayerBox({
-  r,
-  side,
-  isTop,
-  isTopJob,
-  isTeamLeader,
-}: {
-  r: BoardRowDTO;
-  side: Side;
-  isTop: boolean;
-  isTopJob: boolean;
-  isTeamLeader: boolean;
-}) {
-  const t = TEAM[side];
-  const highlight = isTop || isTopJob;
-  // The team-leader glow/ring can be brighter than the team's base rgb (e.g.
-  // Blue's cyan needs a punchier tint here than its ambient box glow).
-  const leaderRgb = t.leaderRgb ?? t.rgb;
-  const glowVars = isTop
-    ? {
-        ["--glow-lo" as string]: "0 0 22px -3px rgba(255, 212, 46, 0.6)",
-        ["--glow-hi" as string]: "0 0 34px -2px rgba(255, 212, 46, 1)",
-      }
-    : isTopJob
-      ? {
-          ["--glow-lo" as string]: "0 0 22px -3px rgba(251, 191, 36, 0.6)",
-          ["--glow-hi" as string]: "0 0 34px -2px rgba(251, 191, 36, 1)",
-        }
-      : isTeamLeader
-        ? {
-            ["--glow-lo" as string]: `0 0 16px -3px rgba(${leaderRgb}, 0.5)`,
-            ["--glow-hi" as string]: `0 0 26px -2px rgba(${leaderRgb}, 0.9)`,
-          }
-        : undefined;
-  return (
-    <li
-      className={cx(
-        "relative flex min-h-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 px-2 py-2 text-center",
-        t.box,
-        isTop && "gd-glow-pulse border-accent-400 ring-2 ring-accent-400/70",
-        !isTop && isTopJob && "gd-glow-pulse border-amber-400 ring-2 ring-amber-400/70",
-        !isTop &&
-          !isTopJob &&
-          isTeamLeader &&
-          `gd-glow-pulse ring-2 ring-[rgba(${leaderRgb.replace(/\s+/g, "")},0.6)]`,
-      )}
-      // Fluorescent tube glow: gold for the top scorer, amber for the top-revenue
-      // job winner, a quieter team-coloured ring for the team's own leader,
-      // otherwise the plain team colour. The --glow-lo/--glow-hi vars feed the
-      // gentle breathing pulse in globals.css (falls back to this static value
-      // under prefers-reduced-motion since the animation is disabled there).
-      style={{
-        boxShadow: isTop
-          ? `0 0 26px -3px rgba(255, 212, 46, 0.85)`
-          : isTopJob
-            ? `0 0 26px -3px rgba(251, 191, 36, 0.85)`
-            : isTeamLeader
-              ? `0 0 20px -3px rgba(${leaderRgb}, 0.75)`
-              : `0 0 14px 0 rgba(${t.rgb}, 0.55)`,
-        ...glowVars,
-      }}
-    >
-      {highlight && (
-        <div className="flex flex-wrap items-center justify-center gap-1">
-          {isTop && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-accent-300 to-accent-500 px-2.5 py-0.5 text-[0.7rem] leading-none font-black tracking-wide text-brand-950 uppercase shadow-sm">
-              <span aria-hidden>👑</span> Top · ${TOP_SCORER_PRIZE}
-            </span>
-          )}
-          {isTopJob && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-300 to-amber-500 px-2.5 py-0.5 text-[0.7rem] leading-none font-black tracking-wide text-brand-950 uppercase shadow-sm">
-              <span aria-hidden>💰</span> Job · ${JOB_REVENUE_PRIZE}
-            </span>
-          )}
-        </div>
-      )}
-      <p
-        className={cx(
-          "w-full truncate text-lg font-black tracking-wide uppercase sm:text-2xl",
-          isTop ? "text-accent-100" : isTopJob ? "text-amber-100" : t.name,
-        )}
-      >
-        {r.name}
-      </p>
-      <p
-        key={r.count}
-        className={cx(
-          "gd-bump font-display text-4xl leading-none font-black tabular-nums sm:text-5xl",
-          isTop ? "text-accent-300" : isTopJob ? "text-amber-300" : t.num,
-        )}
-      >
-        {r.count}
-      </p>
-    </li>
-  );
-}
-
-/** A team's column of player boxes, with a heat-scaled aura when it's leading. */
-function TeamColumn({
-  side,
-  reps,
-  total,
-  isLeader,
-  heat,
-  topIds,
-  topJobId,
-}: {
-  side: Side;
-  reps: BoardRowDTO[];
-  total: number;
-  isLeader: boolean;
-  heat: number;
-  topIds: Set<string>;
-  topJobId: string | null;
-}) {
-  const t = TEAM[side];
-  const sorted = [...reps].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  // This team's own leading rep (ties all share it) — separate from the
-  // floor-wide top-scorer crown, so a team without the crown still has a
-  // highlighted "in-form" rep instead of a flat, all-equal grid.
-  const maxTeamCount = sorted[0]?.count ?? 0;
-  return (
-    <section className="relative flex min-h-0 flex-col overflow-hidden rounded-[2rem]">
-      {/* Subtle always-on team-colour wash behind the panel, kept faint so names
-          and numbers on the opaque player boxes stay easy to read. Teams with a
-          `washBase` sit on a saturated solid backdrop instead of bare black, so
-          the wash has something to pop against rather than reading muddy. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-20 rounded-[2rem]"
-        style={{
-          backgroundColor: t.washBase,
-          backgroundImage: `linear-gradient(160deg, rgba(${t.rgb}, ${t.wash}), transparent 60%)`,
-        }}
-      />
-      {/* Aura behind the leading team — bigger + brighter the further ahead. */}
-      {isLeader && heat > 0 && (
-        <div
-          aria-hidden
-          className={cx("pointer-events-none absolute -inset-3 -z-10 rounded-[2rem]", heat >= 3 && "gd-pulse")}
-          style={{
-            background: `radial-gradient(60% 70% at 50% 35%, rgba(${t.rgb}, ${0.1 + 0.06 * heat}), transparent 70%)`,
-            ["--gd-pulse-lo" as string]: `${0.3 + 0.05 * heat}`,
-            ["--gd-pulse-hi" as string]: `${0.5 + 0.08 * heat}`,
-          }}
-        />
-      )}
-      <header className="flex shrink-0 items-center justify-between gap-2 px-1">
-        <h2 className={cx("font-display text-xl font-black tracking-wide uppercase sm:text-2xl", t.heading)}>
-          {t.emoji} {t.label}
-        </h2>
-        <span className="text-sm font-semibold text-white/45">
-          {reps.length} {reps.length === 1 ? "rep" : "reps"} · <span className={t.num}>{total}</span>
-        </span>
-      </header>
-      {sorted.length === 0 ? (
-        <div className="mt-2 grid flex-1 place-items-center rounded-2xl border border-dashed border-white/15 p-4 text-center">
-          <p className="text-sm font-medium text-white/40">
-            No {t.label} reps yet — assign them in Manage.
-          </p>
-        </div>
-      ) : (
-        <ul className="mt-2 grid min-h-0 flex-1 grid-cols-2 gap-2.5 p-1 [grid-auto-rows:1fr] sm:gap-3">
-          {sorted.map((r) => (
-            <PlayerBox
-              key={r.staffId}
-              r={r}
-              side={side}
-              isTop={topIds.has(r.staffId)}
-              isTopJob={r.staffId === topJobId}
-              isTeamLeader={maxTeamCount > 0 && r.count === maxTeamCount}
-            />
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-/** Centre score plate for one team, with real CSS flames when it's leading. */
-function ScorePlate({
-  side,
-  total,
-  isLeader,
-  heat,
-}: {
-  side: Side;
-  total: number;
-  isLeader: boolean;
-  heat: number;
-}) {
-  const t = TEAM[side];
-  const blur = 16 + heat * 20;
-  const spread = isLeader ? -6 + heat * 2 : -10;
-  return (
-    <div className="relative flex flex-col items-center">
-      <div className="relative">
-        {isLeader && heat > 0 && <Flames side={side} heat={heat} />}
-        <div
-          className={cx(
-            "relative z-10 grid size-28 place-items-center rounded-3xl border-2 sm:size-36",
-            t.box,
-            isLeader && heat > 0 && "gd-glow-pulse",
-          )}
-          style={
-            isLeader && heat > 0
-              ? {
-                  // Opaque while on fire so flames frame the box but never wash
-                  // over the number. Breathes gently via --glow-lo/--glow-hi
-                  // (globals.css) instead of sitting at a fixed intensity.
-                  backgroundColor: "#0a0d16",
-                  boxShadow: `0 0 ${blur}px ${spread}px rgba(${t.rgb}, 0.8)`,
-                  ["--glow-lo" as string]: `0 0 ${blur}px ${spread}px rgba(${t.rgb}, 0.55)`,
-                  ["--glow-hi" as string]: `0 0 ${Math.round(blur * 1.3)}px ${spread - 4}px rgba(${t.rgb}, 1)`,
-                }
-              : undefined
-          }
-        >
-          <span
-            key={total}
-            className={cx("gd-bump font-display text-6xl font-black tabular-nums sm:text-7xl", t.num)}
-          >
-            {total}
-          </span>
-        </div>
-      </div>
-      <span className={cx("mt-2 text-sm font-bold tracking-[0.2em] uppercase sm:text-base", t.heading)}>
-        {t.emoji} {t.label}
-      </span>
-    </div>
-  );
-}
-
 type IntroState = { phase: "title" | "roster" | "go"; idx: number; out: boolean };
+type Toast = { key: number; text: string; tone: Side | "gold" | "white"; icon?: string };
 
 export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const [daily, setDaily] = useState<BoardRowDTO[]>(initial.daily);
@@ -861,12 +662,25 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const [soundLocked, setSoundLocked] = useState(true);
   const [intro, setIntro] = useState<IntroState | null>(null);
   const [secsLeft, setSecsLeft] = useState<number | null>(null);
-  const [fact, setFact] = useState<string | null>(null);
-  const [proximity, setProximity] = useState<Side | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [toastOut, setToastOut] = useState(false);
+  const [events, setEvents] = useState<Map<string, RowEvent>>(new Map());
+  const [totalPulse, setTotalPulse] = useState<Record<Side, number>>({ orange: 0, blue: 0 });
+  const [leadMoment, setLeadMoment] = useState<{ side: Side; key: number } | null>(null);
+  const [tieKey, setTieKey] = useState(0);
+  const [vsKey, setVsKey] = useState(0);
+  const [crownKey, setCrownKey] = useState(0);
+  const [overrideLine, setOverrideLine] = useState<string | null>(null);
+
   const inFlight = useRef(false);
-  const prevLeader = useRef<Side | null>(null);
+  const prevLeader = useRef<Side | null | undefined>(undefined);
   const prevMargin = useRef<number | undefined>(undefined);
-  const proximityTimer = useRef<number | null>(null);
+  const prevCounts = useRef<Map<string, number> | null>(null);
+  const prevTotals = useRef<Record<Side, number> | null>(null);
+  const prevTop = useRef<string | null>(null);
+  const eventTimers = useRef<Map<string, number>>(new Map());
+  const toastTimer = useRef<number | null>(null);
+  const lineTimer = useRef<number | null>(null);
   const wasOn = useRef(initial.gameDay);
   const firstRun = useRef(true);
   const prevSecs = useRef<number | null>(null);
@@ -875,15 +689,24 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const musicFade = useRef<number | null>(null);
   const musicWanted = useRef(false);
-  const factTimer = useRef<number | null>(null);
   const lastFact = useRef<string | null>(null);
   // Always-current data so the ceremony can snapshot the roster without
   // re-running on every poll.
   const latest = useRef({ daily, monthly });
   latest.current = { daily, monthly };
 
-  // ── Countdown to the 7 PM whistle, ticking once a second (shared by the header
-  // clock and the final-stretch "last push"). ──
+  /** Show a toast above the matchup banner for `ms`, replacing any current one. */
+  const showToast = useCallback((t: Omit<Toast, "key">, ms: number) => {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToastOut(false);
+    setToast({ ...t, key: Date.now() + Math.random() });
+    toastTimer.current = window.setTimeout(() => {
+      setToastOut(true);
+      toastTimer.current = window.setTimeout(() => setToast(null), 400);
+    }, ms);
+  }, []);
+
+  // ── Countdown to the 7 PM whistle, ticking once a second. ──
   useEffect(() => {
     const tick = () => setSecsLeft(secsUntilGameEnd());
     tick();
@@ -900,52 +723,34 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     for (const t of FINAL_PUSH_TIERS) {
       if (prev > t.at && secsLeft <= t.at) {
         playGong();
+        showToast({ text: `${t.label} — ${t.sub}`, tone: "gold", icon: "⚡" }, 5000);
         if (!reducedMotion()) {
-          confetti({
-            particleCount: 170,
-            spread: 120,
-            startVelocity: 48,
-            origin: { y: 0.35 },
-            colors: ["#ef4444", "#f97316", "#fca5a5", "#fde68a"],
-          });
+          confetti({ particleCount: 120, spread: 110, startVelocity: 44, origin: { y: 0.3 }, colors: GOLD_BURST });
         }
       }
     }
-  }, [secsLeft, on]);
+  }, [secsLeft, on, showToast]);
 
-  // Every so often, flash up an attention-grabbing fact about the scoreboard
-  // ("X is carrying Team Red right now…"), with a fanfare + a little confetti.
+  // Every so often, flash up an attention-grabbing fact about the scoreboard.
   useEffect(() => {
     if (!on) return;
     const fire = () => {
-      const candidates = buildFacts(latest.current.daily);
+      const candidates = buildFacts(latest.current.daily, LABELS, TOP_SCORER_PRIZE);
       if (candidates.length === 0) return;
       const fresh = candidates.filter((f) => f !== lastFact.current);
       const pool = fresh.length ? fresh : candidates;
       const choice = pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
       if (!choice) return;
       lastFact.current = choice;
-      if (factTimer.current) window.clearTimeout(factTimer.current);
-      setFact(choice);
+      showToast({ text: choice, tone: "white", icon: "📣" }, FACT_HOLD_MS);
       playFanfare();
       if (!reducedMotion()) {
-        confetti({
-          particleCount: 70,
-          spread: 75,
-          startVelocity: 40,
-          origin: { y: 0.15 },
-          colors: ["#ffd42e", "#fff389", "#ff3b3b", "#00c2ff"],
-        });
+        confetti({ particleCount: 50, spread: 70, startVelocity: 36, origin: { y: 0.15 }, colors: GOLD_BURST });
       }
-      factTimer.current = window.setTimeout(() => setFact(null), FACT_HOLD_MS);
     };
     const id = window.setInterval(fire, FACT_INTERVAL_MS);
-    return () => {
-      window.clearInterval(id);
-      if (factTimer.current) window.clearTimeout(factTimer.current);
-      setFact(null);
-    };
-  }, [on]);
+    return () => window.clearInterval(id);
+  }, [on, showToast]);
 
   // ── Roll-call background music (hype anthem) ──
   const startMusic = useCallback(() => {
@@ -1036,10 +841,8 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     setIntro({ phase: "title", idx: 0, out: false });
     const n = roster.length;
 
-    // The roll-call spans EXACTLY ROSTER_TOTAL_MS (44s) end-to-end, under the
-    // hype anthem — card i lands at its fraction of that window no matter how
-    // many reps there are. Each rep: a soft whoosh by default, a cha-ching +
-    // money splash for the big earners, a fanfare for the Tier 3 club.
+    // The roll-call spans EXACTLY ROSTER_TOTAL_MS end-to-end under the anthem —
+    // card i lands at its fraction of that window no matter how many reps.
     if (n > 0) musicWanted.current = true;
     roster.forEach((card, i) => {
       const at = TITLE_MS + Math.round((i * ROSTER_TOTAL_MS) / n);
@@ -1073,7 +876,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           }, 460),
         );
         if (!reducedMotion()) {
-          confetti({ particleCount: 220, spread: 130, startVelocity: 50, origin: { y: 0.5 } });
+          confetti({ particleCount: 220, spread: 130, startVelocity: 50, origin: { y: 0.5 }, colors: GOLD_BURST });
         }
       }, goAt),
     );
@@ -1096,6 +899,9 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     () => () => {
       clearIntroTimers();
       stopMusic();
+      if (toastTimer.current) window.clearTimeout(toastTimer.current);
+      if (lineTimer.current) window.clearTimeout(lineTimer.current);
+      eventTimers.current.forEach((t) => window.clearTimeout(t));
     },
     [stopMusic],
   );
@@ -1136,93 +942,129 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   }, []);
   useLiveRefresh(["bookings", "clock"], refetch);
 
-  // ── Derived scoreboard state ──
-  const teamed = daily.filter((r) => r.team === "orange" || r.team === "blue");
-  const orange = teamed.filter((r) => r.team === "orange");
-  const blue = teamed.filter((r) => r.team === "blue");
-  const orangeTotal = orange.reduce((s, r) => s + r.count, 0);
-  const blueTotal = blue.reduce((s, r) => s + r.count, 0);
-  const total = orangeTotal + blueTotal;
-  const margin = Math.abs(orangeTotal - blueTotal);
-  const leader: Side | null =
-    orangeTotal === blueTotal ? null : orangeTotal > blueTotal ? "orange" : "blue";
-  const heat = heatOf(margin);
-  const orangeShare = total > 0 ? orangeTotal / total : 0.5;
-
-  // Day's top scorer(s) — the single highest count; ties all share the crown.
-  const maxCount = teamed.reduce((m, r) => Math.max(m, r.count), 0);
-  const topIds = new Set(teamed.filter((r) => r.count > 0 && r.count === maxCount).map((r) => r.staffId));
+  // ── Derived scoreboard state (mirrored by computeGameDayResult) ──
+  const s = scoreState(daily);
+  const { teamed, orange, blue, orangeTotal, blueTotal, total, margin, leader, maxCount, topIds } = s;
   const topJobId = topJob?.staffId ?? null;
+  const line = leadLine(s, LABELS);
 
-  // Confetti when the lead changes hands.
+  // ── Booking events: per-rep flash/+N, team total pulse, milestones ──
   useEffect(() => {
-    if (!on || !leader) {
-      prevLeader.current = leader;
-      return;
+    const increases = countIncreases(prevCounts.current, teamed);
+    prevCounts.current = new Map(teamed.map((r) => [r.staffId, r.count]));
+    if (!on || increases.length === 0) return;
+
+    setEvents((prev) => {
+      const next = new Map(prev);
+      for (const inc of increases) next.set(inc.staffId, { key: Date.now() + Math.random(), delta: inc.to - inc.from });
+      return next;
+    });
+    const sidesHit = new Set<Side>();
+    for (const inc of increases) {
+      const row = teamed.find((r) => r.staffId === inc.staffId);
+      if (row) sidesHit.add(row.team);
+      const old = eventTimers.current.get(inc.staffId);
+      if (old) window.clearTimeout(old);
+      eventTimers.current.set(
+        inc.staffId,
+        window.setTimeout(() => {
+          setEvents((prev) => {
+            const next = new Map(prev);
+            next.delete(inc.staffId);
+            return next;
+          });
+          eventTimers.current.delete(inc.staffId);
+        }, EVENT_MS),
+      );
     }
-    if (prevLeader.current && prevLeader.current !== leader && !reducedMotion()) {
-      confetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.4 },
-        colors: leader === "orange" ? ["#ff3b3b", "#ff2828", "#ff8080"] : ["#00c2ff", "#ffffff", "#7fe3ff"],
+    if (sidesHit.size) {
+      setTotalPulse((p) => {
+        const n = { ...p };
+        for (const side of sidesHit) n[side] = p[side] + 1;
+        return n;
       });
     }
-    prevLeader.current = leader;
-  }, [leader, on]);
+  }, [teamed, on]);
 
-  // Proximity alert: flash a banner the MOMENT the gap closes to exactly one
-  // booking — not on every poll while it happens to sit at one, and not on
-  // first load (prevMargin starts undefined so a page freshly opened mid-gap
-  // stays quiet).
+  // Team milestones (5, 10, 15, 20…) — a brief toast, no interruption.
+  useEffect(() => {
+    const prev = prevTotals.current;
+    prevTotals.current = { orange: orangeTotal, blue: blueTotal };
+    if (!on || !prev) return;
+    for (const side of ["orange", "blue"] as const) {
+      const hit = milestoneCrossed(prev[side], side === "orange" ? orangeTotal : blueTotal);
+      if (hit !== null) showToast({ text: `${LABELS[side].toUpperCase()} HITS ${hit} BOOKINGS`, tone: side, icon: "🔥" }, TOAST_MS);
+    }
+  }, [orangeTotal, blueTotal, on, showToast]);
+
+  // Lead change — the big moment — and ties.
+  useEffect(() => {
+    const prev = prevLeader.current;
+    prevLeader.current = leader;
+    if (!on || prev === undefined) return; // first render seeds silently
+    if (leader && prev !== leader) {
+      const key = Date.now();
+      setLeadMoment({ side: leader, key });
+      setVsKey(key);
+      if (prev !== null) {
+        // A genuine hand-over (not the first lead of the day) gets the full beat.
+        setOverrideLine(takesLeadLine(leader, LABELS));
+        if (lineTimer.current) window.clearTimeout(lineTimer.current);
+        lineTimer.current = window.setTimeout(() => setOverrideLine(null), TOAST_MS);
+        showToast({ text: takesLeadLine(leader, LABELS), tone: leader, icon: "🚀" }, TOAST_MS);
+        if (!reducedMotion()) {
+          confetti({ particleCount: 150, spread: 100, origin: { y: 0.4 }, colors: TEAM[leader].burst });
+        }
+      }
+    } else if (leader === null && prev !== null && total > 0) {
+      setTieKey(Date.now());
+      setOverrideLine(null);
+      showToast({ text: "GAME TIED", tone: "gold", icon: "⚡" }, TOAST_MS);
+    }
+  }, [leader, total, on, showToast]);
+
+  // Proximity alert: the moment the gap closes to exactly one booking.
   useEffect(() => {
     const prev = prevMargin.current;
     prevMargin.current = margin;
     if (!on || !leader) return;
-    if (prev !== undefined && prev !== 1 && margin === 1) {
+    if (prev !== undefined && prev !== 1 && margin === 1 && prev > 1) {
       const trailing: Side = leader === "orange" ? "blue" : "orange";
-      setProximity(trailing);
-      if (proximityTimer.current) window.clearTimeout(proximityTimer.current);
-      proximityTimer.current = window.setTimeout(() => setProximity(null), 4500);
+      showToast({ text: `${LABELS[trailing].toUpperCase()} WITHIN ONE!`, tone: trailing, icon: "👀" }, TOAST_MS);
     }
-  }, [margin, leader, on]);
+  }, [margin, leader, on, showToast]);
 
-  useEffect(
-    () => () => {
-      if (proximityTimer.current) window.clearTimeout(proximityTimer.current);
-    },
-    [],
-  );
-
-  const leadLine =
-    leader === null
-      ? total === 0
-        ? "Tip-off! First booking lights up the board 🚚"
-        : "Dead heat — anyone's game 🤝"
-      : `${TEAM[leader].emoji} ${TEAM[leader].label} ${heat >= 4 ? "is running away with it" : heat >= 3 ? "pulling clear" : "leads"} by ${margin} 🚚💨`;
+  // New overall #1 — crown moves with a pop, brief gold toast.
+  useEffect(() => {
+    const single = topIds.size === 1 ? [...topIds][0] ?? null : null;
+    const prev = prevTop.current;
+    prevTop.current = single;
+    if (!on || prev === null || single === null || single === prev) return;
+    setCrownKey(Date.now());
+    const who = teamed.find((r) => r.staffId === single);
+    if (who) showToast({ text: `NEW #1 — ${who.name}`, tone: "gold", icon: "👑" }, TOAST_MS);
+  }, [topIds, teamed, on, showToast]);
 
   const roster = rosterRef.current;
   const introCard = intro?.phase === "roster" ? roster[intro.idx] : undefined;
+  const toastColor =
+    toast?.tone === "gold"
+      ? "var(--gold)"
+      : toast?.tone === "white"
+        ? "#ffffff"
+        : toast
+          ? TEAM[toast.tone].hex
+          : "#ffffff";
 
   return (
-    <main className="relative z-0 flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
-      {/* z-0 above is load-bearing: `relative` alone doesn't create a
-          stacking context, so without an explicit z-index the pitch
-          pattern's -z-10 child below gets promoted to the page's ROOT
-          stacking context and THIS element's own bg-black paints over it
-          unconditionally (a z-index:auto positioned box paints above a
-          sibling negative-z-index context) — regardless of the pattern's
-          opacity or color. z-0 forces <main> to own its stacking order so
-          its background paints first, as intended. */}
-
-      {/* Always-on ambient arena backdrop — game-menu-screen energy behind
-          everything else, regardless of standby/ceremony/live state. */}
-      <GameDayBackdrop />
+    <main className="gd-wall relative z-0 flex h-dvh flex-col gap-3 overflow-hidden p-4 text-white 2xl:gap-4 2xl:p-5">
+      {/* z-0 is load-bearing: it makes <main> own its stacking context so the
+          fixed -z-30 backdrop paints beneath its own background. */}
+      <Backdrop leader={on ? leader : null} />
 
       {/* Bookings gong + celebrate (team members only on the board), and site
-          inspections still pop their green celebration + gong — inspectors just
-          don't get a box on the game-day leaderboard. `gameDay` swaps the "new
-          booking" beat for a goal celebration only while the battle is on. */}
+          inspections still pop their green celebration + gong. `gameDay` swaps
+          the "new booking" beat for a goal celebration only while the battle is on. */}
       <BookingCelebration daily={teamed} inspectors={inspectors} gameDay={on} />
 
       {/* Roll-call background music (hype anthem). Hidden; driven by the ceremony. */}
@@ -1233,22 +1075,20 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
         <div
           onPointerDown={() => armAudio()}
           className={cx(
-            "fixed inset-0 z-[120] flex flex-col items-center justify-center overflow-hidden bg-ink-950 px-6 text-center",
+            "fixed inset-0 z-[120] flex flex-col items-center justify-center overflow-hidden bg-[var(--bg)] px-6 text-center",
             intro.out && "gd-intro-out",
           )}
         >
-          {/* Team-tinted backdrop during the roll-call. */}
           {introCard && (
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-0 -z-0"
+              className="pointer-events-none absolute inset-0"
               style={{
-                background: `radial-gradient(55% 60% at 50% 45%, rgba(${TEAM[introCard.team].rgb}, 0.22), transparent 72%)`,
+                background: `radial-gradient(55% 60% at 50% 45%, rgba(${TEAM[introCard.team].rgb}, 0.2), transparent 72%)`,
               }}
             />
           )}
 
-          {/* Skip control (small, out of the way). */}
           <button
             type="button"
             onClick={skipIntro}
@@ -1261,85 +1101,61 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
             {intro.phase === "title" && (
               <div className="flex flex-col items-center">
                 <div aria-hidden className="pointer-events-none absolute inset-0 bg-white gd-flash" />
-                <p className="font-mono text-sm font-bold tracking-[0.5em] text-accent-400 uppercase gd-fade-up sm:text-lg">
+                <p className="gd-fade-up font-mono text-sm font-bold tracking-[0.5em] text-[var(--gold)] uppercase sm:text-lg">
                   Today only
                 </p>
-                <h1 className="font-display mt-3 font-black tracking-tight text-white uppercase gd-slam [font-size:clamp(3.5rem,15vw,11rem)]">
+                <h1 className="gd-slam font-display mt-3 font-black tracking-tight text-white uppercase italic [font-size:clamp(3.5rem,15vw,11rem)]">
                   Game Day
                 </h1>
                 <div className="mt-6 flex items-center gap-5 sm:gap-8">
                   <span
-                    className={cx(
-                      "gd-charge-left font-display text-4xl font-black uppercase sm:text-6xl",
-                      TEAM.orange.heading,
-                    )}
+                    className="gd-charge-left font-display text-4xl font-black uppercase sm:text-6xl"
+                    style={{ color: TEAM.orange.hex }}
                   >
-                    {TEAM.orange.emoji} Team {TEAM.orange.label}
+                    {TEAM.orange.label} team
                   </span>
-                  <span className="font-display text-2xl font-black text-white/50 sm:text-4xl">VS</span>
+                  <span className="font-display text-2xl font-black text-white/50 italic sm:text-4xl">VS</span>
                   <span
-                    className={cx(
-                      "gd-charge-right font-display text-4xl font-black uppercase sm:text-6xl",
-                      TEAM.blue.heading,
-                    )}
+                    className="gd-charge-right font-display text-4xl font-black uppercase sm:text-6xl"
+                    style={{ color: TEAM.blue.hex }}
                   >
-                    Team {TEAM.blue.label} {TEAM.blue.emoji}
+                    {TEAM.blue.label} team
                   </span>
                 </div>
-                <p className="mt-8 max-w-3xl text-base font-semibold text-white/70 gd-fade-up sm:text-xl">
-                  👑 Top scorer <span className="font-black text-accent-300">${TOP_SCORER_PRIZE}</span>{" "}
-                  · 💰 Top revenue job{" "}
-                  <span className="font-black text-accent-300">${JOB_REVENUE_PRIZE}</span>
+                <p className="gd-fade-up mt-8 max-w-3xl text-base font-semibold text-white/70 sm:text-xl">
+                  ⭐ Top scorer <span className="font-black text-[var(--gold)]">${TOP_SCORER_PRIZE}</span> · 💼 Top revenue job{" "}
+                  <span className="font-black text-[var(--gold)]">${JOB_REVENUE_PRIZE}</span>
                   {topJob && (
                     <>
                       {" "}
-                      (<span className="font-black text-amber-300">{topJob.name}</span>)
+                      (<span className="font-black text-white">{topJob.name}</span>)
                     </>
                   )}{" "}
-                  · 🏆 Winning team <span className="font-black text-accent-300">${TEAM_PRIZE} each</span>
+                  · 🏆 Winning team <span className="font-black text-[var(--gold)]">${TEAM_PRIZE} each</span>
                 </p>
-                <p className="mt-6 text-sm font-semibold tracking-[0.3em] text-white/40 uppercase gd-fade-up">
+                <p className="gd-fade-up mt-6 text-sm font-semibold tracking-[0.3em] text-white/40 uppercase">
                   Introducing the players…
                 </p>
               </div>
             )}
 
             {intro.phase === "roster" && introCard && (
-              <RosterIntroCard
-                key={introCard.staffId}
-                card={introCard}
-                index={intro.idx}
-                total={roster.length}
-              />
+              <RosterIntroCard key={introCard.staffId} card={introCard} index={intro.idx} total={roster.length} />
             )}
 
             {intro.phase === "go" && (
               <div className="flex flex-col items-center">
                 <div aria-hidden className="pointer-events-none absolute inset-0 bg-white gd-flash" />
-                <p className="text-5xl gd-fade-up sm:text-6xl">🔔 🔔 🔔</p>
-                <h1 className="font-display mt-4 font-black tracking-tight text-accent-300 uppercase gd-slam [font-size:clamp(2.5rem,11vw,8rem)]">
+                <p className="gd-fade-up text-5xl sm:text-6xl">🔔 🔔 🔔</p>
+                <h1 className="gd-slam font-display mt-4 font-black tracking-tight text-[var(--gold)] uppercase italic [font-size:clamp(2.5rem,11vw,8rem)]">
                   Let the games begin
                 </h1>
                 <p className="mt-6 text-2xl font-black text-white/80 sm:text-3xl">
-                  {TEAM.orange.emoji} Team {TEAM.orange.label}{" "}
-                  <span className="text-white/40">vs</span> Team {TEAM.blue.label} {TEAM.blue.emoji} — go
-                  go go!
+                  <span style={{ color: TEAM.orange.hex }}>{TEAM.orange.label}</span> <span className="text-white/40">vs</span>{" "}
+                  <span style={{ color: TEAM.blue.hex }}>{TEAM.blue.label}</span> — go go go!
                 </p>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Periodic scoreboard "fun fact" — flashes in at the top for a few seconds. */}
-      {fact && (
-        <div
-          aria-live="polite"
-          className="gd-fact pointer-events-none fixed inset-x-0 top-4 z-[58] flex justify-center px-4"
-        >
-          <div className="flex max-w-3xl items-center gap-3 rounded-2xl border border-accent-400/60 bg-ink-950/90 px-6 py-3 shadow-2xl shadow-black/50 backdrop-blur">
-            <span aria-hidden className="text-2xl sm:text-3xl">📣</span>
-            <span className="font-display text-lg font-black text-white sm:text-2xl">{fact}</span>
           </div>
         </div>
       )}
@@ -1348,7 +1164,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
         <button
           type="button"
           onClick={() => armAudio()}
-          className="fixed right-4 bottom-4 z-[60] flex animate-pulse items-center gap-2 rounded-full border border-accent-400/50 bg-black/85 px-4 py-2 text-sm font-semibold text-accent-200 shadow-lg backdrop-blur"
+          className="fixed right-4 bottom-[5rem] z-[60] flex animate-pulse items-center gap-2 rounded-full border border-[var(--gold)]/50 bg-black/85 px-4 py-2 text-sm font-semibold text-[var(--gold)] shadow-lg backdrop-blur"
         >
           <span aria-hidden>🔇</span> Tap anywhere to enable sound
         </button>
@@ -1359,125 +1175,186 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
         <div className="grid flex-1 place-items-center text-center">
           <div>
             <p className="text-6xl">🏁</p>
-            <p className="font-display mt-4 text-4xl font-black tracking-tight text-white uppercase">
-              Game Day standby
-            </p>
-            <p className="mt-2 text-lg text-white/50">Waiting for a manager to start the battle…</p>
+            <p className="font-display mt-4 text-4xl font-black tracking-tight text-white uppercase italic">Game Day standby</p>
+            <p className="mt-2 text-lg text-[var(--muted)]">Waiting for a manager to start the battle…</p>
           </div>
         </div>
       ) : (
         <>
-          {/* ── Header band: title + countdown + prize ribbon ── */}
-          <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl">🏆</span>
-              <h1 className="font-display text-3xl font-black tracking-tight text-white uppercase sm:text-4xl">
-                Game Day
-              </h1>
-              <span className="font-display text-2xl font-black tracking-wide text-white/30 uppercase sm:text-3xl">
-                {TEAM.orange.label} vs {TEAM.blue.label}
+          {/* ── Header: title block + countdown/rewards bar ── */}
+          <header className="flex shrink-0 items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <span
+                aria-hidden
+                className="font-display leading-none font-black text-[var(--green)] italic [font-size:clamp(2.4rem,3.6vw,4rem)]"
+                style={{ textShadow: "0 0 24px rgba(183,255,0,0.55)" }}
+              >
+                ✕
               </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Countdown secs={secsLeft} />
-              <div className="relative overflow-hidden rounded-full border border-accent-400/40 bg-white/[0.04] px-4 py-1.5">
-                <span aria-hidden className="pointer-events-none absolute inset-0 gd-shimmer" />
-                <p className="relative flex items-center gap-3 text-sm font-bold whitespace-nowrap sm:text-base">
-                  <span className="text-accent-200">👑 Top scorer ${TOP_SCORER_PRIZE}</span>
-                  <span aria-hidden className="text-white/20">|</span>
-                  <span className="text-accent-200">
-                    💰 Top revenue job ${JOB_REVENUE_PRIZE}
-                    {topJob && (
-                      <>
-                        {" — "}
-                        <span className="font-black text-amber-300">{topJob.name.toUpperCase()}</span>{" "}
-                        🏅
-                      </>
-                    )}
-                  </span>
-                  <span aria-hidden className="text-white/20">|</span>
-                  <span className="text-accent-200">🏆 Winning team ${TEAM_PRIZE} each</span>
+              <div className="flex flex-col">
+                <h1 className="font-display leading-none font-black tracking-tight text-white uppercase italic [font-size:clamp(2rem,3.2vw,3.6rem)]">
+                  Game Day
+                </h1>
+                <p className="mt-1 text-[0.7rem] font-bold tracking-[0.22em] text-[var(--muted)] uppercase">
+                  More <span className="text-[var(--green)]">bookings</span>. More <span className="text-[var(--purple)]">wins</span>.
                 </p>
               </div>
+            </div>
+            <div className="gd-panel flex items-center gap-5 rounded-xl px-4 py-2 [&>*+*]:border-l [&>*+*]:border-[var(--border)] [&>*+*]:pl-5">
+              <Countdown secs={secsLeft} />
+              <Reward icon="⭐" label="Top scorer" value={`$${TOP_SCORER_PRIZE}`} tone="green" />
+              <Reward
+                icon="💼"
+                label="Top revenue job"
+                value={`$${JOB_REVENUE_PRIZE}`}
+                tone="purple"
+                sub={topJob ? `${topJob.name} 🏅` : undefined}
+              />
+              <Reward icon="🏆" label="Winning team" value={`$${TEAM_PRIZE} each`} tone="gold" />
             </div>
           </header>
 
-          {/* Final-30-minutes motivator (escalates toward 7 PM). */}
-          <LastPush secs={secsLeft} />
+          {/* ── Matchup banner ── */}
+          <section
+            className={cx("gd-panel gd-banner-sweep relative flex shrink-0 items-stretch overflow-hidden rounded-xl", tieKey > 0 && "gd-gold-pulse")}
+            key={`banner-${tieKey}`}
+          >
+            <MatchupSide side="orange" total={orangeTotal} lead={leader === "orange"} pulseKey={totalPulse.orange} />
 
-          {/* ── Scoreboard: Red total · tug-of-war · Blue total ── */}
-          <section className="flex shrink-0 items-center gap-4 rounded-3xl border border-white/10 bg-white/[0.03] px-5 py-4 sm:gap-8 sm:px-8">
-            <ScorePlate side="orange" total={orangeTotal} isLeader={leader === "orange"} heat={heat} />
-
-            <div className="flex min-w-0 flex-1 flex-col items-center gap-3">
-              <span className="font-display text-3xl font-black tracking-[0.2em] text-white/40 uppercase sm:text-4xl">
+            {/* Centre: VS + lead line. */}
+            <div className="relative flex w-[clamp(12rem,18vw,20rem)] shrink-0 flex-col items-center justify-center gap-1.5">
+              {/* Occasional pulse of light travelling from the leading side in. */}
+              {leader && (
+                <span
+                  aria-hidden
+                  className="gd-lead-pulse pointer-events-none absolute inset-y-4 left-0 w-full"
+                  style={{
+                    ["--dir" as string]: TEAM[leader].dir,
+                    background: `linear-gradient(90deg, transparent, rgba(${TEAM[leader].rgb}, 0.35), transparent)`,
+                  }}
+                />
+              )}
+              {VS_SPECKS.map((sp, i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  className="gd-speck pointer-events-none absolute rounded-full"
+                  style={{
+                    left: `${sp.left}%`,
+                    top: `${sp.top}%`,
+                    width: sp.size,
+                    height: sp.size,
+                    background: TEAM[sp.side].hex,
+                    boxShadow: `0 0 ${sp.size * 3}px ${TEAM[sp.side].hex}`,
+                    ["--sdx" as string]: `${sp.dx}px`,
+                    ["--sd" as string]: `${sp.dur}s`,
+                    ["--speck-a" as string]: sp.alpha,
+                    animationDelay: `${sp.delay}s`,
+                  }}
+                />
+              ))}
+              <span
+                key={vsKey}
+                className="gd-vs-breathe gd-vs-flash font-display relative leading-none font-black text-white italic [font-size:clamp(2.6rem,4.6vw,5rem)]"
+              >
                 VS
               </span>
-              {/* Tug-of-war: the boundary slides toward whoever's ahead, with a
-                  slow shimmer drifting across the blend so the bar never sits
-                  fully frozen between score updates. */}
-              <div className="relative flex h-5 w-full overflow-hidden rounded-full border border-white/15 sm:h-6">
-                <div
-                  className={cx(
-                    "h-full bg-gradient-to-r transition-all duration-500 ease-out",
-                    TEAM.orange.barFrom,
-                    TEAM.orange.barTo,
-                  )}
-                  style={{ width: `${Math.round(orangeShare * 100)}%` }}
-                />
-                <div
-                  className={cx(
-                    "h-full flex-1 bg-gradient-to-r transition-all duration-500 ease-out",
-                    TEAM.blue.barFrom,
-                    TEAM.blue.barTo,
-                  )}
-                />
-                <span aria-hidden className="gd-vs-drift pointer-events-none absolute inset-0" />
-              </div>
-              <p className="text-center text-lg font-black text-white sm:text-2xl">{leadLine}</p>
-              {/* Proximity alert — flashes once the instant the trailing team closes
-                  the gap to a single booking, then auto-dismisses. */}
-              {proximity && (
-                <p
-                  aria-live="polite"
-                  className={cx(
-                    "gd-fact rounded-full border px-4 py-1 text-sm font-black tracking-wide uppercase sm:text-base",
-                    TEAM[proximity].heading,
-                  )}
-                  style={{
-                    borderColor: `rgba(${TEAM[proximity].rgb}, 0.5)`,
-                    background: `rgba(${TEAM[proximity].rgb}, 0.14)`,
-                  }}
-                >
-                  {TEAM[proximity].emoji} {TEAM[proximity].label} within one!
-                </p>
-              )}
+              <p
+                key={overrideLine ?? line.text}
+                className={cx(
+                  "gd-toast-in relative flex items-center gap-2 rounded-full border px-3 py-1 text-[0.7rem] font-black tracking-[0.14em] whitespace-nowrap uppercase",
+                  "border-[var(--border)] bg-[var(--panel-2)]",
+                )}
+                style={{ color: line.side ? TEAM[line.side].hex : line.kind === "tied" ? "var(--gold)" : "#fff" }}
+                aria-live="polite"
+              >
+                {line.side && (
+                  <span aria-hidden className="size-2 rounded-full" style={{ background: TEAM[line.side].hex, boxShadow: `0 0 8px ${TEAM[line.side].hex}` }} />
+                )}
+                {overrideLine ?? line.text}
+              </p>
             </div>
 
-            <ScorePlate side="blue" total={blueTotal} isLeader={leader === "blue"} heat={heat} />
+            <MatchupSide side="blue" total={blueTotal} lead={leader === "blue"} pulseKey={totalPulse.blue} />
+
+            {/* Lead-change sweep across the new leader's half. */}
+            {leadMoment && (
+              <span
+                key={leadMoment.key}
+                aria-hidden
+                className={cx(
+                  "gd-lead-sweep pointer-events-none absolute inset-y-0 w-1/2",
+                  leadMoment.side === "orange" ? "left-0" : "right-0",
+                )}
+                style={{
+                  ["--dir" as string]: TEAM[leadMoment.side].dir,
+                  background: `linear-gradient(90deg, transparent, rgba(${TEAM[leadMoment.side].rgb}, 0.5), transparent)`,
+                }}
+              />
+            )}
           </section>
 
-          {/* ── Team rosters fill the rest of the wall ── */}
-          <div className="relative z-0 grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
-            <TeamColumn
+          {/* ── Toast (milestones / lead change / new #1 / facts / final push) ── */}
+          {toast && (
+            <div
+              key={toast.key}
+              aria-live="polite"
+              className={cx(
+                "pointer-events-none fixed inset-x-0 top-[calc(50%-14rem)] z-[58] flex justify-center px-4",
+                toastOut ? "gd-toast-out" : "gd-toast-in",
+              )}
+            >
+              <div
+                className="gd-panel flex max-w-4xl items-center gap-3 rounded-xl px-5 py-2.5 shadow-2xl shadow-black/60"
+                style={{ borderColor: `color-mix(in srgb, ${toastColor} 55%, transparent)`, boxShadow: `0 0 34px -8px ${toastColor}` }}
+              >
+                {toast.icon && (
+                  <span aria-hidden className="text-2xl">
+                    {toast.icon}
+                  </span>
+                )}
+                <span className="font-display text-lg font-black tracking-wide uppercase sm:text-2xl" style={{ color: toastColor }}>
+                  {toast.text}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* ── Leaderboards ── */}
+          <div className="relative z-0 grid min-h-0 flex-1 grid-cols-2 gap-4">
+            <TeamPanel
               side="orange"
               reps={orange}
               total={orangeTotal}
-              isLeader={leader === "orange"}
-              heat={heat}
+              lead={leader === "orange"}
+              boardMax={maxCount}
               topIds={topIds}
               topJobId={topJobId}
+              crownKey={crownKey}
+              events={events}
+              totalPulse={totalPulse.orange}
             />
-            <TeamColumn
+            <TeamPanel
               side="blue"
               reps={blue}
               total={blueTotal}
-              isLeader={leader === "blue"}
-              heat={heat}
+              lead={leader === "blue"}
+              boardMax={maxCount}
               topIds={topIds}
               topJobId={topJobId}
+              crownKey={crownKey}
+              events={events}
+              totalPulse={totalPulse.blue}
             />
           </div>
+
+          {/* ── Footer rewards ── */}
+          <footer className="gd-panel grid shrink-0 grid-cols-4 items-center rounded-xl px-5 py-2.5 [&>*+*]:border-l [&>*+*]:border-[var(--border)] [&>*+*]:pl-5">
+            <Reward icon="🎯" label="Each booking" value="= 1 point" tone="green" />
+            <Reward icon="⭐" label="Top scorer" value={`$${TOP_SCORER_PRIZE}`} tone="green" />
+            <Reward icon="💼" label="Top revenue job" value={`$${JOB_REVENUE_PRIZE}`} tone="purple" />
+            <Reward icon="🏆" label="Winning team" value={`$${TEAM_PRIZE} each`} tone="gold" />
+          </footer>
         </>
       )}
     </main>

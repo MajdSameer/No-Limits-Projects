@@ -34,26 +34,27 @@ const BURST = ["#ffd42e", "#fff389", "#f472b6", "#38bdf8", "#f4f1e8"];
 // Site-inspection celebrations get a neon-green burst to match their boxes.
 const INSPECTOR_BURST = ["#4ade80", "#22c55e", "#86efac", "#bbf7d0", "#f4f1e8"];
 
-// Game Day goal celebrations — mirrors GameDayWall's Red/Blue neon palette so
-// the confetti and glow match the scoring rep's team.
+// Game Day goal celebrations — mirrors GameDayWall's Green/Purple neon palette
+// (data keys stay "orange"/"blue") so the confetti and glow match the scoring
+// rep's team. Keep in sync with the TEAM map in GameDayWall.tsx.
 const GOAL_TEAM = {
   orange: {
-    rgb: "255, 40, 40",
-    burst: ["#ff2828", "#ff3b3b", "#ff8080", "#fff0ee"],
-    text: "text-[#ff3b3b]",
-    border: "border-[#ff3b3b]/70",
-    shadow: "shadow-[0_0_40px_-8px_rgba(255,40,40,0.5)]",
-    small: "text-[#ffd9d9]/90",
-    big: "text-[#ff3b3b]",
+    rgb: "183, 255, 0",
+    burst: ["#b7ff00", "#648c00", "#e2ff80", "#f7ffe0"],
+    text: "text-[#b7ff00]",
+    border: "border-[#b7ff00]/70",
+    shadow: "shadow-[0_0_40px_-8px_rgba(183,255,0,0.5)]",
+    small: "text-[#e9ffb0]/90",
+    big: "text-[#b7ff00]",
   },
   blue: {
-    rgb: "0, 179, 255",
-    burst: ["#00b3ff", "#ffffff", "#7fe3ff", "#eafcff"],
-    text: "text-[#00c2ff]",
-    border: "border-[#00c2ff]/70",
-    shadow: "shadow-[0_0_40px_-8px_rgba(0,179,255,0.5)]",
-    small: "text-[#bfeeff]/90",
-    big: "text-[#00c2ff]",
+    rgb: "184, 77, 255",
+    burst: ["#b84dff", "#6522a6", "#d9a6ff", "#f4e8ff"],
+    text: "text-[#b84dff]",
+    border: "border-[#b84dff]/70",
+    shadow: "shadow-[0_0_40px_-8px_rgba(184,77,255,0.5)]",
+    small: "text-[#e6ccff]/90",
+    big: "text-[#b84dff]",
   },
 };
 
@@ -253,9 +254,9 @@ export function BookingCelebration({
           aria-hidden
           className="gd-goal-sweep font-display pointer-events-none relative w-full text-center leading-none font-black uppercase [font-size:clamp(5rem,24vw,20rem)]"
           style={{
-            color: goalTeam === "orange" ? "#ff3b3b" : goalTeam === "blue" ? "#00c2ff" : "#ffd42e",
+            color: goalTeam === "orange" ? "#b7ff00" : goalTeam === "blue" ? "#b84dff" : "#ffc928",
             WebkitTextStroke:
-              goalTeam === "orange" ? "3px #7a0010" : goalTeam === "blue" ? "3px #ffffff" : undefined,
+              goalTeam === "orange" ? "3px #648c00" : goalTeam === "blue" ? "3px #f4e8ff" : undefined,
           }}
         >
           BOOKED!

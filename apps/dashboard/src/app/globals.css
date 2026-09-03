@@ -248,6 +248,45 @@ dialog::backdrop {
 }
 
 /* ── Game Day wall (/live/game-day) ───────────────────────────────── */
+/* Design tokens for the esports-style wall. Scoped to .gd-wall so nothing
+   else in the app inherits them. Team-scoped aliases (--team, --team-dark,
+   --team-rgb) are set by .gd-t-green / .gd-t-purple on any subtree, so one
+   set of component styles serves both sides. */
+.gd-wall {
+  --bg: #050607;
+  --panel: #0b0e10;
+  --panel-2: #101316;
+  --green: #b7ff00;
+  --green-dark: #648c00;
+  --purple: #b84dff;
+  --purple-dark: #6522a6;
+  --gold: #ffc928;
+  --muted: #7b828a;
+  --border: #252a2e;
+  --green-rgb: 183, 255, 0;
+  --purple-rgb: 184, 77, 255;
+  --gold-rgb: 255, 201, 40;
+  background: var(--bg);
+  color: #fff;
+}
+.gd-t-green {
+  --team: var(--green);
+  --team-dark: var(--green-dark);
+  --team-rgb: var(--green-rgb);
+}
+.gd-t-purple {
+  --team: var(--purple);
+  --team-dark: var(--purple-dark);
+  --team-rgb: var(--purple-rgb);
+}
+
+/* Panel + hairline border used by every card on the wall. */
+.gd-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+
+/* ── Ceremony (unchanged choreography, re-coloured via tokens) ── */
 
 /* The opening title slams in from huge + blurred, overshoots, settles. */
 @keyframes gd-slam {
@@ -347,148 +386,6 @@ dialog::backdrop {
   animation: nl-overlay-out 0.55s ease-in both;
 }
 
-/* Real fire over the leading team — soft screen-blended gradient "tongues" that
-   lick upward, plus a molten base glow and rising embers. Colour comes from
-   --fc (white-hot core) / --fm (mid) / --fe (edge), set per team. */
-.gd-fire-tongue {
-  background: radial-gradient(
-    50% 62% at 50% 82%,
-    #fff 0%,
-    var(--fc, #fff3d6) 20%,
-    var(--fm, #ff9d2e) 48%,
-    var(--fe, #ff4d1f) 66%,
-    transparent 78%
-  );
-  border-radius: 46% 46% 40% 40% / 64% 64% 36% 36%;
-  filter: blur(2.2px);
-  mix-blend-mode: screen;
-  transform-origin: bottom center;
-  will-change: transform, opacity;
-}
-.gd-fire-base {
-  position: absolute;
-  bottom: -2px;
-  height: 12px;
-  border-radius: 50%;
-  background: radial-gradient(50% 100% at 50% 100%, var(--fm, #ff9d2e), transparent 72%);
-  filter: blur(5px);
-  mix-blend-mode: screen;
-}
-
-/* A single flame column of the bonfire behind a winning team's box. Heavy blur
-   + screen blend means many overlapping columns merge into one continuous fire
-   instead of separate tongues. Colour rises hot-core → mid → edge → out. */
-.gd-flame-col {
-  position: absolute;
-  background: linear-gradient(
-    to top,
-    var(--fc, #fff3d6) 0%,
-    var(--fm, #ff9d2e) 30%,
-    var(--fe, #ff4d1f) 62%,
-    transparent 92%
-  );
-  /* Leaf-shaped flame: pointed tip, fuller belly, narrow root — softened by blur. */
-  clip-path: polygon(
-    50% 0%,
-    63% 16%,
-    82% 42%,
-    88% 70%,
-    72% 100%,
-    28% 100%,
-    12% 70%,
-    18% 42%,
-    37% 16%
-  );
-  filter: blur(2.5px);
-  mix-blend-mode: screen;
-  transform-origin: bottom center;
-  will-change: transform, opacity;
-}
-
-/* Enveloping fire halo around a winning team's score box. */
-@keyframes gd-fire-aura {
-  0%,
-  100% {
-    opacity: 0.72;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.05);
-  }
-}
-.gd-fire-aura {
-  mix-blend-mode: screen;
-  filter: blur(7px);
-  animation: gd-fire-aura 1.1s ease-in-out infinite;
-  will-change: opacity, transform;
-}
-.gd-ember {
-  position: absolute;
-  border-radius: 50%;
-  background: var(--fm, #ff9d2e);
-  filter: blur(0.5px);
-  mix-blend-mode: screen;
-  will-change: transform, opacity;
-  animation: gd-ember-rise var(--ed, 1.8s) ease-out infinite;
-}
-
-/* Flame dance: licks up (scaleY), pinches in (scaleX), sways side to side
-   (translateX) and skews — the mix reads as a real, restless flame. */
-@keyframes gd-flicker-a {
-  0%,
-  100% {
-    transform: translateX(0) translateY(0) scaleY(1) scaleX(1) skewX(0deg);
-    opacity: 0.85;
-  }
-  25% {
-    transform: translateX(-8%) translateY(-4%) scaleY(1.24) scaleX(0.8) skewX(-5deg);
-    opacity: 1;
-  }
-  50% {
-    transform: translateX(6%) translateY(-2%) scaleY(0.92) scaleX(1.1) skewX(4deg);
-    opacity: 0.78;
-  }
-  75% {
-    transform: translateX(-4%) translateY(-6%) scaleY(1.16) scaleX(0.88) skewX(5deg);
-    opacity: 1;
-  }
-}
-@keyframes gd-flicker-b {
-  0%,
-  100% {
-    transform: translateX(3%) translateY(-2%) scaleY(1.1) scaleX(0.94) skewX(3deg);
-    opacity: 0.92;
-  }
-  35% {
-    transform: translateX(-7%) translateY(-7%) scaleY(0.88) scaleX(1.12) skewX(-6deg);
-    opacity: 0.76;
-  }
-  62% {
-    transform: translateX(5%) translateY(-3%) scaleY(1.26) scaleX(0.84) skewX(5deg);
-    opacity: 1;
-  }
-}
-.gd-flicker-a {
-  animation: gd-flicker-a 0.62s ease-in-out infinite;
-}
-.gd-flicker-b {
-  animation: gd-flicker-b 0.72s ease-in-out infinite;
-}
-@keyframes gd-ember-rise {
-  0% {
-    transform: translateY(0) translateX(0) scale(1);
-    opacity: 0;
-  }
-  18% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-150%) translateX(var(--ex, 0)) scale(0.3);
-    opacity: 0;
-  }
-}
-
 /* A rep's name in the roll-call rises + sharpens into focus (no slam). */
 @keyframes gd-name-in {
   0% {
@@ -518,164 +415,336 @@ dialog::backdrop {
   animation: gd-fade-up 0.55s 0.46s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Final-30-minutes "last push": a pulsing red-alert screen vignette + banner. */
-@keyframes gd-alert-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
-.gd-alert {
-  box-shadow: inset 0 0 130px 6px rgba(239, 68, 68, 0.3);
-  animation: gd-alert-pulse 1.5s ease-in-out infinite;
-}
-@keyframes gd-lastpush-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-  }
-  50% {
-    box-shadow: 0 0 30px -2px rgba(239, 68, 68, 0.65);
-  }
-}
-.gd-lastpush {
-  background: linear-gradient(90deg, rgba(239, 68, 68, 0.2), rgba(249, 115, 22, 0.16));
-  animation: gd-lastpush-pulse 1.3s ease-in-out infinite;
-}
+/* ── Ambient movement (continuous, very low opacity — allowed to loop) ── */
 
-/* Scoreboard "fun fact" callout slides down + glows in. */
-@keyframes gd-fact-in {
+/* Each team's ambient glow blob drifts extremely slowly behind its half. */
+@keyframes gd-ambient {
   0% {
-    opacity: 0;
-    transform: translateY(-14px) scale(0.96);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-.gd-fact {
-  animation: gd-fact-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* Aura glow behind the winning team breathes. */
-@keyframes gd-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: var(--gd-pulse-lo, 0.35);
+    transform: translate3d(0, 0, 0) scale(1);
   }
   50% {
-    transform: scale(1.05);
-    opacity: var(--gd-pulse-hi, 0.6);
+    transform: translate3d(3%, -4%, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-2%, 3%, 0) scale(0.96);
   }
 }
-.gd-pulse {
-  animation: gd-pulse 2.2s ease-in-out infinite;
+.gd-ambient {
+  animation: gd-ambient 24s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+/* Faint light specks floating around the central VS. */
+@keyframes gd-speck {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: var(--speck-a, 0.5);
+  }
+  85% {
+    opacity: var(--speck-a, 0.5);
+  }
+  100% {
+    transform: translate3d(var(--sdx, 0px), -46px, 0);
+    opacity: 0;
+  }
+}
+.gd-speck {
+  animation: gd-speck var(--sd, 12s) linear infinite;
   will-change: transform, opacity;
 }
 
-/* A score that just changed gives a quick bump. */
+/* Slow light sweep across the matchup banner. */
+@keyframes gd-banner-sweep {
+  from {
+    background-position: 220% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+.gd-banner-sweep {
+  background-image: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.045) 50%, transparent 58%);
+  background-size: 200% 100%;
+  animation: gd-banner-sweep 11s linear infinite;
+}
+
+/* The VS breathes — a soft glow, never a flash. */
+@keyframes gd-vs-breathe {
+  0%,
+  100% {
+    opacity: 0.86;
+    text-shadow: 0 0 14px rgba(255, 255, 255, 0.25);
+  }
+  50% {
+    opacity: 1;
+    text-shadow:
+      0 0 22px rgba(255, 255, 255, 0.5),
+      0 0 46px rgba(255, 255, 255, 0.2);
+  }
+}
+.gd-vs-breathe {
+  animation: gd-vs-breathe 3.6s ease-in-out infinite;
+}
+
+/* An occasional soft pulse of light travelling from the leading side toward
+   the centre. --dir is 1 (from the left) or -1 (from the right). Most of the
+   cycle sits at opacity 0, so it reads as "occasional", not constant. */
+@keyframes gd-lead-pulse {
+  0%,
+  70%,
+  100% {
+    opacity: 0;
+    transform: translateX(calc(var(--dir, 1) * -60%));
+  }
+  74% {
+    opacity: 0.55;
+  }
+  92% {
+    opacity: 0;
+    transform: translateX(calc(var(--dir, 1) * 60%));
+  }
+}
+.gd-lead-pulse {
+  animation: gd-lead-pulse 7s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Event animations (one-shot, replayed by React key changes) ── */
+
+/* Booking row flash in the team colour. */
+@keyframes gd-row-flash {
+  0% {
+    box-shadow: inset 0 0 0 1px rgba(var(--team-rgb), 0);
+    background-color: rgba(var(--team-rgb), 0);
+  }
+  18% {
+    box-shadow:
+      inset 0 0 0 1px rgba(var(--team-rgb), 0.9),
+      0 0 22px -4px rgba(var(--team-rgb), 0.7);
+    background-color: rgba(var(--team-rgb), 0.16);
+  }
+  100% {
+    box-shadow: inset 0 0 0 1px rgba(var(--team-rgb), 0);
+    background-color: rgba(var(--team-rgb), 0);
+  }
+}
+.gd-row-flash {
+  animation: gd-row-flash 1.3s ease-out both;
+}
+
+/* Booking number: old → scale/fade → new (the element is re-keyed on change). */
+@keyframes gd-num-swap {
+  0% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.gd-num-swap {
+  animation: gd-num-swap 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+/* "+1 BOOKING" tag rises beside the name and fades. */
+@keyframes gd-plus-tag {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.9);
+  }
+  15%,
+  70% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+}
+.gd-plus-tag {
+  animation: gd-plus-tag 1.7s ease-out both;
+  will-change: transform, opacity;
+}
+
+/* Team total pulses once. Also used for the big matchup scores. */
 @keyframes gd-bump {
   0% {
     transform: scale(1);
   }
   35% {
-    transform: scale(1.28);
+    transform: scale(1.18);
   }
   100% {
     transform: scale(1);
   }
 }
 .gd-bump {
-  animation: gd-bump 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: gd-bump 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
   will-change: transform;
 }
 
-/* Sweeping sheen across the prize ribbon. */
-@keyframes gd-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -200% 0;
-  }
-}
-.gd-shimmer {
-  background-image: linear-gradient(
-    100deg,
-    transparent 30%,
-    rgba(255, 212, 46, 0.55) 50%,
-    transparent 70%
-  );
-  background-size: 200% 100%;
-  animation: gd-shimmer 3.5s linear infinite;
+/* FLIP rank moves: JS sets the inverted transform, then this transitions it
+   back to none so rows slide into their new slot instead of jumping. */
+.gd-flip-move {
+  transition: transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Gentle breathing glow for the leading team's total + any spotlighted player
-   box (top scorer / top job / team leader) — reads as "alive", never flashy.
-   Each user sets --glow-lo / --glow-hi inline; this just eases between them. */
-@keyframes gd-glow-pulse {
-  0%,
+/* Progress bars ease to their new width instead of snapping. */
+.gd-bar-fill {
+  transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Lead change: the new leader's colour sweeps across its half of the banner. */
+@keyframes gd-lead-sweep {
+  0% {
+    opacity: 0;
+    transform: translateX(calc(var(--dir, 1) * -100%));
+  }
+  30% {
+    opacity: 0.55;
+  }
   100% {
-    box-shadow: var(--glow-lo);
-  }
-  50% {
-    box-shadow: var(--glow-hi);
+    opacity: 0;
+    transform: translateX(calc(var(--dir, 1) * 100%));
   }
 }
-.gd-glow-pulse {
-  animation: gd-glow-pulse 2.6s ease-in-out infinite;
-}
-
-/* Very slow, faint light drift across the VS tug-of-war bar so the blend point
-   between the two teams' colours never sits perfectly still. */
-@keyframes gd-vs-drift {
-  from {
-    background-position: 0% 0;
-  }
-  to {
-    background-position: 200% 0;
-  }
-}
-.gd-vs-drift {
-  background-image: linear-gradient(100deg, transparent 40%, rgba(255, 255, 255, 0.22) 50%, transparent 60%);
-  background-size: 250% 100%;
-  animation: gd-vs-drift 9s linear infinite;
+.gd-lead-sweep {
+  animation: gd-lead-sweep 1.1s ease-in-out both;
+  will-change: transform, opacity;
 }
 
-/* Stoppage time (last 5 minutes) — a faster, more alarmed pulse than the
-   30-minute "urgent" state, so the last stretch reads as genuinely different. */
-@keyframes gd-stoppage-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.35);
+/* VS flashes once on a lead change. */
+@keyframes gd-vs-flash {
+  0% {
+    opacity: 1;
+    transform: scale(1);
   }
-  50% {
-    box-shadow: 0 0 22px 2px rgba(239, 68, 68, 0.9);
+  25% {
+    opacity: 1;
+    transform: scale(1.22);
+    text-shadow:
+      0 0 30px rgba(255, 255, 255, 0.95),
+      0 0 70px rgba(255, 255, 255, 0.5);
   }
-}
-.gd-stoppage-pulse {
-  animation: gd-stoppage-pulse 0.7s ease-in-out infinite;
-}
-@keyframes gd-stoppage-blink {
-  0%,
   100% {
     opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
+    transform: scale(1);
   }
 }
-.gd-stoppage-blink {
-  animation: gd-stoppage-blink 0.6s ease-in-out infinite;
+.gd-vs-flash {
+  animation: gd-vs-flash 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Booking celebration (Game Day only) — a quick flash + "BOOKED!" sweep ahead
-   of the usual rep name / job number settling in. */
+/* Tie moment: a subtle gold/white pulse around the VS area. */
+@keyframes gd-gold-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--gold-rgb), 0);
+  }
+  50% {
+    box-shadow:
+      0 0 28px -2px rgba(var(--gold-rgb), 0.55),
+      0 0 60px -10px rgba(255, 255, 255, 0.35);
+  }
+}
+.gd-gold-pulse {
+  animation: gd-gold-pulse 1.3s ease-in-out 2 both;
+}
+
+/* Toasts (milestones / lead change / new #1 / fun facts) slide in and out. */
+@keyframes gd-toast-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.gd-toast-in {
+  animation: gd-toast-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes gd-toast-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+.gd-toast-out {
+  animation: gd-toast-out 0.4s ease-in both;
+}
+
+/* The crown pops onto the new #1 … */
+@keyframes gd-crown-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.4) rotate(-18deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.2) rotate(6deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+.gd-crown-in {
+  animation: gd-crown-in 0.6s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+/* … and keeps a very subtle glow. */
+@keyframes gd-crown-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px rgba(var(--gold-rgb), 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 7px rgba(var(--gold-rgb), 0.9));
+  }
+}
+.gd-crown-glow {
+  animation: gd-crown-glow 3.2s ease-in-out infinite;
+}
+
+/* Gold row treatment for the overall top scorer — outline + soft glow,
+   never a bright-yellow fill. */
+.gd-top-row {
+  border-color: rgba(var(--gold-rgb), 0.85) !important;
+  background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.1), rgba(var(--gold-rgb), 0.03)) !important;
+  box-shadow:
+    0 0 0 1px rgba(var(--gold-rgb), 0.35),
+    0 0 18px -4px rgba(var(--gold-rgb), 0.55);
+}
+
+/* Countdown: final 10 minutes get a subtle pulse (never a constant flash). */
+@keyframes gd-timer-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--gold-rgb), 0);
+  }
+  50% {
+    box-shadow: 0 0 18px -2px rgba(var(--gold-rgb), 0.55);
+  }
+}
+.gd-timer-pulse {
+  animation: gd-timer-pulse 1.4s ease-in-out infinite;
+}
+
+/* ── Booking celebration overlay (Game Day beat, used by BookingCelebration) ── */
 @keyframes gd-goal-flash {
   0% {
     opacity: 0;
@@ -690,11 +759,9 @@ dialog::backdrop {
 .gd-goal-flash {
   animation: gd-goal-flash 0.5s ease-out both;
 }
-/* A punchy zoom+rotate impact instead of a flat side-to-side slide — lands
-   with a spring overshoot, wobbles into place, glows while held, then
-   zooms softly out. currentColor drives the glow so it's always the
-   scoring team's own colour (the text's inline `color` style) with zero
-   extra plumbing. */
+/* A punchy zoom+rotate impact — lands with a spring overshoot, wobbles into
+   place, glows while held, then zooms softly out. currentColor drives the
+   glow so it's always the scoring team's own colour. */
 @keyframes gd-goal-sweep {
   0% {
     transform: scale(0.3) rotate(-8deg);
@@ -717,8 +784,6 @@ dialog::backdrop {
   54% {
     transform: scale(1.03) rotate(1deg);
   }
-  /* Long steady hold in the middle, breathing gently — the whole point of
-     slowing this down is giving "BOOKED!" time to actually be read. */
   65%,
   82% {
     transform: scale(1) rotate(0deg);
@@ -739,88 +804,6 @@ dialog::backdrop {
   animation: gd-goal-sweep 4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* ── Ambient arena backdrop: the wall stays visually alive even between
-   bookings, like a game's menu screen. All four below are decorative only
-   (aria-hidden, pointer-events-none) and disabled under reduced-motion. ── */
-
-/* A single drifting spark, rising the full height of the screen and drifting
-   sideways by --pdx. Colour comes from an inline background, not a var here,
-   since each spark is tinted per-team by its own inline style. */
-@keyframes gd-particle-drift {
-  0% {
-    transform: translateY(0) translateX(0);
-    opacity: 0;
-  }
-  12% {
-    opacity: 0.9;
-  }
-  88% {
-    opacity: 0.4;
-  }
-  100% {
-    transform: translateY(-115vh) translateX(var(--pdx, 0));
-    opacity: 0;
-  }
-}
-.gd-particle-drift {
-  animation: gd-particle-drift var(--pd, 14s) linear infinite;
-  will-change: transform, opacity;
-}
-
-/* A soft diagonal light beam sweeping across the whole backdrop, like a
-   stage spotlight passing over a menu screen. */
-@keyframes gd-scan-sweep {
-  0% {
-    transform: translateX(-130%) rotate(10deg);
-    opacity: 0;
-  }
-  15% {
-    opacity: 1;
-  }
-  55% {
-    opacity: 1;
-  }
-  70% {
-    opacity: 0;
-  }
-  100% {
-    transform: translateX(430%) rotate(10deg);
-    opacity: 0;
-  }
-}
-.gd-scan-sweep {
-  animation: gd-scan-sweep 10s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-/* Slow-panning tech grid — the faint circuitry texture behind the arena. */
-@keyframes gd-grid-pan {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 56px 56px;
-  }
-}
-.gd-grid-pan {
-  animation: gd-grid-pan 7s linear infinite;
-}
-
-/* The vertical VS seam where the two teams' colours clash — breathes rather
-   than sitting at a flat brightness. */
-@keyframes gd-seam-pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
-.gd-seam-pulse {
-  animation: gd-seam-pulse 3.2s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .gd-slam,
   .gd-charge-left,
@@ -828,34 +811,36 @@ dialog::backdrop {
   .gd-flash,
   .gd-fade-up,
   .gd-intro-out,
-  .gd-flicker-a,
-  .gd-flicker-b,
-  .gd-fire-aura,
-  .gd-flame-col,
   .gd-name-in,
   .gd-rise-1,
   .gd-rise-2,
   .gd-rise-3,
-  .gd-alert,
-  .gd-lastpush,
-  .gd-fact,
-  .gd-pulse,
+  .gd-ambient,
+  .gd-banner-sweep,
+  .gd-vs-breathe,
+  .gd-lead-pulse,
+  .gd-row-flash,
+  .gd-num-swap,
+  .gd-plus-tag,
   .gd-bump,
-  .gd-shimmer,
-  .gd-glow-pulse,
-  .gd-vs-drift,
-  .gd-stoppage-pulse,
-  .gd-stoppage-blink,
+  .gd-lead-sweep,
+  .gd-vs-flash,
+  .gd-gold-pulse,
+  .gd-toast-in,
+  .gd-toast-out,
+  .gd-crown-in,
+  .gd-crown-glow,
+  .gd-timer-pulse,
   .gd-goal-flash,
-  .gd-goal-sweep,
-  .gd-scan-sweep,
-  .gd-grid-pan,
-  .gd-seam-pulse {
+  .gd-goal-sweep {
     animation: none;
   }
-  /* Embers/sparks are pure motion — hide them rather than freeze a stray dot. */
-  .gd-ember,
-  .gd-particle-drift {
+  .gd-flip-move,
+  .gd-bar-fill {
+    transition: none;
+  }
+  /* Specks are pure motion — hide rather than freeze stray dots. */
+  .gd-speck {
     display: none;
   }
 }
