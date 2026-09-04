@@ -371,11 +371,11 @@ function Emblem({ side, lead }: { side: Side; lead: boolean }) {
  * slow orange glow and a few particles concentrated on him alone. */
 function DannyHost() {
   return (
-    <div className="relative flex shrink-0 flex-col items-center gap-1">
+    <div className="relative flex shrink-0 flex-col items-center gap-1.5">
       {/* Orange glow behind Danny only — his own light, not the lead pulse. */}
       <span
         aria-hidden
-        className="gd-danny-pulse pointer-events-none absolute top-[52%] left-1/2 -z-10 size-[6.5rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        className="gd-danny-pulse pointer-events-none absolute top-[55%] left-1/2 -z-10 size-[7.5rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
         style={{ background: "radial-gradient(closest-side, rgba(255,122,0,0.42), transparent 75%)" }}
       />
       {DANNY_SPECKS.map((sp, i) => (
@@ -398,11 +398,11 @@ function DannyHost() {
           }}
         />
       ))}
-      <span className="gd-danny-text gd-danny-glow font-display relative leading-none font-black tracking-[0.08em] uppercase italic [font-size:clamp(0.66rem,0.95vw,0.95rem)]">
+      <span className="gd-danny-text gd-danny-glow font-display relative leading-none font-black tracking-[0.08em] uppercase italic [font-size:clamp(0.85rem,1.15vw,1.15rem)]">
         Danny
       </span>
       <div
-        className="gd-danny-frame relative [width:clamp(2.5rem,3.3vw,3.2rem)] [aspect-ratio:0.94]"
+        className="gd-danny-frame relative [width:clamp(3.2rem,4.4vw,4.6rem)] [aspect-ratio:0.94]"
         style={{ filter: "drop-shadow(0 0 12px rgba(255,122,0,0.5))" }}
       >
         <div
@@ -1321,8 +1321,8 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
         </div>
       ) : (
         <>
-          {/* ── Header: title block + compact broadcast modules ── */}
-          <header className="flex shrink-0 items-center justify-between gap-6 px-1">
+          {/* ── Header: title block · Danny (host) · compact broadcast modules ── */}
+          <header className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-6 px-1">
             <div className="flex items-center gap-4">
               <span
                 aria-hidden
@@ -1353,7 +1353,14 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                 </button>
               )}
             </div>
-            <div className="gd-panel flex items-center gap-5 rounded-lg px-4 py-2 [&>*+*]:border-l [&>*+*]:border-[var(--border)] [&>*+*]:pl-5">
+
+            {/* Danny — host/referee — sits centred in the header, same
+                horizontal line as the countdown and reward modules. */}
+            <div className="flex justify-self-center">
+              <DannyHost />
+            </div>
+
+            <div className="gd-panel flex items-center justify-self-end gap-5 rounded-lg px-4 py-2 [&>*+*]:border-l [&>*+*]:border-[var(--border)] [&>*+*]:pl-5">
               <Reward icon="⭐" label="Top scorer" value={`$${TOP_SCORER_PRIZE}`} tone="green" />
               <Reward
                 icon="💼"
@@ -1370,14 +1377,14 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           <section
             key={`banner-${tieKey}`}
             className={cx(
-              "gd-panel gd-banner-sweep relative flex shrink-0 items-stretch overflow-hidden rounded-lg [height:clamp(11rem,19.5vh,13.5rem)]",
+              "gd-panel gd-banner-sweep relative flex shrink-0 items-stretch overflow-hidden rounded-lg [height:clamp(8.25rem,14.5vh,10rem)]",
               tieKey > 0 && "gd-gold-pulse",
             )}
           >
             <Territory side="orange" total={orangeTotal} lead={leader === "orange"} pulseKey={totalPulse.orange} />
 
-            {/* Centre: Danny (host/referee) above the collision. */}
-            <div className="relative flex w-[clamp(15rem,21vw,23rem)] shrink-0 flex-col items-center justify-center gap-1">
+            {/* Centre: the collision. */}
+            <div className="relative flex w-[clamp(13rem,19vw,21rem)] shrink-0 flex-col items-center justify-center gap-2">
               {/* Green light from the left, purple from the right, meeting at the VS. */}
               <span
                 aria-hidden
@@ -1410,17 +1417,16 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                   }}
                 />
               )}
-              <DannyHost />
               <span
                 key={vsKey}
-                className="gd-vs-breathe gd-vs-flash font-display relative leading-none font-black text-white italic [font-size:clamp(1.8rem,3vw,3.4rem)]"
+                className="gd-vs-breathe gd-vs-flash font-display relative leading-none font-black text-white italic [font-size:clamp(3.4rem,5.7vw,6.2rem)]"
                 style={{ transform: "skewX(-8deg)", letterSpacing: "-0.02em" }}
               >
                 VS
               </span>
               <p
                 key={overrideLine ?? line.text}
-                className="gd-toast-in relative flex items-center gap-2 rounded-full border px-3.5 py-0.5 text-[0.74rem] font-black tracking-[0.14em] whitespace-nowrap uppercase"
+                className="gd-toast-in relative flex items-center gap-2 rounded-full border px-4 py-1 text-[0.82rem] font-black tracking-[0.16em] whitespace-nowrap uppercase"
                 style={{
                   color: pillColor,
                   borderColor: `rgba(${pillRgb},0.5)`,
