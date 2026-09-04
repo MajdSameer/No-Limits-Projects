@@ -168,6 +168,17 @@ const ROOM_SPECKS = Array.from({ length: 10 }, (_, i) => ({
   dur: 16 + (i % 4) * 3,
   size: 1 + (i % 2),
 }));
+/** A handful of orange specks concentrated around Danny only — green comes
+ * from the left, purple from the right, orange stays with Danny. */
+const DANNY_SPECKS = Array.from({ length: 6 }, (_, i) => ({
+  left: 18 + ((i * 31) % 64),
+  top: 6 + ((i * 43) % 60),
+  dx: ((i * 19) % 16) - 8,
+  dy: -20 - (i % 3) * 6,
+  delay: (i * 2.4) % 10,
+  dur: 9 + (i % 3) * 2,
+  size: 2 + (i % 2),
+}));
 
 /** Page backdrop: near-black with a whisper of dot texture, green/purple
  * radial illumination from the sides (the leader's is stronger), a vignette
@@ -348,6 +359,63 @@ function Emblem({ side, lead }: { side: Side; lead: boolean }) {
             <path d="M12 2 3 7v6c0 5 4 8.5 9 9 5-.5 9-4 9-9V7zm0 4 5 3v4c0 3-2.5 5.5-5 6-2.5-.5-5-3-5-6V9z" />
           </svg>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Danny — Game Day's host/referee, floating above the VS between the two
+ * teams. Deliberately orange: never tinted green or purple, so he reads as a
+ * neutral third figure rather than belonging to either side. His photo sits
+ * in an angular shield frame (distinct from the teams' hex emblems), with a
+ * slow orange glow and a few particles concentrated on him alone. */
+function DannyHost() {
+  return (
+    <div className="relative flex shrink-0 flex-col items-center gap-1">
+      {/* Orange glow behind Danny only — his own light, not the lead pulse. */}
+      <span
+        aria-hidden
+        className="gd-danny-pulse pointer-events-none absolute top-[52%] left-1/2 -z-10 size-[6.5rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{ background: "radial-gradient(closest-side, rgba(255,122,0,0.42), transparent 75%)" }}
+      />
+      {DANNY_SPECKS.map((sp, i) => (
+        <span
+          key={i}
+          aria-hidden
+          className="gd-speck pointer-events-none absolute rounded-full"
+          style={{
+            left: `${sp.left}%`,
+            top: `${sp.top}%`,
+            width: sp.size,
+            height: sp.size,
+            background: "var(--danny)",
+            boxShadow: "0 0 6px var(--danny)",
+            ["--sdx" as string]: `${sp.dx}px`,
+            ["--sdy" as string]: `${sp.dy}px`,
+            ["--sd" as string]: `${sp.dur}s`,
+            ["--speck-a" as string]: 0.55,
+            animationDelay: `${sp.delay}s`,
+          }}
+        />
+      ))}
+      <span className="gd-danny-text gd-danny-glow font-display relative leading-none font-black tracking-[0.08em] uppercase italic [font-size:clamp(0.8rem,1.15vw,1.15rem)]">
+        Danny
+      </span>
+      <div
+        className="gd-danny-frame relative [width:clamp(3rem,4vw,3.9rem)] [aspect-ratio:0.94]"
+        style={{ filter: "drop-shadow(0 0 12px rgba(255,122,0,0.5))" }}
+      >
+        <div
+          className="gd-danny-frame absolute inset-0"
+          style={{ background: "linear-gradient(180deg, var(--danny-2), var(--danny-3))" }}
+        />
+        <div className="gd-danny-frame absolute inset-[2px]" style={{ background: "#0a0806" }} />
+        <div className="gd-danny-frame absolute inset-[4.5px] overflow-hidden bg-[#07090b]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- static
+              /public asset on a fixed-size wall badge; next/image adds no
+              value here and this file has no other next/image usage. */}
+          <img src="/wall/danny.png" alt="Danny" className="h-full w-full object-cover object-[50%_16%]" />
+        </div>
       </div>
     </div>
   );
@@ -1274,18 +1342,18 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                   More <span className="text-[var(--green)]">bookings</span>. More <span className="text-[var(--purple)]">wins</span>.
                 </p>
               </div>
+              <Countdown secs={secsLeft} />
               {soundLocked && (
                 <button
                   type="button"
                   onClick={() => armAudio()}
-                  className="ml-4 flex animate-pulse items-center gap-2 rounded-full border border-[var(--gold)]/50 bg-black/60 px-3.5 py-1.5 text-xs font-semibold text-[var(--gold)] backdrop-blur"
+                  className="flex animate-pulse items-center gap-2 rounded-full border border-[var(--gold)]/50 bg-black/60 px-3.5 py-1.5 text-xs font-semibold text-[var(--gold)] backdrop-blur"
                 >
                   <span aria-hidden>🔇</span> Tap anywhere to enable sound
                 </button>
               )}
             </div>
             <div className="gd-panel flex items-center gap-5 rounded-lg px-4 py-2 [&>*+*]:border-l [&>*+*]:border-[var(--border)] [&>*+*]:pl-5">
-              <Countdown secs={secsLeft} />
               <Reward icon="⭐" label="Top scorer" value={`$${TOP_SCORER_PRIZE}`} tone="green" />
               <Reward
                 icon="💼"
@@ -1302,14 +1370,14 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           <section
             key={`banner-${tieKey}`}
             className={cx(
-              "gd-panel gd-banner-sweep relative flex shrink-0 items-stretch overflow-hidden rounded-lg [height:clamp(8.25rem,14.5vh,10rem)]",
+              "gd-panel gd-banner-sweep relative flex shrink-0 items-stretch overflow-hidden rounded-lg [height:clamp(10.5rem,18.5vh,13rem)]",
               tieKey > 0 && "gd-gold-pulse",
             )}
           >
             <Territory side="orange" total={orangeTotal} lead={leader === "orange"} pulseKey={totalPulse.orange} />
 
-            {/* Centre: the collision. */}
-            <div className="relative flex w-[clamp(13rem,19vw,21rem)] shrink-0 flex-col items-center justify-center gap-2">
+            {/* Centre: Danny (host/referee) above the collision. */}
+            <div className="relative flex w-[clamp(15rem,21vw,23rem)] shrink-0 flex-col items-center justify-center gap-1">
               {/* Green light from the left, purple from the right, meeting at the VS. */}
               <span
                 aria-hidden
@@ -1342,16 +1410,17 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                   }}
                 />
               )}
+              <DannyHost />
               <span
                 key={vsKey}
-                className="gd-vs-breathe gd-vs-flash font-display relative leading-none font-black text-white italic [font-size:clamp(3.4rem,5.7vw,6.2rem)]"
+                className="gd-vs-breathe gd-vs-flash font-display relative leading-none font-black text-white italic [font-size:clamp(1.8rem,3vw,3.4rem)]"
                 style={{ transform: "skewX(-8deg)", letterSpacing: "-0.02em" }}
               >
                 VS
               </span>
               <p
                 key={overrideLine ?? line.text}
-                className="gd-toast-in relative flex items-center gap-2 rounded-full border px-4 py-1 text-[0.82rem] font-black tracking-[0.16em] whitespace-nowrap uppercase"
+                className="gd-toast-in relative flex items-center gap-2 rounded-full border px-3.5 py-0.5 text-[0.74rem] font-black tracking-[0.14em] whitespace-nowrap uppercase"
                 style={{
                   color: pillColor,
                   borderColor: `rgba(${pillRgb},0.5)`,
