@@ -398,11 +398,11 @@ function DannyHost() {
           }}
         />
       ))}
-      <span className="gd-danny-text gd-danny-glow font-display relative leading-none font-black tracking-[0.08em] uppercase italic [font-size:clamp(0.8rem,1.15vw,1.15rem)]">
+      <span className="gd-danny-text gd-danny-glow font-display relative leading-none font-black tracking-[0.08em] uppercase italic [font-size:clamp(0.66rem,0.95vw,0.95rem)]">
         Danny
       </span>
       <div
-        className="gd-danny-frame relative [width:clamp(3rem,4vw,3.9rem)] [aspect-ratio:0.94]"
+        className="gd-danny-frame relative [width:clamp(2.5rem,3.3vw,3.2rem)] [aspect-ratio:0.94]"
         style={{ filter: "drop-shadow(0 0 12px rgba(255,122,0,0.5))" }}
       >
         <div
@@ -1370,7 +1370,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           <section
             key={`banner-${tieKey}`}
             className={cx(
-              "gd-panel gd-banner-sweep relative flex shrink-0 items-stretch overflow-hidden rounded-lg [height:clamp(10.5rem,18.5vh,13rem)]",
+              "gd-panel gd-banner-sweep relative flex shrink-0 items-stretch overflow-hidden rounded-lg [height:clamp(11rem,19.5vh,13.5rem)]",
               tieKey > 0 && "gd-gold-pulse",
             )}
           >
