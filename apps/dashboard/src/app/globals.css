@@ -270,6 +270,12 @@ dialog::backdrop {
   --gold: #ffc928;
   --gold-2: #e5a900;
   --gold-rgb: 255, 201, 40;
+  /* Danny's dedicated colour — the host/referee, neutral between the teams.
+     Never reused for anything else in the UI. */
+  --danny: #ff7a00;
+  --danny-2: #ffb347;
+  --danny-3: #d94f00;
+  --danny-rgb: 255, 122, 0;
   background: var(--bg);
   color: var(--white);
 }
@@ -623,6 +629,47 @@ dialog::backdrop {
   will-change: transform, opacity;
 }
 
+/* ── Danny — host/referee badge (dedicated orange, neutral to both teams) ── */
+/* Slow glow pulse behind Danny only — his own light, not tied to either
+   team's lead state. */
+@keyframes gd-danny-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+}
+.gd-danny-pulse {
+  animation: gd-danny-pulse 4.6s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+/* DANNY label: solid orange, plus an extremely subtle animated glow (never a
+   flash) — a pulsing drop-shadow, same technique as the crown's glow. */
+.gd-danny-text {
+  color: #ffb347;
+}
+@keyframes gd-danny-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 8px rgba(var(--danny-rgb), 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(var(--danny-rgb), 0.85));
+  }
+}
+.gd-danny-glow {
+  animation: gd-danny-glow 4.2s ease-in-out infinite;
+}
+/* Angular shield frame for Danny's photo — deliberately distinct from the
+   teams' regular hex emblems, so he reads as a separate, neutral figure. */
+.gd-danny-frame {
+  clip-path: polygon(15% 0%, 85% 0%, 100% 20%, 100% 82%, 50% 100%, 0% 82%, 0% 20%);
+}
+
 /* ── Event animations (one-shot; replayed via React keys) ── */
 @keyframes gd-row-flash {
   0% {
@@ -902,6 +949,8 @@ dialog::backdrop {
   .gd-banner-sweep,
   .gd-vs-breathe,
   .gd-lead-pulse,
+  .gd-danny-pulse,
+  .gd-danny-glow,
   .gd-row-flash,
   .gd-num-swap,
   .gd-plus-tag,
