@@ -531,7 +531,7 @@ function Row({
     <li
       data-id={r.staffId}
       className={cx(
-        "relative grid min-h-0 grid-cols-[7%_31%_minmax(0,1fr)_15%] items-center gap-3 overflow-hidden rounded-md px-3",
+        "relative grid min-h-0 grid-cols-[7%_36%_minmax(0,1fr)_15%] items-center gap-3 overflow-hidden rounded-md px-3",
         isTop ? "gd-row-top" : "gd-row",
       )}
     >
@@ -575,7 +575,7 @@ function Row({
         </span>
         <span
           className={cx(
-            "font-display min-w-0 truncate leading-none font-black tracking-wide uppercase [font-size:clamp(1.15rem,1.55vw,1.75rem)]",
+            "font-display min-w-0 truncate leading-none font-black tracking-wide uppercase [font-size:clamp(1.4rem,1.9vw,2.15rem)]",
             isTop ? "text-white" : "text-[var(--white)]",
           )}
           style={isTop ? { textShadow: "0 0 12px rgba(255,201,40,0.35)" } : undefined}
@@ -709,7 +709,7 @@ function TeamPanel({
         </div>
       </header>
 
-      <div className="relative grid shrink-0 grid-cols-[7%_31%_minmax(0,1fr)_15%] items-center gap-3 px-6 pt-1.5 pb-1 text-[0.6rem] font-bold tracking-[0.18em] text-[var(--muted)] uppercase">
+      <div className="relative grid shrink-0 grid-cols-[7%_36%_minmax(0,1fr)_15%] items-center gap-3 px-6 pt-1.5 pb-1 text-[0.6rem] font-bold tracking-[0.18em] text-[var(--muted)] uppercase">
         <span>Rank</span>
         <span>Player</span>
         <span />
