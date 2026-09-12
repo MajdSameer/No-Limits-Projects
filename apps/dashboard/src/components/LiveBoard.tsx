@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
-import type { BoardRowDTO, BoardsDTO, InspectorRowDTO } from "./Board";
+import type { BoardRowDTO, BoardsDTO } from "./Board";
 import { BookingCelebration } from "./BookingCelebration";
 import { armAudio, audioRunning } from "../lib/celebrate";
 import { cellMessage, cellTier } from "../lib/leaderboard-messages";
@@ -66,39 +66,6 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
         <span className="shrink-0 leading-none font-black text-white tabular-nums">
           <span className="text-5xl">{r.count}</span>
           <span className="text-2xl font-semibold text-white/35">/{r.goal ?? "—"}</span>
-        </span>
-      </div>
-    </li>
-  );
-}
-
-/** A site inspector's box — neon-green glow, name, and their today / month
- * inspection counts. (Per-inspection job#·rep chips are intentionally not shown;
- * the celebration still pops the job number + sales rep when one lands.) */
-function InspectorCell({ r }: { r: InspectorRowDTO }) {
-  return (
-    <li className="flex min-h-0 flex-col justify-center overflow-hidden rounded-xl border border-green-400 bg-green-500/[0.07] p-3 shadow-[0_0_15px_1px_rgba(74,222,128,0.65)]">
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 flex-col">
-          <span className="truncate text-2xl font-bold text-white">{r.name}</span>
-          <span className="text-[0.6rem] font-bold tracking-[0.15em] text-green-300 uppercase">
-            Inspector
-          </span>
-        </span>
-        {/* Today (white) + this month (green) */}
-        <span className="flex shrink-0 items-end gap-3 leading-none">
-          <span className="text-right">
-            <span className="block text-4xl font-bold text-white tabular-nums">{r.count}</span>
-            <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-white/40 uppercase">
-              today
-            </span>
-          </span>
-          <span className="text-right">
-            <span className="block text-4xl font-black text-green-300 tabular-nums">{r.month}</span>
-            <span className="text-[0.55rem] font-semibold tracking-[0.12em] text-green-300/55 uppercase">
-              month
-            </span>
-          </span>
         </span>
       </div>
     </li>
@@ -352,24 +319,6 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
               <GlowCell key={r.staffId} r={r} />
             ))}
           </ul>
-
-          {/* Dedicated strip below the reps: Site Inspectors (green). */}
-          {data.inspectors.length > 0 && (
-            <div className="mt-3 flex shrink-0 flex-col">
-              <div className="flex items-center gap-3 px-1">
-                <span className="text-sm font-bold tracking-[0.2em] text-green-300 uppercase">
-                  Site Inspectors
-                </span>
-                <span aria-hidden className="h-px flex-1 bg-green-400/30" />
-                <span className="text-sm font-medium text-white/50">today</span>
-              </div>
-              <ul className="mt-2 grid grid-cols-2 gap-3 p-1 sm:grid-cols-3 [grid-auto-rows:1fr]">
-                {data.inspectors.map((r) => (
-                  <InspectorCell key={r.id} r={r} />
-                ))}
-              </ul>
-            </div>
-          )}
         </section>
 
         {/* THIS MONTH — incentive-tier gaps + each rep's NET revenue */}
