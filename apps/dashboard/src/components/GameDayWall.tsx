@@ -168,17 +168,6 @@ const ROOM_SPECKS = Array.from({ length: 10 }, (_, i) => ({
   dur: 16 + (i % 4) * 3,
   size: 1 + (i % 2),
 }));
-/** A handful of orange specks concentrated around Danny only — green comes
- * from the left, purple from the right, orange stays with Danny. */
-const DANNY_SPECKS = Array.from({ length: 6 }, (_, i) => ({
-  left: 18 + ((i * 31) % 64),
-  top: 6 + ((i * 43) % 60),
-  dx: ((i * 19) % 16) - 8,
-  dy: -20 - (i % 3) * 6,
-  delay: (i * 2.4) % 10,
-  dur: 9 + (i % 3) * 2,
-  size: 2 + (i % 2),
-}));
 
 /** Page backdrop: near-black with a whisper of dot texture, green/purple
  * radial illumination from the sides (the leader's is stronger), a vignette
@@ -364,58 +353,29 @@ function Emblem({ side, lead }: { side: Side; lead: boolean }) {
   );
 }
 
-/** Danny — Game Day's host/referee, floating above the VS between the two
- * teams. Deliberately orange: never tinted green or purple, so he reads as a
- * neutral third figure rather than belonging to either side. His photo sits
- * in an angular shield frame (distinct from the teams' hex emblems), with a
- * slow orange glow and a few particles concentrated on him alone. */
-function DannyHost() {
+/** The day's total bookings across the whole floor — the headline number,
+ * centred in the header. Neutral white on purpose (team colours belong to the
+ * teams, gold to rewards). Re-keyed on change so it bumps when a booking lands. */
+function TotalBookings({ total }: { total: number }) {
   return (
-    <div className="relative flex shrink-0 flex-col items-center gap-1.5">
-      {/* Orange glow behind Danny only — his own light, not the lead pulse. */}
+    <div className="gd-panel flex items-center gap-4 rounded-lg px-5 py-2">
       <span
         aria-hidden
-        className="gd-danny-pulse pointer-events-none absolute top-[55%] left-1/2 -z-10 size-[7.5rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{ background: "radial-gradient(closest-side, rgba(255,122,0,0.42), transparent 75%)" }}
-      />
-      {DANNY_SPECKS.map((sp, i) => (
-        <span
-          key={i}
-          aria-hidden
-          className="gd-speck pointer-events-none absolute rounded-full"
-          style={{
-            left: `${sp.left}%`,
-            top: `${sp.top}%`,
-            width: sp.size,
-            height: sp.size,
-            background: "var(--danny)",
-            boxShadow: "0 0 6px var(--danny)",
-            ["--sdx" as string]: `${sp.dx}px`,
-            ["--sdy" as string]: `${sp.dy}px`,
-            ["--sd" as string]: `${sp.dur}s`,
-            ["--speck-a" as string]: 0.55,
-            animationDelay: `${sp.delay}s`,
-          }}
-        />
-      ))}
-      <span className="gd-danny-text gd-danny-glow font-display relative leading-none font-black tracking-[0.08em] uppercase italic [font-size:clamp(0.85rem,1.15vw,1.15rem)]">
-        Danny
-      </span>
-      <div
-        className="gd-danny-frame relative [width:clamp(3.2rem,4.4vw,4.6rem)] [aspect-ratio:0.94]"
-        style={{ filter: "drop-shadow(0 0 12px rgba(255,122,0,0.5))" }}
+        className="grid size-9 shrink-0 place-items-center rounded-md border border-white/25 bg-white/[0.06] text-lg"
       >
-        <div
-          className="gd-danny-frame absolute inset-0"
-          style={{ background: "linear-gradient(180deg, var(--danny-2), var(--danny-3))" }}
-        />
-        <div className="gd-danny-frame absolute inset-[2px]" style={{ background: "#0a0806" }} />
-        <div className="gd-danny-frame absolute inset-[4.5px] overflow-hidden bg-[#07090b]">
-          {/* eslint-disable-next-line @next/next/no-img-element -- static
-              /public asset on a fixed-size wall badge; next/image adds no
-              value here and this file has no other next/image usage. */}
-          <img src="/wall/danny.png" alt="Danny" className="h-full w-full object-cover object-[50%_16%]" />
-        </div>
+        📈
+      </span>
+      <div className="flex flex-col leading-none">
+        <span className="text-[0.62rem] font-bold tracking-[0.2em] whitespace-nowrap text-[var(--muted)] uppercase">
+          Total bookings today
+        </span>
+        <span
+          key={total}
+          className="gd-bump font-display mt-1 font-black tabular-nums text-white [font-size:clamp(2rem,3.2vw,3.6rem)]"
+          style={{ textShadow: "0 0 22px rgba(255,255,255,0.25)" }}
+        >
+          {total}
+        </span>
       </div>
     </div>
   );
@@ -1084,6 +1044,9 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const { teamed, orange, blue, orangeTotal, blueTotal, total, margin, leader, maxCount, topIds } = s;
   const topJobId = topJob?.staffId ?? null;
   const line = leadLine(s, LABELS);
+  // Floor-wide total for the header — every rep's bookings today, including any
+  // not yet assigned to a team (unlike `total`, which only sums the two teams).
+  const floorTotal = daily.reduce((n, r) => n + r.count, 0);
 
   // ── Booking events: per-rep flash/+N, team total pulse ──
   useEffect(() => {
@@ -1321,7 +1284,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
         </div>
       ) : (
         <>
-          {/* ── Header: title block · Danny (host) · compact broadcast modules ── */}
+          {/* ── Header: title block · total bookings today · compact broadcast modules ── */}
           <header className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-6 px-1">
             <div className="flex items-center gap-4">
               <span
@@ -1354,10 +1317,10 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
               )}
             </div>
 
-            {/* Danny — host/referee — sits centred in the header, same
-                horizontal line as the countdown and reward modules. */}
+            {/* Total bookings today — centred in the header, same horizontal
+                line as the countdown and reward modules. */}
             <div className="flex justify-self-center">
-              <DannyHost />
+              <TotalBookings total={floorTotal} />
             </div>
 
             <div className="gd-panel flex items-center justify-self-end gap-5 rounded-lg px-4 py-2 [&>*+*]:border-l [&>*+*]:border-[var(--border)] [&>*+*]:pl-5">
