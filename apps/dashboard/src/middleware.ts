@@ -7,8 +7,8 @@ import { SESSION_COOKIE } from "./lib/session";
  * server-side in every page/action via requireSession — this only stops
  * anonymous browsing early. /tv, /live, /actions, /api/boards, /api/actions,
  * /api/unseen, /api/version, /sounds and /wall (the wall displays' celebration
- * audio and static images, e.g. Danny's host portrait on /live/game-day) are
- * deliberately public (data-minimal board numbers for the wall display).
+ * audio and static images — currently none; the folder is kept for future
+ * wall assets) are deliberately public (data-minimal board numbers for the wall display).
  * /wall must NOT be shortened to a prefix that collides with a real
  * authenticated route (e.g. "game-day" would also whitelist the manager-only
  * /game-day and /game-day-history pages below this same matcher).
