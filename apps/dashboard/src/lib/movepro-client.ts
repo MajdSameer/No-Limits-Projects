@@ -17,13 +17,14 @@
 // query), not a network block.
 export const FETCH_TIMEOUT_MS = 20000;
 
-// Not sales reps — site inspectors, inactive staff, and other non-roster
-// entities that show up in MovePro's activity/unseen data but shouldn't
-// appear on either /actions board. There are exactly 16 real reps on the
-// roster; these are the specific names known to appear despite not being on
-// it. Shared here (not duplicated per report) since both boards need it —
-// movepro-unseen.ts exempts "Unassigned" from this list on its own board,
-// where it's a meaningful bucket rather than noise.
+// Names to keep off both /actions boards. Originally just site inspectors,
+// inactive staff, and other non-roster entities that show up in MovePro's
+// activity/unseen data despite not being real reps — but it's since also
+// grown to cover real reps management wants hidden from /actions
+// specifically (e.g. they still show elsewhere, like /live or Game Day,
+// just not here). Shared here (not duplicated per report) since both boards
+// need it — movepro-unseen.ts exempts "Unassigned" from this list on its own
+// board, where it's a meaningful bucket rather than noise.
 const EXCLUDED_NAMES = new Set(
   [
     "Liam",
@@ -39,6 +40,14 @@ const EXCLUDED_NAMES = new Set(
     "Andy",
     "kinan",
     "Sales",
+    "Mark",
+    "Domanic",
+    "Jake",
+    "Rony",
+    "Simon",
+    "Francis",
+    "Harry",
+    "Eva",
   ].map((n) => n.toLowerCase()),
 );
 
