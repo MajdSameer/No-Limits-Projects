@@ -15,8 +15,12 @@
  */
 
 var TAB = "Leaderboard";
-var ROSTER_RANGE = "A5:J25"; // weight,name,goal, … ,clockName,timeIn,breakStart,breakEnd,timeOut,hours
-var COUNTS_RANGE = "A39:Y60"; // flag,name,count, then job codes across (D–Y; col Z holds an unrelated helper list, so stop at Y)
+// Both ranges are deliberately taller than the data: a rep added at the bottom of
+// either block was silently dropped when the range ended at the last rep's row (Lara
+// and Dany, 2026-10). Blank names/weights are skipped. The roster block must stop
+// before the "Name / Number of Bookings" header at row 39.
+var ROSTER_RANGE = "A5:J38"; // weight,name,goal, … ,clockName,timeIn,breakStart,breakEnd,timeOut,hours
+var COUNTS_RANGE = "A39:Y120"; // flag,name,count, then job codes across (D–Y; col Z holds an unrelated helper list, so stop at Y)
 var MONTH_TOTAL_RANGE = "O1:O400"; // scan this column for the "Total bookings: N" grand-total cell
 
 /** The floor's authoritative monthly grand total, read from the displayed
