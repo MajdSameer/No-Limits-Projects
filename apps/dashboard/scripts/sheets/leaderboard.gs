@@ -31,7 +31,8 @@ function monthTotal_(sheet) {
     var m = String(col[i][0] || "").match(/total\s*bookings\s*:?\s*([\d,]+)/i);
     if (m) {
       var n = parseInt(m[1].replace(/,/g, ""), 10);
-      if (isFinite(n)) return n;
+      // 0 = the imported table behind this cell is broken (#N/A) — don't push it as a real total.
+      if (isFinite(n) && n > 0) return n;
     }
   }
   return null;
