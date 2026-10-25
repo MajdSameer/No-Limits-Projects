@@ -31,6 +31,7 @@ import {
   isGameDay,
   type TopRevenueJob,
 } from "../settings";
+import { pickMonthlyTotal } from "../../lib/monthly-total";
 
 interface AllocSlot {
   staffId: string;
@@ -86,9 +87,13 @@ async function compute(): Promise<BoardsSnapshot> {
   const { target: dailyTarget, active: activeToday } = await dailyTeamGoal(now);
   // Headline total = the Follow-Up sheet's own curated grand total when it's
   // pushed it (counts managers + tracked ex-reps that the active-rep leaderboard
-  // below omits). Fall back to the active-rep board sum when the sheet hasn't.
+  // below omits). Fall back to the active-rep board sum when the sheet hasn't, or
+  // when its total is a broken-import 0 (see pickMonthlyTotal).
   const sheetTotal = await getSheetMonthTotal(now);
-  const monthlyTotal = sheetTotal ?? monthly.reduce((s, r) => s + r.count, 0);
+  const monthlyTotal = pickMonthlyTotal(
+    sheetTotal,
+    monthly.reduce((s, r) => s + r.count, 0),
+  );
   return {
     daily,
     yesterday,
