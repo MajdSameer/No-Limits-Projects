@@ -117,20 +117,59 @@ function mergeAgg(into: Map<string, AgentAgg>, from: Map<string, AgentAgg>): voi
   }
 }
 
+/** Known MovePro spellings of a rep that differ from the dashboard's own name
+ * for them (lowercase → dashboard spelling): MovePro has both "Issac" and
+ * "Isaac" agents for the same person. */
+const NAME_ALIASES: Record<string, string> = { isaac: "Issac" };
+
+/** One display name per PERSON: trimmed, first letter capitalised (MovePro has
+ * a lowercase "anthony"), and known alternate spellings folded together. Used
+ * everywhere a parsed agent name is keyed or compared so daily, monthly and the
+ * pace averages all agree on who is who. */
+export function canonicalAgentName(name: string): string {
+  const n = name.trim();
+  const cased = n.charAt(0).toUpperCase() + n.slice(1);
+  return NAME_ALIASES[cased.toLowerCase()] ?? cased;
+}
+
 export function toDTO(byAgent: Map<string, AgentAgg>): ActionRowDTO[] {
-  return [...byAgent.entries()]
-    .map(([raw, agg]) => ({
-      name: parseActionAgentName(raw),
-      calls: agg.calls,
-      emails: agg.emails,
-      messages: agg.messages,
-      // total is the report's own total_actions column (row index 6), summed —
-      // never derived from calls+emails+messages, since total_actions can cover
-      // action types beyond those 3 and the numbers must exactly match MovePro.
-      total: agg.totalActions,
-    }))
-    .filter((r) => !isExcludedName(r.name))
-    .sort((a, b) => b.total - a.total);
+  // Merge by canonical name: several raw MovePro agents can parse to the same
+  // person ("Hadeel NoLimits", "Hadeel Smith", …) and were each shown as their
+  // own row — six "Hadeel"s — instead of one summed row.
+  const merged = new Map<string, ActionRowDTO>();
+  for (const [raw, agg] of byAgent) {
+    const name = canonicalAgentName(parseActionAgentName(raw));
+    if (isExcludedName(name)) continue;
+    const row = merged.get(name) ?? { name, calls: 0, emails: 0, messages: 0, total: 0 };
+    row.calls += agg.calls;
+    row.emails += agg.emails;
+    row.messages += agg.messages;
+    // total is the report's own total_actions column (row index 6), summed —
+    // never derived from calls+emails+messages, since total_actions can cover
+    // action types beyond those 3 and the numbers must exactly match MovePro.
+    row.total += agg.totalActions;
+    merged.set(name, row);
+  }
+  return [...merged.values()].sort((a, b) => b.total - a.total);
+}
+
+/** Makes the daily and monthly boards list the SAME people: keeps only reps on
+ * `roster` (the dashboard's active reps, minus anyone excluded from /actions)
+ * and adds a zero row for a rostered rep with no activity in this list, instead
+ * of them appearing on one board and not the other. Matching is case-insensitive
+ * on the canonical name; the MovePro row (and its mtdDailyAvg) wins when present. */
+export function alignRoster(rows: ActionRowDTO[], roster: string[]): ActionRowDTO[] {
+  const want = new Map<string, string>(); // lowercase canonical → display name
+  for (const r of roster) {
+    const name = canonicalAgentName(r);
+    if (name && !isExcludedName(name)) want.set(name.toLowerCase(), name);
+  }
+  const out = rows.filter((r) => want.has(r.name.toLowerCase()));
+  const have = new Set(out.map((r) => r.name.toLowerCase()));
+  for (const [key, name] of want) {
+    if (!have.has(key)) out.push({ name, calls: 0, emails: 0, messages: 0, total: 0 });
+  }
+  return out.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 }
 
 // ── Row fetch ────────────────────────────────────────────────────────────
@@ -234,7 +273,7 @@ export function mtdDailyAverages(
 
   const priorByName = new Map<string, number>();
   for (const [raw, agg] of monthlyMap) {
-    const name = parseActionAgentName(raw);
+    const name = canonicalAgentName(parseActionAgentName(raw));
     if (isExcludedName(name)) continue;
     const todayContribution = dailyMap?.get(raw)?.totalActions ?? 0;
     const priorTotal = agg.totalActions - todayContribution;

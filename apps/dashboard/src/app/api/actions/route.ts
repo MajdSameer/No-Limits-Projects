@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getActionsSnapshot } from "../../../lib/movepro-actions";
+import { getAlignedActionsSnapshot } from "../../../db/queries/actions-roster";
 
 export const dynamic = "force-dynamic";
 // A true first-time month build (nothing in the durable day cache yet) is
@@ -19,7 +19,7 @@ export const maxDuration = 60;
  */
 export async function GET() {
   try {
-    const data = await getActionsSnapshot();
+    const data = await getAlignedActionsSnapshot();
     return NextResponse.json(data, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     console.error("GET /api/actions failed:", err);

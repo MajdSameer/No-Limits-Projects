@@ -1,4 +1,5 @@
-import { getActionsSnapshot, type ActionsResponseDTO } from "../../../lib/movepro-actions";
+import { getAlignedActionsSnapshot } from "../../../db/queries/actions-roster";
+import { type ActionsResponseDTO } from "../../../lib/movepro-actions";
 import { getUnseenSnapshot, type UnseenResponseDTO } from "../../../lib/movepro-unseen";
 import { ActionsBoard } from "../../../components/ActionsBoard";
 
@@ -26,7 +27,7 @@ function emptyUnseen(): UnseenResponseDTO {
  */
 export default async function ActionsPage() {
   const [activity, unseen] = await Promise.all([
-    getActionsSnapshot().catch((err: unknown) => {
+    getAlignedActionsSnapshot().catch((err: unknown) => {
       console.error("ActionsPage activity fetch failed:", err);
       return emptyActivity();
     }),
