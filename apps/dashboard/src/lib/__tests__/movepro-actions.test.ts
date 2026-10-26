@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   dashcardUrl,
   extractRows,
+  alignRoster,
+  canonicalAgentName,
   mapWithConcurrency,
   mtdDailyAverages,
   parseActionAgentName,
@@ -80,6 +82,61 @@ describe("toDTO", () => {
     ];
     const dto = toDTO(sumRowsByAgent(rows));
     expect(dto.map((r) => r.name)).toEqual(["Ann"]);
+  });
+});
+
+describe("toDTO merging", () => {
+  function row(agent: string, total: number): ActionRow {
+    return ["o1", "r1", agent, "cust", "status", "2026-07-01", total, 1, 1, 1];
+  }
+
+  it("sums several raw MovePro agents that parse to the same person into ONE row", () => {
+    const dto = toDTO(sumRowsByAgent([row("Hadeel NoLimits", 5000), row("Hadeel Smith", 1100), row("Hadeel", 50), row("Ann Ablahad", 10)]));
+    expect(dto.filter((r) => r.name === "Hadeel")).toHaveLength(1);
+    expect(dto.find((r) => r.name === "Hadeel")).toMatchObject({ total: 6150, calls: 3, emails: 3, messages: 3 });
+  });
+
+  it("folds the Isaac / Issac spellings into one person, and capitalises \"anthony\"", () => {
+    const dto = toDTO(sumRowsByAgent([row("Issac No Limits", 5259), row("Isaac Smith", 2336), row("anthony", 100)]));
+    expect(dto.map((r) => r.name)).toEqual(["Issac", "Anthony"]);
+    expect(dto[0]!.total).toBe(7595);
+  });
+});
+
+describe("canonicalAgentName", () => {
+  it("trims, capitalises and applies known aliases", () => {
+    expect(canonicalAgentName("  anthony ")).toBe("Anthony");
+    expect(canonicalAgentName("Isaac")).toBe("Issac");
+    expect(canonicalAgentName("Issac")).toBe("Issac");
+    expect(canonicalAgentName("Ann")).toBe("Ann");
+  });
+});
+
+describe("alignRoster", () => {
+  const r = (name: string, total: number) => ({ name, calls: 0, emails: 0, messages: 0, total });
+
+  it("drops people who aren't on the roster and zero-fills rostered reps with no activity", () => {
+    const out = alignRoster([r("Ann", 50), r("Revans", 5), r("Bowen", 1)], ["Ann", "Savio"]);
+    expect(out.map((x) => x.name)).toEqual(["Ann", "Savio"]);
+    expect(out[1]).toMatchObject({ name: "Savio", total: 0 });
+  });
+
+  it("gives daily and monthly the same set of names", () => {
+    const roster = ["Ann", "Issac", "Savio", "Lara"];
+    const daily = alignRoster([r("Ann", 9), r("Issac", 4)], roster);
+    const monthly = alignRoster([r("Ann", 500), r("Issac", 300), r("Savio", 20), r("Waseem", 2)], roster);
+    expect(daily.map((x) => x.name).sort()).toEqual(monthly.map((x) => x.name).sort());
+  });
+
+  it("matches case-insensitively, keeps the MovePro row (and its pace avg), and sorts by total", () => {
+    const out = alignRoster([{ ...r("Ann", 9), mtdDailyAvg: 7 }, r("Luka", 30)], ["ann", "luka"]);
+    expect(out.map((x) => x.name)).toEqual(["Luka", "Ann"]);
+    expect(out[1]!.mtdDailyAvg).toBe(7);
+  });
+
+  it("never re-adds an excluded name even if it is an active rep", () => {
+    const out = alignRoster([r("Ann", 9)], ["Ann", "Harry", "Simon"]);
+    expect(out.map((x) => x.name)).toEqual(["Ann"]);
   });
 });
 
