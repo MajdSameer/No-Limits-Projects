@@ -23,6 +23,23 @@ describe("toUnseenDTO", () => {
     expect(dto.map((r) => r.name)).toEqual(["Ann"]);
   });
 
+  it("merges several accounts for one person into ONE row, summing their unseen counts", () => {
+    const rows: UnseenRow[] = [
+      ["Hadeel NoLimits", 5, 3, 2],
+      ["Hadeel Smith", 4, 4, 0],
+      ["Hadeel", 1, 0, 1],
+      ["Isaac Jones", 2, 2, 0],
+      ["Issac NoLimits", 3, 1, 2],
+      ["anthony", 1, 1, 0],
+    ];
+    const dto = toUnseenDTO(rows);
+    expect(dto.filter((r) => r.name === "Hadeel")).toHaveLength(1);
+    expect(dto.find((r) => r.name === "Hadeel")).toEqual({ name: "Hadeel", totalUnseen: 10, emailSms: 7, callsCallbacks: 3 });
+    expect(dto.find((r) => r.name === "Issac")).toEqual({ name: "Issac", totalUnseen: 5, emailSms: 3, callsCallbacks: 2 });
+    expect(dto.map((r) => r.name)).toContain("Anthony");
+    expect(new Set(dto.map((r) => r.name)).size).toBe(dto.length);
+  });
+
   it("treats null counts as 0", () => {
     const rows: UnseenRow[] = [["Ann Ablahad", null, null, null]];
     expect(toUnseenDTO(rows)[0]).toEqual({ name: "Ann", totalUnseen: 0, emailSms: 0, callsCallbacks: 0 });
