@@ -1,5 +1,5 @@
 import { fetchWithJwtRetry, isExcludedName } from "./movepro-client";
-import { parseActionAgentName } from "./movepro-actions";
+import { canonicalAgentName, parseActionAgentName } from "./movepro-actions";
 
 /**
  * /actions VIEW 2 data source: MovePro's Metabase-embedded "unseen
@@ -47,16 +47,21 @@ export function extractUnseenRows(body: unknown): UnseenRow[] {
  * exemptions — "Unassigned" was kept here initially since it read as a
  * meaningful bucket, but it's excluded like everything else in that list now. */
 export function toUnseenDTO(rows: UnseenRow[]): UnseenRowDTO[] {
-  return rows
-    .filter((r) => r[0])
-    .map((r) => ({
-      name: parseActionAgentName(r[0]),
-      totalUnseen: r[1] ?? 0,
-      emailSms: r[2] ?? 0,
-      callsCallbacks: r[3] ?? 0,
-    }))
-    .filter((r) => !isExcludedName(r.name))
-    .sort((a, b) => b.totalUnseen - a.totalUnseen);
+  // Merge by canonical name, exactly like the activity boards (toDTO): several
+  // MovePro accounts can parse to one person (six "Hadeel"s) and were each shown
+  // — and, being keyed by name in the UI, rendered as duplicate React keys.
+  const merged = new Map<string, UnseenRowDTO>();
+  for (const r of rows) {
+    if (!r[0]) continue;
+    const name = canonicalAgentName(parseActionAgentName(r[0]));
+    if (isExcludedName(name)) continue;
+    const row = merged.get(name) ?? { name, totalUnseen: 0, emailSms: 0, callsCallbacks: 0 };
+    row.totalUnseen += r[1] ?? 0;
+    row.emailSms += r[2] ?? 0;
+    row.callsCallbacks += r[3] ?? 0;
+    merged.set(name, row);
+  }
+  return [...merged.values()].sort((a, b) => b.totalUnseen - a.totalUnseen);
 }
 
 async function fetchUnseenRows(): Promise<UnseenRow[]> {
