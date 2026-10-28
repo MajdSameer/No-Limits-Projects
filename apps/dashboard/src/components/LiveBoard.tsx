@@ -26,6 +26,18 @@ const EMOJI: Record<string, string> = { hit: "🎉", over: "🔥", wild: "🐐" 
  * Dany is a Site Inspector on /live, not a rep — see the inspectors strip. */
 const HIDDEN_SALES_IDS = new Set(["dany"]);
 
+/** Pilot / co-pilot programme: an experienced rep (pilot) paired with a newer one
+ * (co-pilot). On the Today grid each pair shares ONE joined purple box instead of
+ * two separate cards. Ids are the staff slugs. If either half is missing from the
+ * board (inactive / not on today), the other just shows as a normal card. */
+const PILOT_PAIRS: { pilotId: string; copilotId: string }[] = [
+  { pilotId: "jenifer", copilotId: "maritta" },
+  { pilotId: "jessica", copilotId: "anthony" },
+  { pilotId: "hadeel", copilotId: "lara" },
+  { pilotId: "emilia", copilotId: "kemma" },
+  { pilotId: "nisreen", copilotId: "clara" },
+];
+
 /** Fluorescent glow outline for a box, by gender. */
 function glow(g: "f" | "m" | "x"): string {
   if (g === "f") return "border border-pink-400 shadow-[0_0_13px_0_rgba(244,114,182,0.6)]";
@@ -72,6 +84,41 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
           <span className="text-2xl font-semibold text-white/35">/{r.goal ?? "—"}</span>
         </span>
       </div>
+    </li>
+  );
+}
+
+/** One half of a pilot/co-pilot box: role label, name, and today's count vs target. */
+function PairHalf({ r, role }: { r: BoardRowDTO; role: "Pilot" | "Co-pilot" }) {
+  const tier = cellTier(r.count, r.goal);
+  return (
+    <div
+      title={cellMessage(r.staffId, sydneyToday(), tier)}
+      className="flex min-w-0 flex-1 flex-col justify-center px-3 py-2"
+    >
+      <span className="text-[0.75rem] font-bold tracking-[0.16em] text-purple-300 uppercase">{role}</span>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-2xl font-bold text-white">
+          {r.name}
+          {EMOJI[tier] && <span className="ml-1">{EMOJI[tier]}</span>}
+        </span>
+        <span className="shrink-0 leading-none font-black text-white tabular-nums">
+          <span className="text-5xl">{r.count}</span>
+          <span className="text-2xl font-semibold text-white/35">/{r.goal ?? "—"}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** A pilot + co-pilot joined into one double-width box with a purple glow: both
+ * names and each one's target for the day, side by side. */
+function PairCell({ pilot, copilot }: { pilot: BoardRowDTO; copilot: BoardRowDTO }) {
+  return (
+    <li className="col-span-2 flex min-h-0 items-stretch overflow-hidden rounded-xl border border-purple-400 bg-purple-500/[0.09] shadow-[0_0_16px_1px_rgba(168,85,247,0.7)]">
+      <PairHalf r={pilot} role="Pilot" />
+      <span aria-hidden className="my-3 w-px shrink-0 bg-purple-400/40" />
+      <PairHalf r={copilot} role="Co-pilot" />
     </li>
   );
 }
@@ -237,6 +284,15 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   const salesOnly = (r: BoardRowDTO) => !HIDDEN_SALES_IDS.has(r.staffId);
   const daily = data.daily.filter(salesOnly);
   const dailyTotal = daily.reduce((s, r) => s + r.count, 0);
+  // Joined pilot/co-pilot boxes first (strongest pair on top), then everyone else.
+  const dailyById = new Map(daily.map((r) => [r.staffId, r]));
+  const pairs = PILOT_PAIRS.flatMap((p) => {
+    const pilot = dailyById.get(p.pilotId);
+    const copilot = dailyById.get(p.copilotId);
+    return pilot && copilot ? [{ pilot, copilot }] : [];
+  }).sort((a, b) => b.pilot.count + b.copilot.count - (a.pilot.count + a.copilot.count));
+  const pairedIds = new Set(pairs.flatMap((p) => [p.pilot.staffId, p.copilot.staffId]));
+  const singles = daily.filter((r) => !pairedIds.has(r.staffId));
   const monthly = data.monthly.filter(salesOnly).sort((a, b) => b.count - a.count);
   const pipeline = data.pipeline.filter(salesOnly).sort((a, b) => b.count - a.count);
   const pipelineTotal = pipeline.reduce((s, r) => s + r.count, 0);
@@ -356,7 +412,10 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
           </div>
           {/* p-1 + no overflow-hidden so the fluorescent glow isn't clipped */}
           <ul className="mt-2 grid min-h-0 flex-1 grid-cols-3 gap-3 p-1 sm:grid-cols-4 [grid-auto-rows:1fr]">
-            {daily.map((r) => (
+            {pairs.map((p) => (
+              <PairCell key={p.pilot.staffId} pilot={p.pilot} copilot={p.copilot} />
+            ))}
+            {singles.map((r) => (
               <GlowCell key={r.staffId} r={r} />
             ))}
           </ul>
