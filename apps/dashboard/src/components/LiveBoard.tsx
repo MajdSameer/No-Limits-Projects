@@ -208,7 +208,7 @@ function RankRow({ r, i, tier }: { r: BoardRowDTO; i: number; tier?: boolean }) 
  * fixed-width right-aligned number columns (monthly count, then NET revenue in
  * emerald). Fixed widths keep the numbers in tidy columns down the list.
  */
-function MonthRow({ r, i }: { r: BoardRowDTO; i: number }) {
+function MonthRow({ r, i, partner }: { r: BoardRowDTO; i: number; partner?: string }) {
   const hasRev = typeof r.revenue === "number";
   return (
     <li className="flex min-h-0 flex-1 items-center gap-2 overflow-hidden px-3">
@@ -221,7 +221,12 @@ function MonthRow({ r, i }: { r: BoardRowDTO; i: number }) {
         {i + 1}
       </span>
       <span aria-hidden className={cx("size-2.5 shrink-0 rounded-full", glowDot(r.gender))} />
-      <span className="min-w-0 flex-1 truncate text-base font-semibold text-white">{r.name}</span>
+      <span className="min-w-0 flex-1 truncate text-base font-semibold text-white">
+        {r.name}
+        {/* Pilot / co-pilot partner, after a dot. Last in the line so a narrow
+            column truncates the partner first and the rep's own name stays. */}
+        {partner && <span className="font-medium text-purple-300"> • {partner}</span>}
+      </span>
       <TierChip count={r.count} />
       <span className="w-7 shrink-0 text-right text-lg font-bold text-white tabular-nums">{r.count}</span>
       <span className="w-[4.25rem] shrink-0 text-right text-base font-black text-emerald-300 tabular-nums">
@@ -293,6 +298,12 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   }).sort((a, b) => b.pilot.count + b.copilot.count - (a.pilot.count + a.copilot.count));
   const pairedIds = new Set(pairs.flatMap((p) => [p.pilot.staffId, p.copilot.staffId]));
   const singles = daily.filter((r) => !pairedIds.has(r.staffId));
+  // Each paired rep's partner, so the This month list can show "Jenifer • Maritta".
+  const partnerOf = new Map<string, string>();
+  for (const p of pairs) {
+    partnerOf.set(p.pilot.staffId, p.copilot.name);
+    partnerOf.set(p.copilot.staffId, p.pilot.name);
+  }
   const monthly = data.monthly.filter(salesOnly).sort((a, b) => b.count - a.count);
   const pipeline = data.pipeline.filter(salesOnly).sort((a, b) => b.count - a.count);
   const pipelineTotal = pipeline.reduce((s, r) => s + r.count, 0);
@@ -447,7 +458,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
           </div>
           <ol className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
             {monthly.map((r, i) => (
-              <MonthRow key={r.staffId} r={r} i={i} />
+              <MonthRow key={r.staffId} r={r} i={i} partner={partnerOf.get(r.staffId)} />
             ))}
           </ol>
         </section>
