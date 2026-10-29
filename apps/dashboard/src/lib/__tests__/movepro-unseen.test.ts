@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cardQueryUrl, extractUnseenRows, toUnseenDTO, type UnseenRow } from "../movepro-unseen";
+import { alignUnseenRoster, cardQueryUrl, extractUnseenRows, toUnseenDTO, type UnseenRow } from "../movepro-unseen";
 
 describe("toUnseenDTO", () => {
   it("normalises names the same way as the activity board", () => {
@@ -83,5 +83,15 @@ describe("extractUnseenRows", () => {
 describe("cardQueryUrl", () => {
   it("builds the question-embed query URL", () => {
     expect(cardQueryUrl("JWT123")).toBe("https://movepro.metabaseapp.com/api/embed/card/JWT123/query");
+  });
+});
+
+describe("alignUnseenRoster", () => {
+  const row = (name: string, n: number) => ({ name, totalUnseen: n, emailSms: n, callsCallbacks: 0 });
+
+  it("keeps only the roster, zero-fills missing reps, and never re-adds excluded names", () => {
+    const out = alignUnseenRoster([row("Dany", 4), row("Savio", 1), row("Ann", 3)], ["Ann", "Hadeel", "Harry"]);
+    expect(out.map((r) => r.name)).toEqual(["Ann", "Hadeel"]); // Dany/Savio off the roster; Harry is excluded
+    expect(out[1]).toEqual({ name: "Hadeel", totalUnseen: 0, emailSms: 0, callsCallbacks: 0 });
   });
 });

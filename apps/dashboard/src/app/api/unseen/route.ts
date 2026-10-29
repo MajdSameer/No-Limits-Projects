@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getUnseenSnapshot } from "../../../lib/movepro-unseen";
+import { getAlignedUnseenSnapshot } from "../../../db/queries/actions-roster";
 
 export const dynamic = "force-dynamic";
 // A single ~2s query with generous headroom — nowhere near the monthly
@@ -15,7 +15,7 @@ export const maxDuration = 25;
  */
 export async function GET() {
   try {
-    const data = await getUnseenSnapshot();
+    const data = await getAlignedUnseenSnapshot();
     return NextResponse.json(data, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     console.error("GET /api/unseen failed:", err);

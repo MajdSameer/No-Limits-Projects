@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 
 import { alignRoster, getActionsSnapshot, type ActionsResponseDTO } from "../../lib/movepro-actions";
+import { alignUnseenRoster, getUnseenSnapshot, type UnseenResponseDTO } from "../../lib/movepro-unseen";
 import { getDb, schema } from "../client";
 
 const ROSTER_TTL_MS = 60_000;
@@ -36,4 +37,12 @@ export async function getAlignedActionsSnapshot(): Promise<ActionsResponseDTO> {
   const roster = await activeRepNames();
   if (roster.length === 0) return snap;
   return { ...snap, daily: alignRoster(snap.daily, roster), monthly: alignRoster(snap.monthly, roster) };
+}
+
+/** The unseen-communications snapshot on the same roster as the activity boards. */
+export async function getAlignedUnseenSnapshot(): Promise<UnseenResponseDTO> {
+  const snap = await getUnseenSnapshot();
+  const roster = await activeRepNames();
+  if (roster.length === 0) return snap;
+  return { ...snap, rows: alignUnseenRoster(snap.rows, roster) };
 }
