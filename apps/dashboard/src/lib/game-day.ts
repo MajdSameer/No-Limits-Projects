@@ -22,6 +22,27 @@ export type WallTeam = Side | "cyan";
 /** Display order: left, right, then the third team on top of the triangle. */
 export const WALL_TEAMS: readonly WallTeam[] = ["orange", "blue", "cyan"];
 
+/** Triangle slots, in order: [top, bottom-left, bottom-right]. */
+export type TriadSlots = [WallTeam, WallTeam, WallTeam];
+/** Where the teams sit before anyone leads (and whenever it is all tied). */
+export const TRIAD_DEFAULT: TriadSlots = ["cyan", "orange", "blue"];
+
+/**
+ * Pure: which team sits in which triangle slot. The team with the most bookings
+ * takes the TOP slot, second place bottom-left, third bottom-right.
+ *
+ * Hysteresis: this is a STABLE sort of the PREVIOUS order by score, so a team
+ * only moves above another when it is strictly ahead of it. Ties (including the
+ * all-zero start of the day) keep whoever was already higher, so the panels never
+ * flip-flop on a tie. A bad/partial `prev` falls back to {@link TRIAD_DEFAULT}.
+ */
+export function triadOrder(prev: readonly WallTeam[], totals: Record<WallTeam, number>): TriadSlots {
+  const valid = prev.length === 3 && new Set(prev).size === 3 && prev.every((t) => t in totals);
+  const base: WallTeam[] = valid ? [...prev] : [...TRIAD_DEFAULT];
+  base.sort((a, b) => totals[b] - totals[a]); // Array.prototype.sort is stable
+  return base as TriadSlots;
+}
+
 /** Which wall team a rep belongs to: their stored team, else the third team. */
 export function wallTeamOf(team: string | null): WallTeam {
   return isSide(team) ? team : "cyan";

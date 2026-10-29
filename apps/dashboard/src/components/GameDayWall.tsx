@@ -31,10 +31,13 @@ import {
   secsUntilGameEnd,
   taglineFor,
   takesLeadLine,
+  TRIAD_DEFAULT,
+  triadOrder,
   wallScore,
   wallTeamOf,
   type RosterCard,
   type Side,
+  type TriadSlots,
   type WallScore,
   type WallTeam,
 } from "../lib/game-day";
@@ -961,16 +964,20 @@ interface PillInfo {
  * three team panels (so it reads as one connected shape), and the lead line. */
 function TriadCore({
   w,
+  order,
   tieKey,
   vsKey,
   pill,
 }: {
   w: WallScore<BoardRowDTO>;
+  /** [top, bottom-left, bottom-right] — spokes take each slot's team colour. */
+  order: TriadSlots;
   tieKey: number;
   vsKey: number;
   pill: PillInfo;
 }) {
   const spokeShadow = (rgb: string) => `0 0 12px 1px rgba(${rgb},0.75)`;
+  const [topT, leftT, rightT] = [TEAM[order[0]], TEAM[order[1]], TEAM[order[2]]];
   return (
     <div className="relative col-start-2 row-start-2 flex min-h-0 flex-col items-center gap-3">
       <div className={cx("relative aspect-square shrink-0 [width:var(--ring)]", tieKey > 0 && "gd-gold-pulse rounded-full")}>
@@ -979,8 +986,8 @@ function TriadCore({
           aria-hidden
           className="gd-spoke absolute bottom-full left-1/2 h-5 w-[3px] -translate-x-1/2"
           style={{
-            background: `linear-gradient(0deg, rgba(${TEAM.cyan.rgb},0.35), ${TEAM.cyan.hex})`,
-            boxShadow: spokeShadow(TEAM.cyan.rgb),
+            background: `linear-gradient(0deg, rgba(${topT.rgb},0.35), ${topT.hex})`,
+            boxShadow: spokeShadow(topT.rgb),
           }}
         />
         {/* Left to the green panel, right to the purple one. */}
@@ -989,8 +996,8 @@ function TriadCore({
           className="gd-spoke absolute top-1/2 right-full h-[3px] -translate-y-1/2"
           style={{
             width: "calc((var(--core) - var(--ring)) / 2 + 1rem)",
-            background: `linear-gradient(90deg, ${TEAM.orange.hex}, rgba(${TEAM.orange.rgb},0.3))`,
-            boxShadow: spokeShadow(TEAM.orange.rgb),
+            background: `linear-gradient(90deg, ${leftT.hex}, rgba(${leftT.rgb},0.3))`,
+            boxShadow: spokeShadow(leftT.rgb),
           }}
         />
         <span
@@ -998,8 +1005,8 @@ function TriadCore({
           className="gd-spoke absolute top-1/2 left-full h-[3px] -translate-y-1/2"
           style={{
             width: "calc((var(--core) - var(--ring)) / 2 + 1rem)",
-            background: `linear-gradient(270deg, ${TEAM.blue.hex}, rgba(${TEAM.blue.rgb},0.3))`,
-            boxShadow: spokeShadow(TEAM.blue.rgb),
+            background: `linear-gradient(270deg, ${rightT.hex}, rgba(${rightT.rgb},0.3))`,
+            boxShadow: spokeShadow(rightT.rgb),
           }}
         />
         <TotalRing w={w} vsKey={vsKey} />
@@ -1027,7 +1034,7 @@ function TriadCore({
 /** The big glowing triangle the three panels sit on. Its edges run through the
  * empty upper corners (the rest hides behind the panels), tying the cyan, green
  * and purple panels together as one shape around the centre ring. */
-function TriadFrame() {
+function TriadFrame({ order }: { order: TriadSlots }) {
   const edge = (from: WallTeam, to: WallTeam, id: string, x1: number, y1: number, x2: number, y2: number) => (
     <linearGradient key={id} id={id} gradientUnits="userSpaceOnUse" x1={x1} y1={y1} x2={x2} y2={y2}>
       <stop offset="0" stopColor={TEAM[from].hex} stopOpacity="0.95" />
@@ -1043,8 +1050,8 @@ function TriadFrame() {
       style={{ filter: "drop-shadow(0 0 5px rgba(255,255,255,0.18))" }}
     >
       <defs>
-        {edge("cyan", "orange", "gd-tri-left", 50, -4, -3, 102)}
-        {edge("cyan", "blue", "gd-tri-right", 50, -4, 103, 102)}
+        {edge(order[0], order[1], "gd-tri-left", 50, -4, -3, 102)}
+        {edge(order[0], order[2], "gd-tri-right", 50, -4, 103, 102)}
         <radialGradient id="gd-tri-fill" cx="50%" cy="62%" r="60%">
           <stop offset="0" stopColor="#ffffff" stopOpacity="0.05" />
           <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
@@ -1081,8 +1088,91 @@ function TriadStage({
   vsKey: number;
   pill: PillInfo;
 }) {
-  const topN = Math.max(1, w.groups.cyan.length);
-  const botN = Math.max(1, w.groups.orange.length, w.groups.blue.length);
+  // Who sits where: the leader on top, then 2nd bottom-left, 3rd bottom-right.
+  // Stable over the previous order, so ties never flip-flop (see triadOrder).
+  const orderRef = useRef<TriadSlots>(TRIAD_DEFAULT);
+  const order = triadOrder(orderRef.current, w.totals);
+  orderRef.current = order;
+  const orderKey = order.join(">");
+  const slotOf = (team: WallTeam) => order.indexOf(team);
+
+  // Slide the panels between slots (FLIP): remember each wrapper's box, and when
+  // the order changes start it at its old box and let a transition carry it home.
+  const wraps = useRef<Partial<Record<WallTeam, HTMLDivElement | null>>>({});
+  const boxes = useRef(new Map<WallTeam, DOMRect>());
+  const lastOrderKey = useRef(orderKey);
+  const sliding = useRef(false);
+  const slideTimer = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const changed = lastOrderKey.current !== orderKey;
+    lastOrderKey.current = orderKey;
+    if (sliding.current && !changed) return; // keep the pre-slide boxes until it settles
+    const next = new Map<WallTeam, DOMRect>();
+    const els = (["cyan", "orange", "blue"] as const).flatMap((t) => (wraps.current[t] ? [[t, wraps.current[t]!] as const] : []));
+    for (const [t, el] of els) {
+      if (changed) {
+        el.style.transition = "none";
+        el.style.transform = "none"; // measure the true layout box, not a half-finished slide
+      }
+      next.set(t, el.getBoundingClientRect());
+    }
+    if (changed && !reducedMotion()) {
+      let moved = false;
+      for (const [t, el] of els) {
+        const prev = boxes.current.get(t);
+        const now = next.get(t)!;
+        if (!prev || now.width < 1 || now.height < 1) continue;
+        const dx = prev.left - now.left;
+        const dy = prev.top - now.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(prev.height - now.height) < 1) continue;
+        moved = true;
+        el.style.transformOrigin = "0 0";
+        el.style.zIndex = "5";
+        el.style.transform = `translate(${dx}px, ${dy}px) scale(${prev.width / now.width}, ${prev.height / now.height})`;
+      }
+      if (moved) {
+        sliding.current = true;
+        void document.body.offsetHeight; // commit the start positions before transitioning
+        for (const [, el] of els) {
+          el.style.transition = "transform 850ms cubic-bezier(0.22, 1, 0.36, 1)";
+          el.style.transform = "";
+        }
+        if (slideTimer.current) window.clearTimeout(slideTimer.current);
+        slideTimer.current = window.setTimeout(() => {
+          sliding.current = false;
+          for (const [, el] of els) {
+            el.style.transition = "";
+            el.style.zIndex = "";
+            el.style.transformOrigin = "";
+          }
+          boxes.current = new Map(
+            els.map(([t, el]) => [t, el.getBoundingClientRect()] as const),
+          );
+        }, 900);
+        return; // boxes are re-measured once the slide has settled
+      }
+    }
+    for (const [, el] of els) {
+      el.style.transition = "";
+      el.style.transform = "";
+    }
+    boxes.current = next;
+  });
+  useEffect(
+    () => () => {
+      if (slideTimer.current) window.clearTimeout(slideTimer.current);
+    },
+    [],
+  );
+
+  const topN = Math.max(1, w.groups[order[0]].length);
+  const botN = Math.max(1, w.groups[order[1]].length, w.groups[order[2]].length);
+  const slotStyle = (slot: number): CSSProperties =>
+    slot === 0
+      ? { gridColumn: "1 / span 3", gridRow: 1, justifySelf: "center", width: "calc((100% - var(--core) - 2rem) / 2)" }
+      : slot === 1
+        ? { gridColumn: 1, gridRow: 2 }
+        : { gridColumn: 3, gridRow: 2 };
   const panel = (team: WallTeam) => (
     <TeamPanel
       side={team}
@@ -1109,13 +1199,22 @@ function TriadStage({
         gridTemplateRows: `minmax(0,${topN + 2.6}fr) minmax(0,${botN + 2.6}fr)`,
       }}
     >
-      <TriadFrame />
-      <div className="col-span-3 row-start-1 flex min-h-0 justify-center">
-        <div className="grid min-h-0 [width:calc((100%-var(--core)-2rem)/2)]">{panel("cyan")}</div>
-      </div>
-      <div className="col-start-1 row-start-2 grid min-h-0">{panel("orange")}</div>
-      <TriadCore w={w} tieKey={tieKey} vsKey={vsKey} pill={pill} />
-      <div className="col-start-3 row-start-2 grid min-h-0">{panel("blue")}</div>
+      <TriadFrame order={order} />
+      {/* Stable DOM order (cyan, green, purple) so a panel never remounts when it
+          changes slot — only its grid placement changes, and the effect above slides it. */}
+      {(["cyan", "orange", "blue"] as const).map((team) => (
+        <div
+          key={team}
+          ref={(el) => {
+            wraps.current[team] = el;
+          }}
+          className="grid min-h-0 will-change-transform"
+          style={slotStyle(slotOf(team))}
+        >
+          {panel(team)}
+        </div>
+      ))}
+      <TriadCore w={w} order={order} tieKey={tieKey} vsKey={vsKey} pill={pill} />
     </div>
   );
 }
