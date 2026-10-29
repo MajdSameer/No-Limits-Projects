@@ -86,3 +86,20 @@ export async function getUnseenSnapshot(): Promise<UnseenResponseDTO> {
   responseCache = { at: Date.now(), data };
   return data;
 }
+
+/** Keeps the unseen board on the SAME people as the Today / This month boards: only
+ * the roster (active reps, minus excluded names), with a zero row for a rostered rep
+ * who has nothing unseen. Mirrors alignRoster in movepro-actions. */
+export function alignUnseenRoster(rows: UnseenRowDTO[], roster: string[]): UnseenRowDTO[] {
+  const want = new Map<string, string>();
+  for (const r of roster) {
+    const name = canonicalAgentName(r);
+    if (name && !isExcludedName(name)) want.set(name.toLowerCase(), name);
+  }
+  const out = rows.filter((r) => want.has(r.name.toLowerCase()));
+  const have = new Set(out.map((r) => r.name.toLowerCase()));
+  for (const [key, name] of want) {
+    if (!have.has(key)) out.push({ name, totalUnseen: 0, emailSms: 0, callsCallbacks: 0 });
+  }
+  return out.sort((a, b) => b.totalUnseen - a.totalUnseen || a.name.localeCompare(b.name));
+}

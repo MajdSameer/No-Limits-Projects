@@ -1,6 +1,6 @@
-import { getAlignedActionsSnapshot } from "../../../db/queries/actions-roster";
+import { getAlignedActionsSnapshot, getAlignedUnseenSnapshot } from "../../../db/queries/actions-roster";
 import { type ActionsResponseDTO } from "../../../lib/movepro-actions";
-import { getUnseenSnapshot, type UnseenResponseDTO } from "../../../lib/movepro-unseen";
+import { type UnseenResponseDTO } from "../../../lib/movepro-unseen";
 import { ActionsBoard } from "../../../components/ActionsBoard";
 
 export const metadata = { title: "Rep activity" };
@@ -31,7 +31,7 @@ export default async function ActionsPage() {
       console.error("ActionsPage activity fetch failed:", err);
       return emptyActivity();
     }),
-    getUnseenSnapshot().catch((err: unknown) => {
+    getAlignedUnseenSnapshot().catch((err: unknown) => {
       console.error("ActionsPage unseen fetch failed:", err);
       return emptyUnseen();
     }),
