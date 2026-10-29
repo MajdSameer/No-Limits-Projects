@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { addAnnouncement, announcementsAfter, latestAnnouncementKey } from "../../../db/announcements";
+import { addAnnouncement, announcementsAfter, deleteAnnouncement, latestAnnouncementKey } from "../../../db/announcements";
 import { getDb, schema } from "../../../db/client";
 import { parseAnnounceBody } from "../../../lib/announce";
 import { notify } from "../../../lib/notify";
@@ -90,5 +90,25 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error("GET /api/announce failed:", err);
     return NextResponse.json({ items: [], cursor: after ?? null }, { status: 200, headers: { "cache-control": "no-store" } });
+  }
+}
+
+/**
+ * DELETE ?key=ann:… — remove one announcement (e.g. a test submission) so it stops
+ * counting on the /live tracker. NOT public: needs the same INGEST_SECRET bearer
+ * token as the sheet scripts.
+ */
+export async function DELETE(request: NextRequest) {
+  const secret = process.env.INGEST_SECRET;
+  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const key = request.nextUrl.searchParams.get("key") ?? "";
+  try {
+    const deleted = await deleteAnnouncement(key);
+    return NextResponse.json({ ok: true, deleted });
+  } catch (err) {
+    console.error("DELETE /api/announce failed:", err);
+    return NextResponse.json({ ok: false, error: "delete failed" }, { status: 500 });
   }
 }
