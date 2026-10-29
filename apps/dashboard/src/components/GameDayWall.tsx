@@ -96,6 +96,9 @@ const FADE_MS = 550;
 const MUSIC_SRC = "/sounds/f1-opening-titles-2026.mp3";
 const MUSIC_VOL = 0.55;
 
+/** Team captains, shown after the team name in the triangle headers (keyed by team label). */
+const CAPTAINS: Record<string, string> = { Purple: "Randee", Cyan: "Jenifer", Green: "Nisreen" };
+
 /**
  * The THIRD team — every active rep with no team assignment (shown as a triangle
  * layout with the circle in the middle). This block is the ONE place to recolour
@@ -719,6 +722,12 @@ function TeamPanel({
                 style={{ color: t.hex, textShadow: `0 0 14px rgba(${t.rgb},0.4)` }}
               >
                 {t.label} team
+                {CAPTAINS[t.label] && (
+                  <span className="font-semibold tracking-[0.04em] text-white/70 normal-case not-italic [text-shadow:none] [font-size:0.62em]">
+                    {" "}
+                    • {CAPTAINS[t.label]} - Captain
+                  </span>
+                )}
               </h2>
               <span className="mt-1 text-[0.62rem] font-bold tracking-[0.18em] whitespace-nowrap text-[var(--muted)] uppercase">
                 {reps.length} player{reps.length === 1 ? "" : "s"}
