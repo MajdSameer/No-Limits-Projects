@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 
 process.env.PGLITE_DIR = ":memory:";
 const { getDb } = await import("../client");
-const { addAnnouncement, announcementsAfter, latestAnnouncementKey } = await import("../announcements");
+const { addAnnouncement, announcementsAfter, deleteAnnouncement, latestAnnouncementKey } = await import("../announcements");
 await getDb();
 
 test("announcements round-trip, in order, and only newer-than-cursor come back", async () => {
@@ -45,4 +45,15 @@ test("old announcements are pruned", async () => {
   const all = await announcementsAfter("ann:");
   expect(all.find((x) => x.key === old.announcement.key)).toBeUndefined();
   expect(all.find((x) => x.job === "NEW111")).toBeDefined();
+});
+
+test("a single announcement can be deleted by key (and only announcements)", async () => {
+  const keep = await addAnnouncement({ job: "KEEP11", by: "A", forRep: "B" }, Date.now() + 20_000_000);
+  const gone = await addAnnouncement({ job: "GONE11", by: "A", forRep: "B" }, Date.now() + 20_000_100);
+  expect(await deleteAnnouncement(gone.announcement.key)).toBe(true);
+  expect(await deleteAnnouncement(gone.announcement.key)).toBe(false); // already gone
+  expect(await deleteAnnouncement("game_day")).toBe(false); // never touches other settings
+  const all = await announcementsAfter("ann:");
+  expect(all.find((x) => x.job === "GONE11")).toBeUndefined();
+  expect(all.find((x) => x.key === keep.announcement.key)).toBeDefined();
 });

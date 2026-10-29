@@ -1,4 +1,4 @@
-import { and, desc, gt, gte, like, lt } from "drizzle-orm";
+import { and, desc, eq, gt, gte, like, lt } from "drizzle-orm";
 
 import { getDb, schema } from "./client";
 import { ANNOUNCE_PREFIX, type Announcement, type AnnounceInput } from "../lib/announce";
@@ -76,6 +76,16 @@ export async function announcementsSince(sinceMs: number, limit = 5000): Promise
     .orderBy(schema.appSettings.key)
     .limit(limit);
   return rows.map((r) => parseRow(r.key, r.value)).filter((a): a is Announcement => a !== null);
+}
+
+/** Deletes one announcement by key (clean-up of test entries). Returns true if a row was removed. */
+export async function deleteAnnouncement(key: string): Promise<boolean> {
+  if (!key.startsWith(ANNOUNCE_PREFIX)) return false;
+  const db = await getDb();
+  const [row] = await db.select({ key: schema.appSettings.key }).from(schema.appSettings).where(eq(schema.appSettings.key, key)).limit(1);
+  if (!row) return false;
+  await db.delete(schema.appSettings).where(eq(schema.appSettings.key, key));
+  return true;
 }
 
 /** The newest key — a screen's starting point, so loading/reloading never replays old ones. */
