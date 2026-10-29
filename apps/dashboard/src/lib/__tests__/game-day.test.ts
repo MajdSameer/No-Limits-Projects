@@ -13,6 +13,8 @@ import {
   scoreState,
   secsUntilGameEnd,
   takesLeadLine,
+  TRIAD_DEFAULT,
+  triadOrder,
   wallScore,
   wallTeamOf,
 } from "../game-day";
@@ -301,5 +303,44 @@ describe("buildFacts", () => {
     const text = facts.join("\n");
     expect(text).toContain("Una is leading the whole floor with 9 today");
     expect(text).toContain("Cyan are pulling away — up by 7. Purple, time to respond!");
+  });
+});
+
+describe("triadOrder (leader slides to the top, ties never flip-flop)", () => {
+  const t = (cyan: number, orange: number, blue: number) => ({ cyan, orange, blue });
+
+  it("starts as Cyan top, Green bottom-left, Purple bottom-right", () => {
+    expect(TRIAD_DEFAULT).toEqual(["cyan", "orange", "blue"]);
+    expect(triadOrder(TRIAD_DEFAULT, t(0, 0, 0))).toEqual(["cyan", "orange", "blue"]);
+  });
+
+  it("puts the team with the most bookings on top, then 2nd left, 3rd right", () => {
+    expect(triadOrder(TRIAD_DEFAULT, t(1, 5, 3))).toEqual(["orange", "blue", "cyan"]);
+    expect(triadOrder(TRIAD_DEFAULT, t(1, 2, 9))).toEqual(["blue", "orange", "cyan"]);
+  });
+
+  it("only moves a team above another when it is STRICTLY ahead (a tie keeps the incumbent)", () => {
+    // Green leads...
+    const afterGreen = triadOrder(TRIAD_DEFAULT, t(2, 4, 1));
+    expect(afterGreen).toEqual(["orange", "cyan", "blue"]);
+    // ...Cyan draws level with Green: Green stays on top, nobody swaps.
+    expect(triadOrder(afterGreen, t(4, 4, 1))).toEqual(["orange", "cyan", "blue"]);
+    // ...Cyan edges ahead: now it takes the top.
+    expect(triadOrder(afterGreen, t(5, 4, 1))).toEqual(["cyan", "orange", "blue"]);
+  });
+
+  it("rotates as the lead changes hands and is stable when nothing changes", () => {
+    let o = triadOrder(TRIAD_DEFAULT, t(3, 2, 1));
+    expect(o).toEqual(["cyan", "orange", "blue"]);
+    o = triadOrder(o, t(3, 5, 1));
+    expect(o).toEqual(["orange", "cyan", "blue"]);
+    o = triadOrder(o, t(3, 5, 6));
+    expect(o).toEqual(["blue", "orange", "cyan"]);
+    expect(triadOrder(o, t(3, 5, 6))).toEqual(o);
+  });
+
+  it("falls back to the default order for a bad previous order", () => {
+    expect(triadOrder([], t(0, 0, 0))).toEqual(["cyan", "orange", "blue"]);
+    expect(triadOrder(["cyan", "cyan", "blue"], t(0, 7, 0))).toEqual(["orange", "cyan", "blue"]);
   });
 });
