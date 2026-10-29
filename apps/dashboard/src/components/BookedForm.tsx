@@ -11,14 +11,15 @@ import { cleanName, normalizeJob } from "../lib/announce";
  *   1. What is the MovePro job number?   → Next
  *   2. What is your name?                → Next
  *   3. Who are you booking this job for? → Submit
- * Submitting posts to /api/announce, which fires the instant celebration on the
+ * Q2 is a pick-list of reps (not free text) so the /live "booked for others" tally
+ * is exact; Q3 hides whoever you picked in Q2. Submitting posts to /api/announce, which fires the instant celebration on the
  * /live wall. Mobile-first (phones are what people will use), big touch targets.
  */
 type Step = 1 | 2 | 3 | "done";
 
 const NAME_KEY = "booked:name";
 
-export function BookedForm({ reps }: { reps: string[] }) {
+export function BookedForm({ reps, submitters }: { reps: string[]; submitters: string[] }) {
   const [step, setStep] = useState<Step>(1);
   const [job, setJob] = useState("");
   const [by, setBy] = useState("");
@@ -33,11 +34,11 @@ export function BookedForm({ reps }: { reps: string[] }) {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(NAME_KEY);
-      if (saved) setBy(saved);
+      if (saved && submitters.includes(saved)) setBy(saved);
     } catch {
       /* private mode etc. — just start blank */
     }
-  }, []);
+  }, [submitters]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -50,7 +51,10 @@ export function BookedForm({ reps }: { reps: string[] }) {
   function next() {
     setError(null);
     if (step === 1 && jobOk) setStep(2);
-    else if (step === 2 && nameOk) setStep(3);
+    else if (step === 2 && nameOk) {
+      if (forRep === by) setForRep("");
+      setStep(3);
+    }
   }
 
   async function submit() {
@@ -169,22 +173,47 @@ export function BookedForm({ reps }: { reps: string[] }) {
             }}
           >
             <h1 className="text-center font-display text-3xl font-black leading-tight">What is your name?</h1>
-            <input
-              ref={inputRef}
-              value={by}
-              onChange={(e) => setBy(e.target.value)}
-              placeholder="Your name"
-              autoCapitalize="words"
-              autoComplete="given-name"
-              maxLength={40}
-              className={field}
-            />
-            <button type="submit" disabled={!nameOk} className={primary}>
-              Next
-            </button>
-            <button type="button" onClick={() => setStep(1)} className="block w-full text-center text-sm font-semibold text-white/50">
-              ← Back
-            </button>
+            {submitters.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Your name">
+                {submitters.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    role="radio"
+                    aria-checked={by === name}
+                    onClick={() => setBy(name)}
+                    className={cx(
+                      "rounded-2xl border-2 px-3 py-3.5 text-lg font-bold transition active:scale-[0.97]",
+                      by === name
+                        ? "border-fuchsia-400 bg-fuchsia-400 text-ink-950 shadow-[0_0_24px_-4px_rgba(232,121,249,0.8)]"
+                        : "border-white/15 bg-white/[0.06] text-white",
+                    )}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <input
+                ref={inputRef}
+                value={by}
+                onChange={(e) => setBy(e.target.value)}
+                placeholder="Your name"
+                autoCapitalize="words"
+                autoComplete="given-name"
+                maxLength={40}
+                className={field}
+              />
+            )}
+            {/* Sticky so Next is always on screen, however many reps there are. */}
+            <div className="sticky bottom-0 -mx-1 space-y-3 bg-gradient-to-t from-ink-950 via-ink-950 to-transparent px-1 pt-6 pb-3">
+              <button type="submit" disabled={!nameOk} className={primary}>
+                Next
+              </button>
+              <button type="button" onClick={() => setStep(1)} className="block w-full text-center text-sm font-semibold text-white/50">
+                ← Back
+              </button>
+            </div>
           </form>
         )}
 
@@ -200,7 +229,9 @@ export function BookedForm({ reps }: { reps: string[] }) {
             <h1 className="text-center font-display text-3xl font-black leading-tight">Who are you booking this job for?</h1>
             {reps.length > 0 ? (
               <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Rep">
-                {reps.map((name) => (
+                {reps
+                  .filter((name) => name !== by)
+                  .map((name) => (
                   <button
                     key={name}
                     type="button"

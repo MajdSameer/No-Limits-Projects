@@ -60,8 +60,9 @@ export async function POST(request: NextRequest) {
   if (!parsed.ok) return NextResponse.json({ ok: false, error: parsed.error }, { status: 400 });
 
   try {
-    const forRep = await canonicalRepName(parsed.value.forRep);
-    const { announcement, duplicate } = await addAnnouncement({ ...parsed.value, forRep });
+    // Store both names in the roster's exact spelling so the /live tracker counts them exactly.
+    const [forRep, by] = await Promise.all([canonicalRepName(parsed.value.forRep), canonicalRepName(parsed.value.by)]);
+    const { announcement, duplicate } = await addAnnouncement({ ...parsed.value, by, forRep });
     if (!duplicate) notify("announce"); // instant ping; screens also poll every second
     return NextResponse.json({ ok: true, duplicate, key: announcement.key });
   } catch (err) {

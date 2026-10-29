@@ -76,13 +76,13 @@ function GlowCell({ r }: { r: BoardRowDTO }) {
       )}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-2xl font-bold text-white">
+        <span className="truncate font-bold text-white [font-size:clamp(1.05rem,1.2vw,1.4rem)]">
           {r.name}
           {EMOJI[tier] && <span className="ml-1">{EMOJI[tier]}</span>}
         </span>
         <span className="shrink-0 leading-none font-black text-white tabular-nums">
-          <span className="text-5xl">{r.count}</span>
-          <span className="text-2xl font-semibold text-white/35">/{r.goal ?? "—"}</span>
+          <span className="[font-size:clamp(2rem,2.5vw,2.7rem)]">{r.count}</span>
+          <span className="font-semibold text-white/35 [font-size:clamp(1.05rem,1.2vw,1.4rem)]">/{r.goal ?? "—"}</span>
         </span>
       </div>
     </li>
@@ -99,13 +99,13 @@ function PairHalf({ r, role }: { r: BoardRowDTO; role: "Pilot" | "Co-pilot" }) {
     >
       <span className="text-[0.75rem] font-bold tracking-[0.16em] text-purple-300 uppercase">{role}</span>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-2xl font-bold text-white">
+        <span className="truncate font-bold text-white [font-size:clamp(1.05rem,1.2vw,1.4rem)]">
           {r.name}
           {EMOJI[tier] && <span className="ml-1">{EMOJI[tier]}</span>}
         </span>
         <span className="shrink-0 leading-none font-black text-white tabular-nums">
-          <span className="text-5xl">{r.count}</span>
-          <span className="text-2xl font-semibold text-white/35">/{r.goal ?? "—"}</span>
+          <span className="[font-size:clamp(2rem,2.5vw,2.7rem)]">{r.count}</span>
+          <span className="font-semibold text-white/35 [font-size:clamp(1.05rem,1.2vw,1.4rem)]">/{r.goal ?? "—"}</span>
         </span>
       </div>
     </div>
@@ -182,6 +182,51 @@ function moneyCompact(n: number): string {
     return `$${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}k`;
   }
   return `$${v.toLocaleString()}`;
+}
+
+/**
+ * "Booked for others" — how many times each rep has booked a job FOR ANOTHER
+ * sales rep through the public /booked form: a bold month count plus a small
+ * "+n today". Counts come from the form's pick-list (exact names), self-bookings
+ * excluded server-side.
+ */
+function BookedForOthers({ rows }: { rows: { name: string; today: number; month: number }[] }) {
+  const total = rows.reduce((s, r) => s + r.month, 0);
+  return (
+    <section className="flex min-h-0 flex-col">
+      <div className="flex shrink-0 items-baseline justify-between gap-2">
+        <h2 className="truncate text-lg font-bold text-white">Booked for others</h2>
+        <span className="text-lg font-bold text-fuchsia-300">{total}</span>
+      </div>
+      <ol className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-white/10 overflow-hidden rounded-2xl border border-fuchsia-400/30 bg-fuchsia-500/[0.05] shadow-[0_0_14px_0_rgba(232,121,249,0.25)]">
+        {rows.length === 0 ? (
+          <li className="px-3 py-4 text-center text-sm font-medium text-white/45">
+            Nothing yet this month — reps log jobs they book for each other on <span className="text-fuchsia-300">/booked</span>
+          </li>
+        ) : (
+          rows.map((r, i) => (
+            <li key={r.name} className="flex h-10 shrink-0 items-center gap-2 px-3">
+              <span
+                className={cx(
+                  "w-5 shrink-0 text-center text-sm font-bold",
+                  i === 0 ? "text-accent-400" : i < 3 ? "text-brand-200" : "text-white/40",
+                )}
+              >
+                {i + 1}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-base font-semibold text-white">{r.name}</span>
+              {r.today > 0 && (
+                <span className="shrink-0 rounded bg-fuchsia-400/20 px-1.5 py-0.5 text-xs font-bold whitespace-nowrap text-fuchsia-200 tabular-nums">
+                  +{r.today}
+                </span>
+              )}
+              <span className="w-7 shrink-0 text-right text-lg font-bold text-white tabular-nums">{r.month}</span>
+            </li>
+          ))
+        )}
+      </ol>
+    </section>
+  );
 }
 
 /** A dense ranked row (Next 3 months). */
@@ -415,9 +460,9 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
       </div>
 
       {/* Three zones fill the rest of the screen */}
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-12">
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,6fr)_minmax(0,3.2fr)_minmax(0,1.6fr)_minmax(0,1.6fr)]">
         {/* TODAY — glowing boxes with each rep's MovePro numbers */}
-        <section className="flex min-h-0 flex-col lg:col-span-7">
+        <section className="flex min-h-0 flex-col">
           <div className="flex shrink-0 items-baseline justify-between">
             <h2 className="text-lg font-bold text-white">Today</h2>
             <span className="text-sm font-medium text-white/50">
@@ -454,7 +499,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
         </section>
 
         {/* THIS MONTH — incentive-tier gaps + each rep's NET revenue */}
-        <section className="flex min-h-0 flex-col lg:col-span-3">
+        <section className="flex min-h-0 flex-col">
           <div className="flex shrink-0 items-baseline justify-between">
             <h2 className="text-lg font-bold text-white">This month</h2>
             <span className="text-lg font-bold text-white">{data.monthlyTotal}</span>
@@ -467,7 +512,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
         </section>
 
         {/* NEXT 3 MONTHS */}
-        <section className="flex min-h-0 flex-col lg:col-span-2">
+        <section className="flex min-h-0 flex-col">
           <div className="flex shrink-0 items-baseline justify-between">
             <h2 className="text-lg font-bold text-white">Next 3 months</h2>
             <span className="text-lg font-bold text-white">{pipelineTotal}</span>
@@ -478,6 +523,9 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
             ))}
           </ol>
         </section>
+
+        {/* BOOKED FOR OTHERS — the /booked form tally (right-hand column) */}
+        <BookedForOthers rows={data.bookedForOthers ?? []} />
       </div>
     </main>
   );

@@ -40,7 +40,7 @@ test("the same job number twice within 2 minutes is a duplicate (no second celeb
 
 test("old announcements are pruned", async () => {
   const now = Date.now() + 10_000_000;
-  const old = await addAnnouncement({ job: "OLD111", by: "X", forRep: "Y" }, now - 4 * 24 * 3600 * 1000);
+  const old = await addAnnouncement({ job: "OLD111", by: "X", forRep: "Y" }, now - 130 * 24 * 3600 * 1000);
   await addAnnouncement({ job: "NEW111", by: "X", forRep: "Y" }, now); // triggers the prune
   const all = await announcementsAfter("ann:");
   expect(all.find((x) => x.key === old.announcement.key)).toBeUndefined();

@@ -51,6 +51,8 @@ export interface InspectorRowDTO {
 }
 
 export interface BoardsDTO {
+  /** Jobs each rep booked for another rep via /booked (today / this month). */
+  bookedForOthers: { name: string; today: number; month: number }[];
   daily: BoardRowDTO[];
   yesterday: BoardRowDTO[];
   monthly: BoardRowDTO[];
