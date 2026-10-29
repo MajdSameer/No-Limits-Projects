@@ -285,6 +285,14 @@ dialog::backdrop {
   --team-3: var(--purple-3);
   --team-rgb: var(--purple-rgb);
 }
+/* The third team (unassigned reps). Its --cyan* values are set inline on the wall
+   by GameDayWall.tsx (THIRD_TEAM) — that constant is the ONE place to recolour it. */
+.gd-t-cyan {
+  --team: var(--cyan);
+  --team-2: var(--cyan-2);
+  --team-3: var(--cyan-3);
+  --team-rgb: var(--cyan-rgb);
+}
 
 /* Dark metallic surface with a hairline border + a whisper of top highlight. */
 .gd-panel {
@@ -745,6 +753,49 @@ dialog::backdrop {
 .gd-gold-pulse {
   animation: gd-gold-pulse 1.3s ease-in-out 2 both;
 }
+
+/* ── Three-team "triad" layout ── */
+/* A team panel lights up in its own colour when it takes the lead. */
+@keyframes gd-lead-flash {
+  0% {
+    box-shadow: inset 0 0 0 0 rgba(var(--team-rgb), 0);
+    background-color: rgba(var(--team-rgb), 0);
+  }
+  22% {
+    box-shadow:
+      inset 0 0 60px 4px rgba(var(--team-rgb), 0.55),
+      inset 0 0 0 2px rgba(var(--team-rgb), 0.95);
+    background-color: rgba(var(--team-rgb), 0.12);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 rgba(var(--team-rgb), 0);
+    background-color: rgba(var(--team-rgb), 0);
+  }
+}
+.gd-lead-flash {
+  animation: gd-lead-flash 1.4s ease-out both;
+}
+/* The connectors between the centre circle and each team breathe slowly. */
+@keyframes gd-spoke {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.gd-spoke {
+  animation: gd-spoke 3.4s ease-in-out infinite;
+}
+@keyframes gd-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.gd-ring-spin {
+  animation: gd-ring-spin 46s linear infinite;
+}
 /* Both teams briefly illuminate toward the centre on a tie. */
 @keyframes gd-tie-glow {
   0%,
@@ -909,6 +960,9 @@ dialog::backdrop {
   .gd-lead-sweep,
   .gd-vs-flash,
   .gd-gold-pulse,
+  .gd-lead-flash,
+  .gd-spoke,
+  .gd-ring-spin,
   .gd-tie-glow,
   .gd-toast-in,
   .gd-toast-out,

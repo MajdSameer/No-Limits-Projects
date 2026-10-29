@@ -301,9 +301,9 @@ export function ManageView({
                     }}
                     className="min-h-9 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                   >
-                    <option value="">—</option>
-                    <option value="orange">🟠 Orange</option>
-                    <option value="blue">🔵 Blue</option>
+                    <option value="">🔷 None (Cyan team)</option>
+                    <option value="orange">🟠 Orange (Green team)</option>
+                    <option value="blue">🔵 Blue (Purple team)</option>
                   </select>
                 </td>
                 <td className="px-3 py-2">
