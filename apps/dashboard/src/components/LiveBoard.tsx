@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "@nlr/ui";
 
 import type { BoardRowDTO, BoardsDTO, InspectorRowDTO } from "./Board";
+import { AnnouncementCelebration } from "./AnnouncementCelebration";
 import { BookingCelebration } from "./BookingCelebration";
 import { armAudio, audioRunning } from "../lib/celebrate";
 import { cellMessage, cellTier } from "../lib/leaderboard-messages";
@@ -315,6 +316,8 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
   return (
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
       <BookingCelebration daily={daily} inspectors={data.inspectors} />
+      {/* The instant "X booked #JOB for Y" moment from the public /booked form. */}
+      <AnnouncementCelebration />
 
       {soundLocked && (
         <button

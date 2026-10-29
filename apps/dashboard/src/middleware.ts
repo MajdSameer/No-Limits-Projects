@@ -13,6 +13,8 @@ import { SESSION_COOKIE } from "./lib/session";
  * authenticated route (e.g. "game-day" would also whitelist the manager-only
  * /game-day and /game-day-history pages below this same matcher).
  * /api/ingest is public but guarded by its own INGEST_SECRET bearer token.
+ * /booked (the 3-question "Booked!" form) and /api/announce are public by design — the
+ * form is a shared link handed to staff; the API is validated + rate-limited itself.
  *
  * /api/version was missing from this list until now — wall displays have no
  * session cookie, so every poll was silently redirected to /sign-in instead
@@ -30,6 +32,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!sign-in|tv|live|actions|api/boards|api/actions|api/unseen|api/version|api/cron|api/ingest|sounds|wall|_next/static|_next/image|favicon.ico|icon.svg|robots.txt).*)",
+    "/((?!sign-in|tv|live|actions|api/boards|api/actions|api/unseen|api/version|api/cron|api/ingest|api/announce|booked|sounds|wall|_next/static|_next/image|favicon.ico|icon.svg|robots.txt).*)",
   ],
 };

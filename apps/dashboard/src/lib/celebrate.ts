@@ -225,6 +225,11 @@ function getCtx(): AudioContext | null {
   return ctx;
 }
 
+/** The shared AudioContext (created on first use), for sounds that live in other files. */
+export function getAudioContext(): AudioContext | null {
+  return getCtx();
+}
+
 /** Resume the audio context after a user gesture (browser autoplay policy). */
 export function armAudio(): void {
   const c = getCtx();
