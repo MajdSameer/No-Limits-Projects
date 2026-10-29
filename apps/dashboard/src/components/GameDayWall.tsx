@@ -1,7 +1,7 @@
 "use client";
 
 import confetti from "canvas-confetti";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import { cx } from "@nlr/ui";
 
@@ -28,12 +28,15 @@ import {
   milestoneCrossed,
   overMoney,
   rankRows,
-  scoreState,
   secsUntilGameEnd,
   taglineFor,
   takesLeadLine,
+  wallScore,
+  wallTeamOf,
   type RosterCard,
   type Side,
+  type WallScore,
+  type WallTeam,
 } from "../lib/game-day";
 import { useLiveRefresh } from "../lib/live";
 import { tierProgress } from "../lib/tiers";
@@ -93,10 +96,32 @@ const FADE_MS = 550;
 const MUSIC_SRC = "/sounds/f1-opening-titles-2026.mp3";
 const MUSIC_VOL = 0.55;
 
+/**
+ * The THIRD team — every active rep with no team assignment (shown as a triangle
+ * layout with the circle in the middle). This block is the ONE place to recolour
+ * or rename it (say, swap cyan for orange): its values feed the TEAM map below and
+ * are injected as the --cyan* CSS variables that the .gd-t-cyan class reads.
+ */
+const THIRD_TEAM = {
+  label: "Cyan",
+  hex: "#22d3ee",
+  hex2: "#0e9bb8",
+  dark: "#073c47",
+  rgb: "34, 211, 238",
+  burst: ["#22d3ee", "#0e9bb8", "#a5f3fc", "#ffffff"],
+};
+const THIRD_VARS: Record<string, string> = {
+  "--cyan": THIRD_TEAM.hex,
+  "--cyan-2": THIRD_TEAM.hex2,
+  "--cyan-3": THIRD_TEAM.dark,
+  "--cyan-rgb": THIRD_TEAM.rgb,
+};
+
 /** Visual identity per data key. Keys stay "orange"/"blue" (DB values) — only
- * the look is Green/Purple. BookingCelebration.tsx's GOAL_TEAM mirrors these. */
+ * the look is Green/Purple. BookingCelebration.tsx's GOAL_TEAM mirrors these.
+ * "cyan" is the display-only third team (unassigned reps, see THIRD_TEAM). */
 const TEAM: Record<
-  Side,
+  WallTeam,
   { label: string; cls: string; hex: string; hex2: string; rgb: string; burst: string[]; dir: 1 | -1 }
 > = {
   orange: {
@@ -117,8 +142,21 @@ const TEAM: Record<
     burst: ["#b84dff", "#8d2ce2", "#d9a6ff", "#ffffff"],
     dir: -1,
   },
+  cyan: {
+    label: THIRD_TEAM.label,
+    cls: "gd-t-cyan",
+    hex: THIRD_TEAM.hex,
+    hex2: THIRD_TEAM.hex2,
+    rgb: THIRD_TEAM.rgb,
+    burst: THIRD_TEAM.burst,
+    dir: 1,
+  },
 };
-const LABELS: Record<Side, string> = { orange: TEAM.orange.label, blue: TEAM.blue.label };
+const LABELS: Record<WallTeam, string> = {
+  orange: TEAM.orange.label,
+  blue: TEAM.blue.label,
+  cyan: TEAM.cyan.label,
+};
 const GOLD_BURST = ["#ffc928", "#e5a900", "#ffffff", "#b7ff00", "#b84dff"];
 
 function reducedMotion(): boolean {
@@ -172,22 +210,27 @@ const ROOM_SPECKS = Array.from({ length: 10 }, (_, i) => ({
 /** Page backdrop: near-black with a whisper of dot texture, green/purple
  * radial illumination from the sides (the leader's is stronger), a vignette
  * toward the bottom, and a few slow specks. Decorative only. */
-function Backdrop({ leader }: { leader: Side | null }) {
+function Backdrop({ leader, teams }: { leader: WallTeam | null; teams: readonly WallTeam[] }) {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-30 overflow-hidden bg-[var(--bg)]">
-      {(["orange", "blue"] as const).map((side) => {
+      {teams.map((side) => {
         const t = TEAM[side];
         const lead = leader === side;
+        // Green leans in from the left, purple from the right; the third team
+        // glows down from the top centre, above the triangle.
+        const pos =
+          side === "orange"
+            ? { cls: "inset-y-[-10%] left-[-14%] w-[58%]", at: "36% 42%" }
+            : side === "blue"
+              ? { cls: "inset-y-[-10%] right-[-14%] w-[58%]", at: "64% 42%" }
+              : { cls: "inset-x-[15%] top-[-24%] h-[70%]", at: "50% 40%" };
         return (
           <div
             key={side}
-            className={cx(
-              "gd-ambient absolute inset-y-[-10%] w-[58%] transition-opacity duration-700",
-              side === "orange" ? "left-[-14%]" : "right-[-14%]",
-            )}
+            className={cx("gd-ambient absolute transition-opacity duration-700", pos.cls)}
             style={{
               opacity: lead ? 1 : 0.6,
-              background: `radial-gradient(58% 55% at ${side === "orange" ? "36%" : "64%"} 42%, rgba(${t.rgb}, ${lead ? 0.19 : 0.12}), transparent 70%)`,
+              background: `radial-gradient(58% 55% at ${pos.at}, rgba(${t.rgb}, ${lead ? 0.19 : 0.12}), transparent 70%)`,
             }}
           />
         );
@@ -475,15 +518,18 @@ function Row({
   isTopJob,
   crownKey,
   event,
+  dense = false,
 }: {
   r: BoardRowDTO;
-  side: Side;
+  side: WallTeam;
   rank: number;
   max: number;
   isTop: boolean;
   isTopJob: boolean;
   crownKey: number;
   event: RowEvent | undefined;
+  /** Triad layout: narrower panels, so a tighter row. */
+  dense?: boolean;
 }) {
   const t = TEAM[side];
   const pct = max > 0 ? Math.round((r.count / max) * 100) : 0;
@@ -491,7 +537,9 @@ function Row({
     <li
       data-id={r.staffId}
       className={cx(
-        "relative grid min-h-0 grid-cols-[7%_36%_minmax(0,1fr)_15%] items-center gap-3 overflow-hidden rounded-md px-3",
+        dense
+          ? "relative grid min-h-0 grid-cols-[9%_38%_minmax(0,1fr)_14%] items-center gap-2 overflow-hidden rounded-md px-2.5"
+          : "relative grid min-h-0 grid-cols-[7%_36%_minmax(0,1fr)_15%] items-center gap-3 overflow-hidden rounded-md px-3",
         isTop ? "gd-row-top" : "gd-row",
       )}
     >
@@ -502,7 +550,9 @@ function Row({
       {/* Rank — the overall #1 wears the crown in a gold badge. */}
       <span
         className={cx(
-          "gd-rank relative grid size-8 place-items-center font-mono text-sm font-black tabular-nums",
+          dense
+            ? "gd-rank relative grid size-7 place-items-center font-mono text-xs font-black tabular-nums"
+            : "gd-rank relative grid size-8 place-items-center font-mono text-sm font-black tabular-nums",
           isTop ? "text-[#0b0a05]" : "text-white/75",
         )}
         style={
@@ -524,7 +574,10 @@ function Row({
       <span className="relative flex min-w-0 items-center gap-3">
         <span
           aria-hidden
-          className="font-display grid size-10 shrink-0 place-items-center rounded-full text-lg font-black"
+          className={cx(
+            "font-display grid shrink-0 place-items-center rounded-full font-black",
+            dense ? "size-8 text-base" : "size-10 text-lg",
+          )}
           style={{
             background: `linear-gradient(180deg, ${t.hex}, ${t.hex2})`,
             color: "#07090b",
@@ -535,7 +588,8 @@ function Row({
         </span>
         <span
           className={cx(
-            "font-display min-w-0 truncate leading-none font-black tracking-wide uppercase [font-size:clamp(1.4rem,1.9vw,2.15rem)]",
+            "font-display min-w-0 truncate leading-none font-black tracking-wide uppercase",
+            dense ? "[font-size:clamp(1.1rem,1.5vw,1.8rem)]" : "[font-size:clamp(1.4rem,1.9vw,2.15rem)]",
             isTop ? "text-white" : "text-[var(--white)]",
           )}
           style={isTop ? { textShadow: "0 0 12px rgba(255,201,40,0.35)" } : undefined}
@@ -569,7 +623,8 @@ function Row({
       <span
         key={r.count}
         className={cx(
-          "gd-num-swap font-display text-right leading-none font-black tabular-nums [font-size:clamp(1.55rem,2.05vw,2.4rem)]",
+          "gd-num-swap font-display text-right leading-none font-black tabular-nums",
+          dense ? "[font-size:clamp(1.3rem,1.8vw,2.1rem)]" : "[font-size:clamp(1.55rem,2.05vw,2.4rem)]",
           isTop ? "text-[var(--gold)]" : "text-white",
         )}
         style={isTop ? { textShadow: "0 0 14px rgba(255,201,40,0.45)" } : undefined}
@@ -592,8 +647,10 @@ function TeamPanel({
   crownKey,
   events,
   totalPulse,
+  variant = "wide",
+  flashKey = 0,
 }: {
-  side: Side;
+  side: WallTeam;
   reps: BoardRowDTO[];
   total: number;
   lead: boolean;
@@ -603,6 +660,10 @@ function TeamPanel({
   crownKey: number;
   events: ReadonlyMap<string, RowEvent>;
   totalPulse: number;
+  /** "triad" = one of the three panels around the centre circle (big score in the header). */
+  variant?: "wide" | "triad";
+  /** Re-keyed one-shot glow when this team has just taken the lead (0 = none). */
+  flashKey?: number;
 }) {
   const t = TEAM[side];
   const sorted = rankRows(reps);
@@ -641,6 +702,45 @@ function TeamPanel({
       className={cx(t.cls, "gd-team-panel relative flex min-h-0 flex-col overflow-hidden rounded-lg")}
       style={{ ["--lead" as string]: lead ? 1 : 0 }}
     >
+      {flashKey > 0 && (
+        <span key={flashKey} aria-hidden className="gd-lead-flash pointer-events-none absolute inset-0 z-[1] rounded-lg" />
+      )}
+      {variant === "triad" && (
+        <header className="relative flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-1.5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              aria-hidden
+              className="gd-hex size-5 shrink-0"
+              style={{ background: t.hex, boxShadow: `0 0 12px rgba(${t.rgb},0.85)` }}
+            />
+            <div className="flex min-w-0 flex-col leading-none">
+              <h2
+                className="font-display truncate font-black tracking-[0.1em] uppercase italic [font-size:clamp(1.25rem,1.65vw,2rem)]"
+                style={{ color: t.hex, textShadow: `0 0 14px rgba(${t.rgb},0.4)` }}
+              >
+                {t.label} team
+              </h2>
+              <span className="mt-1 text-[0.62rem] font-bold tracking-[0.18em] whitespace-nowrap text-[var(--muted)] uppercase">
+                {reps.length} player{reps.length === 1 ? "" : "s"}
+                {lead ? " · 👑 leading" : ""}
+              </span>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-col items-end leading-none">
+            <span
+              key={`${total}-${totalPulse}`}
+              className="gd-bump font-display font-black tabular-nums text-white [font-size:clamp(2.2rem,3.1vw,3.6rem)]"
+              style={{ textShadow: lead ? `0 0 26px rgba(${t.rgb},0.65)` : `0 0 12px rgba(${t.rgb},0.3)` }}
+            >
+              {total}
+            </span>
+            <span className="mt-0.5 text-[0.56rem] font-bold tracking-[0.2em] text-[var(--muted)] uppercase">
+              bookings
+            </span>
+          </div>
+        </header>
+      )}
+      {variant === "wide" && (
       <header className="relative flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2">
         <div className="flex items-center gap-2.5">
           <span aria-hidden className="gd-hex size-4" style={{ background: t.hex, boxShadow: `0 0 10px rgba(${t.rgb},0.8)` }} />
@@ -668,8 +768,16 @@ function TeamPanel({
           </span>
         </div>
       </header>
+      )}
 
-      <div className="relative grid shrink-0 grid-cols-[7%_36%_minmax(0,1fr)_15%] items-center gap-3 px-6 pt-1.5 pb-1 text-[0.6rem] font-bold tracking-[0.18em] text-[var(--muted)] uppercase">
+      <div
+        className={cx(
+          "relative grid shrink-0 items-center text-[0.6rem] font-bold tracking-[0.18em] text-[var(--muted)] uppercase",
+          variant === "triad"
+            ? "grid-cols-[9%_38%_minmax(0,1fr)_14%] gap-2 px-5 pt-1 pb-0.5"
+            : "grid-cols-[7%_36%_minmax(0,1fr)_15%] gap-3 px-6 pt-1.5 pb-1",
+        )}
+      >
         <span>Rank</span>
         <span>Player</span>
         <span />
@@ -681,7 +789,13 @@ function TeamPanel({
           <p className="text-sm font-medium text-white/40">No {t.label} players yet — assign them in Manage.</p>
         </div>
       ) : (
-        <ul ref={listRef} className="relative grid min-h-0 flex-1 gap-1.5 px-3 pb-3 [grid-auto-rows:minmax(0,1fr)]">
+        <ul
+          ref={listRef}
+          className={cx(
+            "relative grid min-h-0 flex-1 px-3 [grid-auto-rows:minmax(0,1fr)]",
+            variant === "triad" ? "gap-1 pb-2" : "gap-1.5 pb-3",
+          )}
+        >
           {sorted.map((r, i) => (
             <Row
               key={r.staffId}
@@ -693,6 +807,7 @@ function TeamPanel({
               isTopJob={r.staffId === topJobId}
               crownKey={crownKey}
               event={events.get(r.staffId)}
+              dense={variant === "triad"}
             />
           ))}
         </ul>
@@ -747,8 +862,257 @@ function RosterIntroCard({ card, index, total }: { card: RosterCard; index: numb
   );
 }
 
+/** The big circle in the middle of the triangle: a donut whose three arcs are
+ * each team's share of the day's total (equal dim thirds at 0), with the total
+ * itself, big, in the centre and the three team scores underneath it. */
+function TotalRing({ w, vsKey }: { w: WallScore<BoardRowDTO>; vsKey: number }) {
+  const GAP = 1.6; // % of the circumference left between arcs
+  const total = w.total;
+  const shares: Record<WallTeam, number> = {
+    cyan: total > 0 ? w.totals.cyan / total : 1 / 3,
+    blue: total > 0 ? w.totals.blue / total : 1 / 3,
+    orange: total > 0 ? w.totals.orange / total : 1 / 3,
+  };
+  // Clockwise from the top: cyan (centred on 12 o'clock, over the top panel),
+  // then blue (right), then orange (left) — so each arc faces its own panel.
+  let acc = (-shares.cyan * 100) / 2;
+  const arcs = (["cyan", "blue", "orange"] as const).map((t) => {
+    const len = Math.max(0, shares[t] * 100 - GAP);
+    const start = acc + GAP / 2;
+    acc += shares[t] * 100;
+    return { t, len, start };
+  });
+  return (
+    <div className="absolute inset-0">
+      {/* Slow outer orbit — pure decoration. */}
+      <span aria-hidden className="gd-ring-spin pointer-events-none absolute -inset-2.5 rounded-full border border-dashed border-white/15" />
+      <svg viewBox="0 0 200 200" className="absolute inset-0 size-full -rotate-90" aria-hidden>
+        <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="15" />
+        {arcs.map((a) => (
+          <circle
+            key={a.t}
+            cx="100"
+            cy="100"
+            r="88"
+            fill="none"
+            stroke={TEAM[a.t].hex}
+            strokeWidth="15"
+            pathLength={100}
+            strokeDasharray={`${a.len} ${100 - a.len}`}
+            strokeDashoffset={-a.start}
+            style={{
+              transition: "stroke-dasharray 900ms ease, stroke-dashoffset 900ms ease",
+              opacity: total > 0 ? 1 : 0.3,
+              filter: `drop-shadow(0 0 5px ${TEAM[a.t].hex})`,
+            }}
+          />
+        ))}
+      </svg>
+      <div
+        className="absolute inset-[11%] grid place-items-center rounded-full"
+        style={{
+          background: "radial-gradient(closest-side, #0f1417, #06080a)",
+          boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.08), inset 0 0 46px rgba(0,0,0,0.85)",
+        }}
+      >
+        <div className="flex flex-col items-center leading-none">
+          <span className="text-[0.6rem] font-bold tracking-[0.2em] whitespace-nowrap text-[var(--muted)] uppercase">
+            Total bookings
+          </span>
+          <span
+            key={`${total}-${vsKey}`}
+            className="gd-bump font-display mt-1 font-black tabular-nums text-white [font-size:clamp(3.4rem,5.4vw,6rem)]"
+            style={{ textShadow: "0 0 26px rgba(255,255,255,0.3)" }}
+          >
+            {total}
+          </span>
+          <span className="mt-0.5 text-[0.6rem] font-bold tracking-[0.3em] text-[var(--muted)] uppercase">today</span>
+          <div className="font-display mt-1.5 flex items-center gap-2 text-[clamp(0.9rem,1.2vw,1.25rem)] font-black tabular-nums">
+            {(["orange", "blue", "cyan"] as const).map((t, i) => (
+              <span key={t} className="flex items-center gap-2">
+                {i > 0 && <span className="text-white/25">·</span>}
+                <span style={{ color: TEAM[t].hex }}>{w.totals[t]}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface PillInfo {
+  text: string;
+  color: string;
+  rgb: string;
+  side: WallTeam | null;
+}
+
+/** The middle of the triangle: the total ring, glowing spokes running out to all
+ * three team panels (so it reads as one connected shape), and the lead line. */
+function TriadCore({
+  w,
+  tieKey,
+  vsKey,
+  pill,
+}: {
+  w: WallScore<BoardRowDTO>;
+  tieKey: number;
+  vsKey: number;
+  pill: PillInfo;
+}) {
+  const spokeShadow = (rgb: string) => `0 0 12px 1px rgba(${rgb},0.75)`;
+  return (
+    <div className="relative col-start-2 row-start-2 flex min-h-0 flex-col items-center gap-3">
+      <div className={cx("relative aspect-square shrink-0 [width:var(--ring)]", tieKey > 0 && "gd-gold-pulse rounded-full")}>
+        {/* Up to the top team (the row gap above is exactly this tall). */}
+        <span
+          aria-hidden
+          className="gd-spoke absolute bottom-full left-1/2 h-5 w-[3px] -translate-x-1/2"
+          style={{
+            background: `linear-gradient(0deg, rgba(${TEAM.cyan.rgb},0.35), ${TEAM.cyan.hex})`,
+            boxShadow: spokeShadow(TEAM.cyan.rgb),
+          }}
+        />
+        {/* Left to the green panel, right to the purple one. */}
+        <span
+          aria-hidden
+          className="gd-spoke absolute top-1/2 right-full h-[3px] -translate-y-1/2"
+          style={{
+            width: "calc((var(--core) - var(--ring)) / 2 + 1rem)",
+            background: `linear-gradient(90deg, ${TEAM.orange.hex}, rgba(${TEAM.orange.rgb},0.3))`,
+            boxShadow: spokeShadow(TEAM.orange.rgb),
+          }}
+        />
+        <span
+          aria-hidden
+          className="gd-spoke absolute top-1/2 left-full h-[3px] -translate-y-1/2"
+          style={{
+            width: "calc((var(--core) - var(--ring)) / 2 + 1rem)",
+            background: `linear-gradient(270deg, ${TEAM.blue.hex}, rgba(${TEAM.blue.rgb},0.3))`,
+            boxShadow: spokeShadow(TEAM.blue.rgb),
+          }}
+        />
+        <TotalRing w={w} vsKey={vsKey} />
+      </div>
+      <p
+        key={pill.text}
+        className="gd-toast-in relative flex max-w-full items-center gap-2 rounded-full border px-4 py-1 text-[clamp(0.68rem,0.85vw,0.9rem)] font-black tracking-[0.14em] whitespace-nowrap uppercase"
+        style={{
+          color: pill.color,
+          borderColor: `rgba(${pill.rgb},0.5)`,
+          background: `linear-gradient(180deg, rgba(${pill.rgb},0.14), rgba(${pill.rgb},0.06))`,
+          boxShadow: `0 0 16px -4px rgba(${pill.rgb},0.5)`,
+        }}
+        aria-live="polite"
+      >
+        {pill.side && (
+          <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: TEAM[pill.side].hex, boxShadow: `0 0 8px ${TEAM[pill.side].hex}` }} />
+        )}
+        {pill.text}
+      </p>
+    </div>
+  );
+}
+
+/** The big glowing triangle the three panels sit on. Its edges run through the
+ * empty upper corners (the rest hides behind the panels), tying the cyan, green
+ * and purple panels together as one shape around the centre ring. */
+function TriadFrame() {
+  const edge = (from: WallTeam, to: WallTeam, id: string, x1: number, y1: number, x2: number, y2: number) => (
+    <linearGradient key={id} id={id} gradientUnits="userSpaceOnUse" x1={x1} y1={y1} x2={x2} y2={y2}>
+      <stop offset="0" stopColor={TEAM[from].hex} stopOpacity="0.95" />
+      <stop offset="1" stopColor={TEAM[to].hex} stopOpacity="0.95" />
+    </linearGradient>
+  );
+  return (
+    <svg
+      aria-hidden
+      className="gd-spoke pointer-events-none absolute inset-0 size-full"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      style={{ filter: "drop-shadow(0 0 5px rgba(255,255,255,0.18))" }}
+    >
+      <defs>
+        {edge("cyan", "orange", "gd-tri-left", 50, -4, -3, 102)}
+        {edge("cyan", "blue", "gd-tri-right", 50, -4, 103, 102)}
+        <radialGradient id="gd-tri-fill" cx="50%" cy="62%" r="60%">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.05" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <polygon points="50,-4 -3,102 103,102" fill="url(#gd-tri-fill)" />
+      <line x1="50" y1="-4" x2="-3" y2="102" stroke="url(#gd-tri-left)" strokeWidth="2.2" vectorEffect="non-scaling-stroke" opacity="0.7" />
+      <line x1="50" y1="-4" x2="103" y2="102" stroke="url(#gd-tri-right)" strokeWidth="2.2" vectorEffect="non-scaling-stroke" opacity="0.7" />
+    </svg>
+  );
+}
+
+/** Three teams as an upright triangle: the third team on top, green and purple
+ * below, the total ring in the middle joined to all three by glowing spokes.
+ * Row heights follow the rep counts so every row stays the same size. */
+function TriadStage({
+  w,
+  topJobId,
+  crownKey,
+  events,
+  totalPulse,
+  leadMoment,
+  tieKey,
+  vsKey,
+  pill,
+}: {
+  w: WallScore<BoardRowDTO>;
+  topJobId: string | null;
+  crownKey: number;
+  events: ReadonlyMap<string, RowEvent>;
+  totalPulse: Record<WallTeam, number>;
+  leadMoment: { side: WallTeam; key: number } | null;
+  tieKey: number;
+  vsKey: number;
+  pill: PillInfo;
+}) {
+  const topN = Math.max(1, w.groups.cyan.length);
+  const botN = Math.max(1, w.groups.orange.length, w.groups.blue.length);
+  const panel = (team: WallTeam) => (
+    <TeamPanel
+      side={team}
+      reps={w.groups[team]}
+      total={w.totals[team]}
+      lead={w.leader === team}
+      boardMax={w.maxCount}
+      topIds={w.topIds}
+      topJobId={topJobId}
+      crownKey={crownKey}
+      events={events}
+      totalPulse={totalPulse[team]}
+      variant="triad"
+      flashKey={leadMoment && leadMoment.side === team ? leadMoment.key : 0}
+    />
+  );
+  return (
+    <div
+      className="relative z-0 grid min-h-0 flex-1 gap-x-4 gap-y-5"
+      style={{
+        ["--core" as string]: "clamp(18rem, 19vw, 23rem)",
+        ["--ring" as string]: "min(calc(var(--core) - 3rem), 17rem)",
+        gridTemplateColumns: "minmax(0,1fr) var(--core) minmax(0,1fr)",
+        gridTemplateRows: `minmax(0,${topN + 2.6}fr) minmax(0,${botN + 2.6}fr)`,
+      }}
+    >
+      <TriadFrame />
+      <div className="col-span-3 row-start-1 flex min-h-0 justify-center">
+        <div className="grid min-h-0 [width:calc((100%-var(--core)-2rem)/2)]">{panel("cyan")}</div>
+      </div>
+      <div className="col-start-1 row-start-2 grid min-h-0">{panel("orange")}</div>
+      <TriadCore w={w} tieKey={tieKey} vsKey={vsKey} pill={pill} />
+      <div className="col-start-3 row-start-2 grid min-h-0">{panel("blue")}</div>
+    </div>
+  );
+}
+
 type IntroState = { phase: "title" | "roster" | "go"; idx: number; out: boolean };
-type Toast = { key: number; text: string; tone: Side | "gold" | "white"; icon?: string };
+type Toast = { key: number; text: string; tone: WallTeam | "gold" | "white"; icon?: string };
 
 export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const [daily, setDaily] = useState<BoardRowDTO[]>(initial.daily);
@@ -762,18 +1126,18 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const [toast, setToast] = useState<Toast | null>(null);
   const [toastOut, setToastOut] = useState(false);
   const [events, setEvents] = useState<Map<string, RowEvent>>(new Map());
-  const [totalPulse, setTotalPulse] = useState<Record<Side, number>>({ orange: 0, blue: 0 });
-  const [leadMoment, setLeadMoment] = useState<{ side: Side; key: number } | null>(null);
+  const [totalPulse, setTotalPulse] = useState<Record<WallTeam, number>>({ orange: 0, blue: 0, cyan: 0 });
+  const [leadMoment, setLeadMoment] = useState<{ side: WallTeam; key: number } | null>(null);
   const [tieKey, setTieKey] = useState(0);
   const [vsKey, setVsKey] = useState(0);
   const [crownKey, setCrownKey] = useState(0);
   const [overrideLine, setOverrideLine] = useState<string | null>(null);
 
   const inFlight = useRef(false);
-  const prevLeader = useRef<Side | null | undefined>(undefined);
+  const prevLeader = useRef<WallTeam | null | undefined>(undefined);
   const prevMargin = useRef<number | undefined>(undefined);
   const prevCounts = useRef<Map<string, number> | null>(null);
-  const prevTotals = useRef<Record<Side, number> | null>(null);
+  const prevTotals = useRef<{ totals: Record<WallTeam, number>; third: boolean } | null>(null);
   const prevTop = useRef<string | null>(null);
   const eventTimers = useRef<Map<string, number>>(new Map());
   const toastTimer = useRef<number | null>(null);
@@ -832,7 +1196,12 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   useEffect(() => {
     if (!on) return;
     const fire = () => {
-      const candidates = buildFacts(latest.current.daily, LABELS, TOP_SCORER_PRIZE);
+      const candidates = buildFacts(
+        latest.current.daily,
+        LABELS,
+        TOP_SCORER_PRIZE,
+        wallScore(latest.current.daily).hasThird,
+      );
       if (candidates.length === 0) return;
       const fresh = candidates.filter((f) => f !== lastFact.current);
       const pool = fresh.length ? fresh : candidates;
@@ -931,7 +1300,11 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   /** Run the whole opening ceremony: title → roll-call → "let the games begin". */
   const playIntro = useCallback(() => {
     if (reducedMotion()) return; // honour reduced motion — straight to the board
-    const roster = buildRoster(latest.current.daily, latest.current.monthly);
+    const roster = buildRoster(
+      latest.current.daily,
+      latest.current.monthly,
+      wallScore(latest.current.daily).hasThird, // a third team is introduced too
+    );
     rosterRef.current = roster;
     clearIntroTimers();
 
@@ -1040,18 +1413,27 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   useLiveRefresh(["bookings", "clock"], refetch);
 
   // ── Derived scoreboard state (mirrored by computeGameDayResult) ──
-  const s = scoreState(daily);
-  const { teamed, orange, blue, orangeTotal, blueTotal, total, margin, leader, maxCount, topIds } = s;
+  // Two teams (orange/blue) — plus, whenever any active rep is unassigned, a THIRD
+  // team made of exactly those reps, and the layout becomes the triangle.
+  const w = wallScore(daily);
+  const { rows: inPlay, totals, total, margin, leader, maxCount, topIds, hasThird } = w;
+  const orange = w.groups.orange;
+  const blue = w.groups.blue;
+  const orangeTotal = totals.orange;
+  const blueTotal = totals.blue;
   const topJobId = topJob?.staffId ?? null;
-  const line = leadLine(s, LABELS);
-  // Floor-wide total for the header — every rep's bookings today, including any
-  // not yet assigned to a team (unlike `total`, which only sums the two teams).
+  const line = leadLine({ ...w, teamCount: w.teams.length }, LABELS);
+  // The runner-up — who is "within one" / the one to respond when someone leads.
+  const runnerUp: WallTeam | null = leader
+    ? ([...w.teams].filter((t) => t !== leader).sort((a, b) => totals[b] - totals[a])[0] ?? null)
+    : null;
+  // Floor-wide total for the header — every rep's bookings today.
   const floorTotal = daily.reduce((n, r) => n + r.count, 0);
 
   // ── Booking events: per-rep flash/+N, team total pulse ──
   useEffect(() => {
-    const increases = countIncreases(prevCounts.current, teamed);
-    prevCounts.current = new Map(teamed.map((r) => [r.staffId, r.count]));
+    const increases = countIncreases(prevCounts.current, inPlay);
+    prevCounts.current = new Map(inPlay.map((r) => [r.staffId, r.count]));
     if (!on || increases.length === 0) return;
 
     setEvents((prev) => {
@@ -1059,10 +1441,10 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
       for (const inc of increases) next.set(inc.staffId, { key: Date.now() + Math.random(), delta: inc.to - inc.from });
       return next;
     });
-    const sidesHit = new Set<Side>();
+    const sidesHit = new Set<WallTeam>();
     for (const inc of increases) {
-      const row = teamed.find((r) => r.staffId === inc.staffId);
-      if (row) sidesHit.add(row.team);
+      const row = inPlay.find((r) => r.staffId === inc.staffId);
+      if (row) sidesHit.add(wallTeamOf(row.team));
       const old = eventTimers.current.get(inc.staffId);
       if (old) window.clearTimeout(old);
       eventTimers.current.set(
@@ -1084,18 +1466,20 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
         return n;
       });
     }
-  }, [teamed, on]);
+  }, [inPlay, on]);
 
   // Team milestones (5, 10, 15, 20…) — a brief toast, no interruption.
   useEffect(() => {
     const prev = prevTotals.current;
-    prevTotals.current = { orange: orangeTotal, blue: blueTotal };
+    const cur = { orange: totals.orange, blue: totals.blue, cyan: totals.cyan };
+    prevTotals.current = { totals: cur, third: hasThird };
     if (!on || !prev) return;
-    for (const side of ["orange", "blue"] as const) {
-      const hit = milestoneCrossed(prev[side], side === "orange" ? orangeTotal : blueTotal);
+    for (const side of ["orange", "blue", "cyan"] as const) {
+      if (side === "cyan" && !(hasThird && prev.third)) continue; // third team only just appeared — don't replay its morning
+      const hit = milestoneCrossed(prev.totals[side], cur[side]);
       if (hit !== null) showToast({ text: `${LABELS[side].toUpperCase()} HITS ${hit} BOOKINGS`, tone: side, icon: "🔥" }, TOAST_MS);
     }
-  }, [orangeTotal, blueTotal, on, showToast]);
+  }, [totals.orange, totals.blue, totals.cyan, hasThird, on, showToast]);
 
   // Lead change — the big moment — and ties.
   useEffect(() => {
@@ -1129,11 +1513,10 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     const prev = prevMargin.current;
     prevMargin.current = margin;
     if (!on || !leader) return;
-    if (prev !== undefined && prev !== 1 && margin === 1 && prev > 1) {
-      const trailing: Side = leader === "orange" ? "blue" : "orange";
-      showToast({ text: `${LABELS[trailing].toUpperCase()} WITHIN ONE!`, tone: trailing, icon: "👀" }, TOAST_MS);
+    if (prev !== undefined && prev !== 1 && margin === 1 && prev > 1 && runnerUp) {
+      showToast({ text: `${LABELS[runnerUp].toUpperCase()} WITHIN ONE!`, tone: runnerUp, icon: "👀" }, TOAST_MS);
     }
-  }, [margin, leader, on, showToast]);
+  }, [margin, leader, runnerUp, on, showToast]);
 
   // New overall #1 — crown moves with a pop, brief gold toast.
   useEffect(() => {
@@ -1142,9 +1525,9 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
     prevTop.current = single;
     if (!on || prev === null || single === null || single === prev) return;
     setCrownKey(Date.now());
-    const who = teamed.find((r) => r.staffId === single);
+    const who = inPlay.find((r) => r.staffId === single);
     if (who) showToast({ text: `NEW #1 — ${who.name}`, tone: "gold", icon: "👑" }, TOAST_MS);
-  }, [topIds, teamed, on, showToast]);
+  }, [topIds, inPlay, on, showToast]);
 
   const roster = rosterRef.current;
   const introCard = intro?.phase === "roster" ? roster[intro.idx] : undefined;
@@ -1160,15 +1543,18 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
   const pillRgb = line.side ? TEAM[line.side].rgb : line.kind === "tied" ? "255,201,40" : "255,255,255";
 
   return (
-    <main className="gd-wall relative z-0 flex h-dvh flex-col gap-3 overflow-hidden p-4 text-white">
+    <main
+      className="gd-wall relative z-0 flex h-dvh flex-col gap-3 overflow-hidden p-4 text-white"
+      style={THIRD_VARS as CSSProperties}
+    >
       {/* z-0 is load-bearing: it makes <main> own its stacking context so the
           fixed -z-30 backdrop paints beneath its own background. */}
-      <Backdrop leader={on ? leader : null} />
+      <Backdrop leader={on ? leader : null} teams={w.teams} />
 
       {/* Bookings gong + celebrate (team members only on the board), and site
           inspections still pop their green celebration + gong. `gameDay` swaps
           the "new booking" beat for a goal celebration only while the battle is on. */}
-      <BookingCelebration daily={teamed} inspectors={inspectors} gameDay={on} />
+      <BookingCelebration daily={inPlay} inspectors={inspectors} gameDay={on} />
 
       {/* Roll-call background music (hype anthem). Hidden; driven by the ceremony. */}
       <audio ref={musicRef} src={MUSIC_SRC} preload="auto" className="hidden" aria-hidden />
@@ -1210,7 +1596,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                 <h1 className="gd-slam font-display mt-3 font-black tracking-tight text-white uppercase italic [font-size:clamp(3.5rem,15vw,11rem)]">
                   Game Day
                 </h1>
-                <div className="mt-6 flex items-center gap-5 sm:gap-8">
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-5 sm:gap-8">
                   <span
                     className="gd-charge-left font-display text-4xl font-black uppercase sm:text-6xl"
                     style={{ color: TEAM.orange.hex }}
@@ -1224,6 +1610,17 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                   >
                     {TEAM.blue.label} team
                   </span>
+                  {hasThird && (
+                    <>
+                      <span className="font-display text-2xl font-black text-white/50 italic sm:text-4xl">VS</span>
+                      <span
+                        className="gd-fade-up font-display text-4xl font-black uppercase sm:text-6xl"
+                        style={{ color: TEAM.cyan.hex }}
+                      >
+                        {TEAM.cyan.label} team
+                      </span>
+                    </>
+                  )}
                 </div>
                 <p className="gd-fade-up mt-8 max-w-3xl text-base font-semibold text-white/70 sm:text-xl">
                   ⭐ Top scorer <span className="font-black text-[var(--gold)]">${TOP_SCORER_PRIZE}</span> · 💼 Top revenue job{" "}
@@ -1255,7 +1652,14 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                 </h1>
                 <p className="mt-6 text-2xl font-black text-white/80 sm:text-3xl">
                   <span style={{ color: TEAM.orange.hex }}>{TEAM.orange.label}</span> <span className="text-white/40">vs</span>{" "}
-                  <span style={{ color: TEAM.blue.hex }}>{TEAM.blue.label}</span> — go go go!
+                  <span style={{ color: TEAM.blue.hex }}>{TEAM.blue.label}</span>
+                  {hasThird && (
+                    <>
+                      {" "}
+                      <span className="text-white/40">vs</span> <span style={{ color: TEAM.cyan.hex }}>{TEAM.cyan.label}</span>
+                    </>
+                  )}{" "}
+                  — go go go!
                 </p>
               </div>
             )}
@@ -1305,7 +1709,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
                   More <span className="text-[var(--green)]">bookings</span>. More <span className="text-[var(--purple)]">wins</span>.
                 </p>
               </div>
-              <Countdown secs={secsLeft} />
+              {!hasThird && <Countdown secs={secsLeft} />}
               {soundLocked && (
                 <button
                   type="button"
@@ -1320,7 +1724,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
             {/* Total bookings today — centred in the header, same horizontal
                 line as the countdown and reward modules. */}
             <div className="flex justify-self-center">
-              <TotalBookings total={floorTotal} />
+              {hasThird ? <Countdown secs={secsLeft} /> : <TotalBookings total={floorTotal} />}
             </div>
 
             <div className="gd-panel flex items-center justify-self-end gap-5 rounded-lg px-4 py-2 [&>*+*]:border-l [&>*+*]:border-[var(--border)] [&>*+*]:pl-5">
@@ -1336,7 +1740,8 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
             </div>
           </header>
 
-          {/* ── Matchup banner: Green territory · VS · Purple territory ── */}
+          {/* ── Matchup banner: Green territory · VS · Purple territory (two teams) ── */}
+          {!hasThird && (
           <section
             key={`banner-${tieKey}`}
             className={cx(
@@ -1423,6 +1828,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
               />
             )}
           </section>
+          )}
 
           {/* ── Toast (milestones / lead change / new #1 / facts / final push) ── */}
           {toast && (
@@ -1430,7 +1836,8 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
               key={toast.key}
               aria-live="polite"
               className={cx(
-                "pointer-events-none fixed inset-x-0 top-[calc(50%-13rem)] z-[58] flex justify-center px-4",
+                "pointer-events-none fixed inset-x-0 z-[58] flex justify-center px-4",
+                hasThird ? "top-[7.25rem]" : "top-[calc(50%-13rem)]",
                 toastOut ? "gd-toast-out" : "gd-toast-in",
               )}
             >
@@ -1450,7 +1857,20 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
             </div>
           )}
 
-          {/* ── Leaderboards ── */}
+          {/* ── Leaderboards: the triangle (three teams) or two side-by-side panels ── */}
+          {hasThird ? (
+            <TriadStage
+              w={w}
+              topJobId={topJobId}
+              crownKey={crownKey}
+              events={events}
+              totalPulse={totalPulse}
+              leadMoment={leadMoment}
+              tieKey={tieKey}
+              vsKey={vsKey}
+              pill={{ text: overrideLine ?? line.text, color: pillColor, rgb: pillRgb, side: line.side }}
+            />
+          ) : (
           <div className="relative z-0 grid min-h-0 flex-1 grid-cols-2 gap-4">
             <TeamPanel
               side="orange"
@@ -1477,6 +1897,7 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
               totalPulse={totalPulse.blue}
             />
           </div>
+          )}
 
           {/* ── Footer rewards ── */}
           <footer className="gd-panel grid shrink-0 grid-cols-4 items-center rounded-lg px-5 py-2 [&>*+*]:border-l [&>*+*]:border-[var(--border)] [&>*+*]:pl-5">

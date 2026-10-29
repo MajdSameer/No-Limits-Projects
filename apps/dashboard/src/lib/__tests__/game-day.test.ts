@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildFacts,
   buildRoster,
   countdownPhase,
   countIncreases,
@@ -12,6 +13,8 @@ import {
   scoreState,
   secsUntilGameEnd,
   takesLeadLine,
+  wallScore,
+  wallTeamOf,
 } from "../game-day";
 
 const LABELS = { orange: "Green", blue: "Purple" } as const;
@@ -182,5 +185,121 @@ describe("buildRoster", () => {
     expect(roster.map((r) => r.staffId)).toEqual(["c", "b", "a"]);
     expect(roster[2]).toMatchObject({ month: 40, revenue: 90000 });
     expect(roster[0]).toMatchObject({ month: 0, revenue: null });
+  });
+});
+
+describe("wallTeamOf", () => {
+  it("keeps stored teams and maps everyone else to the third (cyan) team", () => {
+    expect(wallTeamOf("orange")).toBe("orange");
+    expect(wallTeamOf("blue")).toBe("blue");
+    expect(wallTeamOf(null)).toBe("cyan");
+  });
+});
+
+describe("wallScore", () => {
+  it("is exactly the two-team scoreboard when nobody is unassigned", () => {
+    const s = wallScore([rep("1", "Ann", 5, "orange"), rep("2", "Luka", 3, "blue")]);
+    expect(s.hasThird).toBe(false);
+    expect(s.teams).toEqual(["orange", "blue"]);
+    expect(s.totals).toMatchObject({ orange: 5, blue: 3, cyan: 0 });
+    expect(s.total).toBe(8);
+    expect(s.leader).toBe("orange");
+    expect(s.margin).toBe(2);
+    expect(s.tied).toEqual([]);
+  });
+
+  it("makes the unassigned reps the third team and counts them everywhere", () => {
+    const s = wallScore([
+      rep("1", "Ann", 2, "orange"),
+      rep("2", "Luka", 3, "blue"),
+      rep("3", "Una", 6, null),
+      rep("4", "Uri", 1, null),
+    ]);
+    expect(s.hasThird).toBe(true);
+    expect(s.teams).toEqual(["orange", "blue", "cyan"]);
+    expect(s.groups.cyan.map((r) => r.staffId)).toEqual(["3", "4"]);
+    expect(s.totals).toMatchObject({ orange: 2, blue: 3, cyan: 7 });
+    expect(s.total).toBe(12);
+    expect(s.leader).toBe("cyan");
+    expect(s.margin).toBe(4); // 7 over the runner-up on 3
+    expect([...s.topIds]).toEqual(["3"]); // top scorer is picked floor-wide, third team included
+  });
+
+  it("margin is leader minus the RUNNER-UP, not the last-place team", () => {
+    const s = wallScore([rep("1", "A", 9, "orange"), rep("2", "B", 8, "blue"), rep("3", "C", 0, null)]);
+    expect(s.leader).toBe("orange");
+    expect(s.margin).toBe(1);
+  });
+
+  it("flags who is tied for first, even when the third team trails", () => {
+    const s = wallScore([rep("1", "A", 4, "orange"), rep("2", "B", 4, "blue"), rep("3", "C", 1, null)]);
+    expect(s.leader).toBeNull();
+    expect(s.tied).toEqual(["orange", "blue"]);
+    expect(s.margin).toBe(0);
+  });
+
+  it("a three-way tie and 0–0 have no leader", () => {
+    const three = wallScore([rep("1", "A", 2, "orange"), rep("2", "B", 2, "blue"), rep("3", "C", 2, null)]);
+    expect(three.leader).toBeNull();
+    expect(three.tied).toHaveLength(3);
+    const zero = wallScore([rep("1", "A", 0, "orange"), rep("2", "B", 0, "blue"), rep("3", "C", 0, null)]);
+    expect(zero.leader).toBeNull();
+    expect(zero.tied).toEqual([]);
+    expect(zero.total).toBe(0);
+  });
+});
+
+describe("leadLine with three teams", () => {
+  const L3 = { orange: "Green", blue: "Purple", cyan: "Cyan" } as const;
+
+  it("says GAME TIED only when every team is level", () => {
+    const all = wallScore([rep("1", "A", 2, "orange"), rep("2", "B", 2, "blue"), rep("3", "C", 2, null)]);
+    expect(leadLine({ ...all, teamCount: all.teams.length }, L3).text).toBe("⚡ GAME TIED");
+  });
+
+  it("names the teams tied for first when the third trails", () => {
+    const s = wallScore([rep("1", "A", 4, "orange"), rep("2", "B", 4, "blue"), rep("3", "C", 1, null)]);
+    expect(leadLine({ ...s, teamCount: s.teams.length }, L3).text).toBe("⚡ GREEN & PURPLE TIED");
+  });
+
+  it("names the third team as leader", () => {
+    expect(leadLine({ leader: "cyan", margin: 2, total: 9 }, L3).text).toBe("CYAN LEADS BY 2 BOOKINGS");
+    expect(takesLeadLine("cyan", L3)).toBe("CYAN TAKES THE LEAD!");
+  });
+});
+
+describe("buildRoster with a third team", () => {
+  it("introduces the unassigned reps too, as cyan, only when asked", () => {
+    const monthly = [{ ...rep("a", "Ann", 40, "orange") }, { ...rep("u", "Una", 5, null) }];
+    const daily = [rep("a", "Ann", 1, "orange"), rep("u", "Una", 0, null), rep("v", "Vic", 0, null)];
+    expect(buildRoster(daily, monthly).map((r) => r.staffId)).toEqual(["a"]);
+    const withThird = buildRoster(daily, monthly, true);
+    expect(withThird.map((r) => [r.staffId, r.team])).toEqual([
+      ["v", "cyan"],
+      ["u", "cyan"],
+      ["a", "orange"],
+    ]);
+  });
+});
+
+describe("buildFacts", () => {
+  const LABELS3 = { orange: "Green", blue: "Purple", cyan: "Cyan" };
+
+  it("two teams: unassigned reps are ignored and the wording is unchanged", () => {
+    const facts = buildFacts([rep("1", "Ann", 5, "orange"), rep("2", "Luka", 1, "blue"), rep("3", "Una", 50, null)], LABELS3, 50);
+    expect(facts.join("\n")).toContain("Green are pulling away — up by 4. Purple, time to respond!");
+    expect(facts.join("\n")).not.toContain("Una");
+  });
+
+  it("three teams: the unassigned reps are in play and the runner-up is who 'responds'", () => {
+    const facts = buildFacts(
+      [rep("1", "Ann", 1, "orange"), rep("2", "Luka", 3, "blue"), rep("3", "Una", 9, null), rep("4", "Uri", 1, null)],
+      LABELS3,
+      50,
+      true,
+    );
+    const text = facts.join("\n");
+    expect(text).toContain("Una is leading the whole floor with 9 today");
+    expect(text).toContain("Cyan are pulling away — up by 7. Purple, time to respond!");
   });
 });
