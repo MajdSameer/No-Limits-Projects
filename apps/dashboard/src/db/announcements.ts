@@ -1,4 +1,4 @@
-import { and, desc, gt, like, lt } from "drizzle-orm";
+import { and, desc, gt, gte, like, lt } from "drizzle-orm";
 
 import { getDb, schema } from "./client";
 import { ANNOUNCE_PREFIX, type Announcement, type AnnounceInput } from "../lib/announce";
@@ -10,7 +10,7 @@ import { ANNOUNCE_PREFIX, type Announcement, type AnnounceInput } from "../lib/a
  * chronologically, so "everything after key K" is a simple range read.
  */
 
-const KEEP_MS = 3 * 24 * 3600 * 1000; // announcements are ephemeral; prune after 3 days
+const KEEP_MS = 120 * 24 * 3600 * 1000; // kept ~4 months: the /live "booked for others" tracker counts this month
 const DEDUPE_MS = 2 * 60 * 1000; // the same job number twice within 2 min = a double-tap
 
 function makeKey(at: number): string {
@@ -64,6 +64,18 @@ export async function addAnnouncement(
     .delete(schema.appSettings)
     .where(and(like(schema.appSettings.key, `${ANNOUNCE_PREFIX}%`), lt(schema.appSettings.key, makeKey(now - KEEP_MS))));
   return { announcement, duplicate: false };
+}
+
+/** Every announcement made at or after `sinceMs`, oldest first (capped) — feeds the /live tracker. */
+export async function announcementsSince(sinceMs: number, limit = 5000): Promise<Announcement[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({ key: schema.appSettings.key, value: schema.appSettings.value })
+    .from(schema.appSettings)
+    .where(and(like(schema.appSettings.key, `${ANNOUNCE_PREFIX}%`), gte(schema.appSettings.key, `${ANNOUNCE_PREFIX}${String(Math.max(0, sinceMs)).padStart(13, "0")}`)))
+    .orderBy(schema.appSettings.key)
+    .limit(limit);
+  return rows.map((r) => parseRow(r.key, r.value)).filter((a): a is Announcement => a !== null);
 }
 
 /** The newest key — a screen's starting point, so loading/reloading never replays old ones. */

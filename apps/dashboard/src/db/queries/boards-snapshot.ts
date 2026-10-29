@@ -31,6 +31,8 @@ import {
   isGameDay,
   type TopRevenueJob,
 } from "../settings";
+import type { BookedForOthersRow } from "../../lib/booked-for-others";
+import { bookedForOthersBoard } from "./booked-for-others";
 import { pickMonthlyTotal } from "../../lib/monthly-total";
 
 interface AllocSlot {
@@ -41,6 +43,8 @@ interface AllocSlot {
 }
 
 export interface BoardsSnapshot {
+  /** /live "Booked for others" tracker (see booked-for-others). */
+  bookedForOthers: BookedForOthersRow[];
   daily: BoardRow[];
   yesterday: BoardRow[];
   monthly: BoardRow[];
@@ -82,6 +86,7 @@ async function compute(): Promise<BoardsSnapshot> {
   const inspectors = await inspectorBoard(now);
   const allocation = await liveAllocation(now);
   const gameDay = await isGameDay();
+  const bookedForOthers = await bookedForOthersBoard(now).catch(() => [] as BookedForOthersRow[]);
   const topRevenueJob = await getTopRevenueJob();
   const monthlyGoal = await getMonthlyGoal();
   const { target: dailyTarget, active: activeToday } = await dailyTeamGoal(now);
@@ -95,6 +100,7 @@ async function compute(): Promise<BoardsSnapshot> {
     monthly.reduce((s, r) => s + r.count, 0),
   );
   return {
+    bookedForOthers,
     daily,
     yesterday,
     monthly,
@@ -114,6 +120,7 @@ async function compute(): Promise<BoardsSnapshot> {
 /** An empty board to fall back on so a DB hiccup degrades instead of 500ing. */
 function emptySnapshot(): BoardsSnapshot {
   return {
+    bookedForOthers: [],
     daily: [],
     yesterday: [],
     monthly: [],
