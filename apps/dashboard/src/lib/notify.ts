@@ -15,7 +15,7 @@ function getClient(): SupabaseClient | null {
   return client;
 }
 
-export type LiveScope = "bookings" | "clock" | "roster" | "staff";
+export type LiveScope = "bookings" | "clock" | "roster" | "staff" | "announce";
 
 export function notify(scope: LiveScope): void {
   const c = getClient();
