@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getDb } from "../../../../db/client";
 import { ingestMonthly, ingestMonthlyRevenue, ingestPipeline } from "../../../../db/ingest-monthly";
+import { setSheetMonthTotal } from "../../../../db/settings";
 
 export const dynamic = "force-dynamic";
 // Tiny write (two upserts). Fail fast on a cold-DB hang so the caller's retry
@@ -15,6 +16,9 @@ interface MonthlyBody {
   pipeline?: Record<string, number>;
   /** Optional per-rep NET revenue (dollars) for the month. */
   revenue?: Record<string, number>;
+  /** Optional headline "bookings this month": the sum the "To be imported statistics" tab
+   * covers (Total + Cleaning over its listed names). Drives the /live headline. */
+  total?: number;
 }
 
 /**
@@ -51,7 +55,12 @@ export async function POST(request: NextRequest) {
       body.revenue && typeof body.revenue === "object"
         ? await ingestMonthlyRevenue(db, body.month, body.revenue)
         : undefined;
-    return NextResponse.json({ ok: true, ...result, pipeline, revenue });
+    // The script computes the headline with the stats tab's own rules; store it for this month
+    // (auto-clears next month). Zero/garbage is ignored — the board sum is the fallback.
+    if (typeof body.total === "number" && Number.isFinite(body.total) && body.total > 0) {
+      await setSheetMonthTotal(body.month, body.total);
+    }
+    return NextResponse.json({ ok: true, ...result, pipeline, revenue, total: body.total ?? undefined });
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
