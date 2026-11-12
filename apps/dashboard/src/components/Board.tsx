@@ -51,6 +51,8 @@ export interface InspectorRowDTO {
 }
 
 export interface BoardsDTO {
+  /** Extra-services booker's card (today / month / target). */
+  extraServices: { id: string; name: string; count: number; month: number; target: number | null; jobs: { code: string; forRep: string | null }[] };
   /** Jobs each rep booked for another rep via /booked (today / this month). */
   bookedForOthers: { name: string; today: number; month: number }[];
   daily: BoardRowDTO[];
