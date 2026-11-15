@@ -388,7 +388,7 @@ export function LiveBoard({ initial }: { initial: BoardsDTO }) {
 
   return (
     <main className="relative flex h-dvh flex-col gap-3 overflow-hidden bg-black p-4 text-white sm:p-5">
-      <BookingCelebration daily={daily} inspectors={data.inspectors} />
+      <BookingCelebration daily={daily} inspectors={data.inspectors} extra={data.extraServices} />
       {/* The instant "X booked #JOB for Y" moment from the public /booked form. */}
       <AnnouncementCelebration />
 

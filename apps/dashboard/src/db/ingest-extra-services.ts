@@ -19,6 +19,8 @@ export interface ExtraServicesIn {
   monthCount?: number | null;
   /** Today's target (the "/ 8" on the sheet card). */
   target?: number | null;
+  /** The card's own "Today's" number, when the script could read it (wins over counting jobs). */
+  today?: number | null;
 }
 
 export interface ExtraServicesSnapshot {
@@ -28,6 +30,8 @@ export interface ExtraServicesSnapshot {
   jobs: { code: string; forRep: string | null }[];
   monthCount: number;
   target: number | null;
+  /** The sheet card's own today number, if sent. */
+  today: number | null;
 }
 
 function cleanStr(v: unknown): string | null {
@@ -50,6 +54,7 @@ export async function ingestExtraServices(
   }
   const m = Number(body.monthCount);
   const t = Number(body.target);
+  const td = body.today === null || body.today === undefined ? NaN : Number(body.today);
   const snap: ExtraServicesSnapshot = {
     asOfDate,
     id: slug(name) || "clara",
@@ -57,6 +62,7 @@ export async function ingestExtraServices(
     jobs,
     monthCount: Number.isFinite(m) && m > 0 ? Math.trunc(m) : 0,
     target: Number.isFinite(t) && t > 0 ? Math.trunc(t) : null,
+    today: Number.isFinite(td) && td >= 0 ? Math.trunc(td) : null,
   };
   const value = JSON.stringify(snap);
   await db

@@ -33,7 +33,8 @@ export async function extraServicesBoard(now: Date = new Date()): Promise<ExtraS
   return {
     id: snap?.id ?? "clara",
     name: snap?.name ?? "Clara",
-    count: jobs.length,
+    // The sheet card's own "Today's" number wins; else count the entries.
+    count: fresh && snap?.today != null ? snap.today : jobs.length,
     month: sameMonth ? Math.max(0, snap?.monthCount ?? 0) : 0,
     target: snap?.target ?? null,
     jobs,
