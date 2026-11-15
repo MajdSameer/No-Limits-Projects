@@ -56,67 +56,89 @@ function nlxDay_(v) {
   return isNaN(d.getTime()) ? "" : Utilities.formatDate(d, NLX_TZ, "yyyy-MM-dd");
 }
 
-/** Finds the Extra Services card on the Leaderboard tab BY ITS LABELS (so a moved/resized card still works):
- *  title cell "Extra Services", then the "Job number" / "Sales Rep" header cells and the "Monthly" label.
- *  Returns { jobCol, repCol, headerRow, titleRow, monthlyCol } or falls back to the fixed AU/BA/198 guess. */
-function nlxLocate_(board) {
-  var fb = { jobCol: NLX_JOB_COL, repCol: NLX_REP_COL, headerRow: NLX_FIRST_ROW, titleRow: NLX_FIRST_ROW - 8, monthlyCol: 0, found: false };
-  function find(text, minRow, maxRow) {
-    var hits = board.createTextFinder(text).matchEntireCell(true).matchCase(false).findAll();
-    for (var i = 0; i < hits.length; i++) {
-      var r = hits[i].getRow();
-      if (r >= minRow && r <= maxRow) return hits[i];
-    }
-    return null;
-  }
-  var title = find("Extra Services", 1, 5000);
-  if (!title) return fb;
-  var t = title.getRow();
-  var job = find("Job number", t, t + 20), rep = find("Sales Rep", t, t + 20);
-  if (!job || !rep) return fb;
-  var mon = find("Monthly", t, t + 20);
-  return { jobCol: job.getColumn(), repCol: rep.getColumn(), headerRow: job.getRow(), titleRow: t, monthlyCol: mon ? mon.getColumn() : 0, found: true };
+/** Reads the Leaderboard area (rows NLX_SCAN_FROM..end) ONCE as text, then finds the Extra Services card by its labels,
+ *  matching loosely (case/space-insensitive, "contains"), since the sheet has several similar blocks (site inspectors use
+ *  the same "Job number / Sales Rep" headers). The card = the "Extra Services" title, then the nearest "Job number" header
+ *  below/right of it, the "Sales Rep" header to its right on the same row, and the "Monthly" label. */
+var NLX_SCAN_FROM = 100;
+
+function nlxNorm_(v) { return String(v == null ? "" : v).replace(/\s+/g, " ").trim().toLowerCase(); }
+
+function nlxReadGrid_(board) {
+  var lastRow = board.getLastRow(), lastCol = board.getLastColumn();
+  var rows = Math.min(lastRow, 400) - NLX_SCAN_FROM + 1;
+  if (rows < 1 || lastCol < 1) return { rows: [], top: NLX_SCAN_FROM };
+  return { rows: board.getRange(NLX_SCAN_FROM, 1, rows, lastCol).getDisplayValues(), top: NLX_SCAN_FROM };
 }
 
-/** The card's own "Today's  6 / 8" — numbers (or "n/m") in the cells between the title and the header, left of "Monthly". */
-function nlxCardNumbers_(board, loc) {
-  var r1 = loc.titleRow + 1, r2 = loc.headerRow - 1;
-  if (r2 < r1) return [];
-  var c1 = loc.jobCol, c2 = loc.monthlyCol > loc.jobCol ? loc.monthlyCol - 1 : loc.repCol;
-  var vals = board.getRange(r1, c1, r2 - r1 + 1, c2 - c1 + 1).getDisplayValues();
-  var nums = [];
-  vals.forEach(function (row) {
-    row.forEach(function (cell) {
-      var s = String(cell || "").trim();
-      var m = s.match(/^(\d+)\s*(?:\/\s*(\d+))?$/);
-      if (m) { nums.push(parseInt(m[1], 10)); if (m[2]) nums.push(parseInt(m[2], 10)); }
+/** All cells whose text contains `needle` → [{row, col}] (1-based sheet coords). */
+function nlxFindAll_(grid, needle) {
+  var out = [];
+  for (var r = 0; r < grid.rows.length; r++) {
+    for (var c = 0; c < grid.rows[r].length; c++) {
+      if (nlxNorm_(grid.rows[r][c]).indexOf(needle) >= 0) out.push({ row: grid.top + r, col: c + 1 });
+    }
+  }
+  return out;
+}
+
+function nlxCell_(grid, row, col) {
+  var r = grid.rows[row - grid.top];
+  return r ? String(r[col - 1] == null ? "" : r[col - 1]).trim() : "";
+}
+
+function nlxLocate_(grid) {
+  var titles = nlxFindAll_(grid, "extra services");
+  var jobs = nlxFindAll_(grid, "job number"), reps = nlxFindAll_(grid, "sales rep"), mons = nlxFindAll_(grid, "monthly");
+  Logger.log("scan: titles " + JSON.stringify(titles) + " | 'job number' " + JSON.stringify(jobs) + " | 'sales rep' " + JSON.stringify(reps) + " | 'monthly' " + JSON.stringify(mons));
+  for (var i = 0; i < titles.length; i++) {
+    var t = titles[i], best = null;
+    jobs.forEach(function (j) {
+      if (j.row >= t.row && j.row <= t.row + 25 && j.col >= t.col - 1 && (!best || j.col < best.col || (j.col === best.col && j.row < best.row))) best = j;
     });
-  });
+    if (!best) continue;
+    var rep = null;
+    reps.forEach(function (r) { if (r.row === best.row && r.col > best.col && (!rep || r.col < rep.col)) rep = r; });
+    if (!rep) continue;
+    var mon = null;
+    mons.forEach(function (m) { if (m.row >= t.row && m.row <= best.row && m.col > best.col && (!mon || m.col < mon.col)) mon = m; });
+    return { found: true, titleRow: t.row, titleCol: t.col, jobCol: best.col, repCol: rep.col, headerRow: best.row, monthlyCol: mon ? mon.col : 0 };
+  }
+  return { found: false };
+}
+
+/** The card's own "Today's  6 / 8": numbers (or "n/m") in the cells between the title and the header, left of "Monthly". */
+function nlxCardNumbers_(grid, loc) {
+  var c2 = loc.monthlyCol > loc.jobCol ? loc.monthlyCol - 1 : loc.repCol;
+  var nums = [];
+  for (var r = loc.titleRow + 1; r < loc.headerRow; r++) {
+    for (var c = loc.jobCol; c <= c2; c++) {
+      var m = nlxCell_(grid, r, c).match(/^(\d+)\s*(?:\/\s*(\d+))?$/);
+      if (m) { nums.push(parseInt(m[1], 10)); if (m[2]) nums.push(parseInt(m[2], 10)); }
+    }
+  }
   return nums;
 }
 
 function nlxPush() {
   var board = nlxBoard_();
   if (!board) throw new Error('Tab "' + NLX_BOARD_TAB + '" not found.');
-  var loc = nlxLocate_(board);
-  var first = loc.headerRow; // header row itself is skipped below
-  var n = Math.min(NLX_MAXROWS, Math.max(0, board.getLastRow() - first + 1));
-  var jobs = [];
-  if (n > 0) {
-    var jv = board.getRange(first, loc.jobCol, n, 1).getValues();
-    var rv = board.getRange(first, loc.repCol, n, 1).getValues();
-    for (var i = 0; i < n; i++) {
-      var code = String(jv[i][0] || "").trim();
-      var forRep = String(rv[i][0] || "").trim();
+  var grid = nlxReadGrid_(board);
+  var loc = nlxLocate_(grid);
+  var jobs = [], today = null, target = NLX_TARGET;
+  if (loc.found) {
+    for (var r = loc.headerRow + 1; r <= loc.headerRow + NLX_MAXROWS; r++) {
+      var code = nlxCell_(grid, r, loc.jobCol), forRep = nlxCell_(grid, r, loc.repCol);
       if (!code || !forRep) continue;
-      if (forRep.toLowerCase() === "sales rep" || code.toLowerCase() === "job number") continue; // header
       jobs.push({ code: code, forRep: forRep });
     }
+    var nums = nlxCardNumbers_(grid, loc);
+    if (nums.length > 0) today = nums[0];
+    if (nums.length > 1) target = nums[1];
+    Logger.log("card FOUND: title r" + loc.titleRow + "c" + loc.titleCol + ", jobCol " + loc.jobCol + ", repCol " + loc.repCol + ", header row " + loc.headerRow + ", numbers " + JSON.stringify(nums) + ", entries " + jobs.length);
+  } else {
+    Logger.log("card NOT FOUND — send this log line + a screenshot to fix; pushing month only, today stays 0");
   }
-  var nums = loc.found ? nlxCardNumbers_(board, loc) : [];
-  var today = nums.length > 0 ? nums[0] : null;
-  var target = nums.length > 1 ? nums[1] : NLX_TARGET;
-  Logger.log("card " + (loc.found ? "found" : "NOT found (using AU/BA fallback)") + ": jobCol " + loc.jobCol + ", repCol " + loc.repCol + ", header row " + loc.headerRow + ", numbers " + JSON.stringify(nums) + ", entries " + jobs.length);
 
   var monthCount = 0;
   var book = SpreadsheetApp.getActive().getSheetByName(NLX_BOOK_TAB);
