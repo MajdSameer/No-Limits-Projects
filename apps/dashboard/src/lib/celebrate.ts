@@ -53,7 +53,7 @@ export interface BookingPop {
   /** The MovePro number of the booking that just landed, if known. */
   code: string | null;
   /** "rep" booking (default) or a site-inspection. */
-  kind?: "rep" | "inspector";
+  kind?: "rep" | "inspector" | "extra";
   /** Site inspections only: the SALES rep whose customer this inspection is for. */
   forRep?: string | null;
   /** Carried through from the source row so a Game Day goal celebration can be

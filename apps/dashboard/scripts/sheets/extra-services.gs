@@ -56,14 +56,55 @@ function nlxDay_(v) {
   return isNaN(d.getTime()) ? "" : Utilities.formatDate(d, NLX_TZ, "yyyy-MM-dd");
 }
 
+/** Finds the Extra Services card on the Leaderboard tab BY ITS LABELS (so a moved/resized card still works):
+ *  title cell "Extra Services", then the "Job number" / "Sales Rep" header cells and the "Monthly" label.
+ *  Returns { jobCol, repCol, headerRow, titleRow, monthlyCol } or falls back to the fixed AU/BA/198 guess. */
+function nlxLocate_(board) {
+  var fb = { jobCol: NLX_JOB_COL, repCol: NLX_REP_COL, headerRow: NLX_FIRST_ROW, titleRow: NLX_FIRST_ROW - 8, monthlyCol: 0, found: false };
+  function find(text, minRow, maxRow) {
+    var hits = board.createTextFinder(text).matchEntireCell(true).matchCase(false).findAll();
+    for (var i = 0; i < hits.length; i++) {
+      var r = hits[i].getRow();
+      if (r >= minRow && r <= maxRow) return hits[i];
+    }
+    return null;
+  }
+  var title = find("Extra Services", 1, 5000);
+  if (!title) return fb;
+  var t = title.getRow();
+  var job = find("Job number", t, t + 20), rep = find("Sales Rep", t, t + 20);
+  if (!job || !rep) return fb;
+  var mon = find("Monthly", t, t + 20);
+  return { jobCol: job.getColumn(), repCol: rep.getColumn(), headerRow: job.getRow(), titleRow: t, monthlyCol: mon ? mon.getColumn() : 0, found: true };
+}
+
+/** The card's own "Today's  6 / 8" — numbers (or "n/m") in the cells between the title and the header, left of "Monthly". */
+function nlxCardNumbers_(board, loc) {
+  var r1 = loc.titleRow + 1, r2 = loc.headerRow - 1;
+  if (r2 < r1) return [];
+  var c1 = loc.jobCol, c2 = loc.monthlyCol > loc.jobCol ? loc.monthlyCol - 1 : loc.repCol;
+  var vals = board.getRange(r1, c1, r2 - r1 + 1, c2 - c1 + 1).getDisplayValues();
+  var nums = [];
+  vals.forEach(function (row) {
+    row.forEach(function (cell) {
+      var s = String(cell || "").trim();
+      var m = s.match(/^(\d+)\s*(?:\/\s*(\d+))?$/);
+      if (m) { nums.push(parseInt(m[1], 10)); if (m[2]) nums.push(parseInt(m[2], 10)); }
+    });
+  });
+  return nums;
+}
+
 function nlxPush() {
   var board = nlxBoard_();
   if (!board) throw new Error('Tab "' + NLX_BOARD_TAB + '" not found.');
-  var n = Math.min(NLX_MAXROWS, Math.max(0, board.getLastRow() - NLX_FIRST_ROW + 1));
+  var loc = nlxLocate_(board);
+  var first = loc.headerRow; // header row itself is skipped below
+  var n = Math.min(NLX_MAXROWS, Math.max(0, board.getLastRow() - first + 1));
   var jobs = [];
   if (n > 0) {
-    var jv = board.getRange(NLX_FIRST_ROW, NLX_JOB_COL, n, 1).getValues();
-    var rv = board.getRange(NLX_FIRST_ROW, NLX_REP_COL, n, 1).getValues();
+    var jv = board.getRange(first, loc.jobCol, n, 1).getValues();
+    var rv = board.getRange(first, loc.repCol, n, 1).getValues();
     for (var i = 0; i < n; i++) {
       var code = String(jv[i][0] || "").trim();
       var forRep = String(rv[i][0] || "").trim();
@@ -72,6 +113,10 @@ function nlxPush() {
       jobs.push({ code: code, forRep: forRep });
     }
   }
+  var nums = loc.found ? nlxCardNumbers_(board, loc) : [];
+  var today = nums.length > 0 ? nums[0] : null;
+  var target = nums.length > 1 ? nums[1] : NLX_TARGET;
+  Logger.log("card " + (loc.found ? "found" : "NOT found (using AU/BA fallback)") + ": jobCol " + loc.jobCol + ", repCol " + loc.repCol + ", header row " + loc.headerRow + ", numbers " + JSON.stringify(nums) + ", entries " + jobs.length);
 
   var monthCount = 0;
   var book = SpreadsheetApp.getActive().getSheetByName(NLX_BOOK_TAB);
@@ -93,7 +138,7 @@ function nlxPush() {
 
   Logger.log("extra services (" + NLX_NAME + "): today " + jobs.length + ", month " + monthCount);
   return nlxPost_({
-    name: NLX_NAME, target: NLX_TARGET, jobs: jobs, monthCount: monthCount,
+    name: NLX_NAME, target: target, today: today, jobs: jobs, monthCount: monthCount,
     asOfDate: Utilities.formatDate(new Date(), NLX_TZ, "yyyy-MM-dd"),
   });
 }
@@ -103,8 +148,8 @@ function nlxOnEdit(e) {
   if (!e || !e.range) return;
   var name = e.range.getSheet().getName();
   if (name === NLX_BOARD_TAB) {
-    if (e.range.getLastColumn() < NLX_JOB_COL || e.range.getColumn() > NLX_REP_COL) return;
-    if (e.range.getLastRow() < NLX_FIRST_ROW || e.range.getRow() > NLX_FIRST_ROW + NLX_MAXROWS - 1) return;
+    // Any edit on the Leaderboard tab at/after the card's rows pushes (the 1-minute timer is the backstop).
+    if (e.range.getLastRow() < NLX_FIRST_ROW - 10) return;
     nlxPush();
   } else if (name === NLX_BOOK_TAB) {
     nlxPush();

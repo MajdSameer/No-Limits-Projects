@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { cx } from "@nlr/ui";
 
-import type { InspectorRowDTO } from "./Board";
+import type { BoardsDTO, InspectorRowDTO } from "./Board";
 import {
   createCelebrateState,
   inspectorBookings,
@@ -33,6 +33,8 @@ const MAX_QUEUE = 6; // don't black the wall out for a full minute on a big push
 const BURST = ["#ffd42e", "#fff389", "#f472b6", "#38bdf8", "#f4f1e8"];
 // Site-inspection celebrations get a neon-green burst to match their boxes.
 const INSPECTOR_BURST = ["#4ade80", "#22c55e", "#86efac", "#bbf7d0", "#f4f1e8"];
+// Extra-services celebrations are neon purple, to match Clara's card.
+const EXTRA_BURST = ["#c084fc", "#a855f7", "#e9d5ff", "#f3e8ff", "#f4f1e8"];
 
 // Game Day goal celebrations — mirrors GameDayWall's Green/Purple neon palette
 // (data keys stay "orange"/"blue") so the confetti and glow match the scoring
@@ -68,10 +70,13 @@ function reducedMotion(): boolean {
 export function BookingCelebration({
   daily,
   inspectors,
+  extra,
   gameDay = false,
 }: {
   daily: DailyCountRow[];
   inspectors?: InspectorRowDTO[];
+  /** /live only: the extra-services booker (Clara) — each new job pops a purple celebration. */
+  extra?: BoardsDTO["extraServices"];
   /** Game Day only: swaps the "new booking" beat for a bigger "BOOKED!"
    * celebration (flash + team-coloured sweep, team-coloured confetti).
    * Everywhere else (outside Game Day) the gong, timing, and visuals are
@@ -82,6 +87,8 @@ export function BookingCelebration({
   const seeded = useRef(false);
   const inspState = useRef(createCelebrateState());
   const inspSeeded = useRef(false);
+  const extraState = useRef(createCelebrateState());
+  const extraSeeded = useRef(false);
   const queue = useRef<BookingPop[]>([]);
   const running = useRef(false);
   const timers = useRef<number[]>([]);
@@ -110,13 +117,21 @@ export function BookingCelebration({
       inspSeeded.current = true;
     }
 
+    if (extra) {
+      const rows = [{ staffId: extra.id, name: extra.name, count: extra.count, jobs: extra.jobs }];
+      pops.push(
+        ...inspectorBookings(rows, extraState.current, !extraSeeded.current, today).map((p) => ({ ...p, kind: "extra" as const })),
+      );
+      extraSeeded.current = true;
+    }
+
     if (pops.length === 0) return;
     for (const p of pops) {
       if (queue.current.length < MAX_QUEUE) queue.current.push(p);
     }
     drain();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [daily, inspectors]);
+  }, [daily, inspectors, extra]);
 
   // Clear any pending timers on unmount.
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
@@ -133,7 +148,8 @@ export function BookingCelebration({
         gameDay && next.kind !== "inspector" && (next.team === "orange" || next.team === "blue")
           ? next.team
           : null;
-      const colors = next.kind === "inspector" ? INSPECTOR_BURST : goalTeam ? GOAL_TEAM[goalTeam].burst : BURST;
+      const colors =
+        next.kind === "extra" ? EXTRA_BURST : next.kind === "inspector" ? INSPECTOR_BURST : goalTeam ? GOAL_TEAM[goalTeam].burst : BURST;
       confetti({ particleCount: 160, spread: 110, startVelocity: 45, origin: { y: 0.5 }, colors });
       timers.current.push(
         window.setTimeout(
@@ -161,12 +177,20 @@ export function BookingCelebration({
 
   if (!active) return null;
   const { pop, out } = active;
-  const isInspector = pop.kind === "inspector";
+  const isExtra = pop.kind === "extra";
+  const isInspector = pop.kind === "inspector" || isExtra; // same layout (name · #job · for rep)
   // Game Day: swap the "new booking" moment for a goal beat, recoloured to the
   // scoring rep's team. Untouched outside Game Day and for site inspections.
   const isGoal = gameDay && !isInspector;
   const goalTeam = isGoal && (pop.team === "orange" || pop.team === "blue") ? pop.team : null;
-  const codeTheme = isInspector
+  const codeTheme = isExtra
+    ? {
+        border: "border-purple-400/70",
+        shadow: "shadow-[0_0_40px_-8px_rgba(168,85,247,0.6)]",
+        small: "text-purple-200/80",
+        big: "text-purple-200",
+      }
+    : isInspector
     ? {
         border: "border-green-400/70",
         shadow: "shadow-[0_0_40px_-8px_rgba(74,222,128,0.5)]",
@@ -181,7 +205,13 @@ export function BookingCelebration({
           small: "text-accent-200/80",
           big: "text-accent-300",
         };
-  const theme = isInspector
+  const theme = isExtra
+    ? {
+        glow: "[background:radial-gradient(60%_60%_at_50%_45%,rgba(168,85,247,0.28),transparent_70%)]",
+        label: "Extra service",
+        labelColor: "text-purple-300",
+      }
+    : isInspector
     ? {
         glow: "[background:radial-gradient(60%_60%_at_50%_45%,rgba(74,222,128,0.24),transparent_70%)]",
         label: "Site inspection",
@@ -244,7 +274,7 @@ export function BookingCelebration({
       )}
       {isInspector && pop.forRep && (
         <p className="nl-rise relative font-display text-2xl font-bold text-white/80 sm:text-3xl">
-          for <span className="text-green-300">{pop.forRep}</span>
+          for <span className={isExtra ? "text-purple-300" : "text-green-300"}>{pop.forRep}</span>
         </p>
       )}
       {/* BOOKED! sweep plays in its own space BELOW the name/code — never

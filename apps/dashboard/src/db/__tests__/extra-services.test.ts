@@ -32,3 +32,10 @@ test("a snapshot from yesterday resets today's count but keeps the month", async
   await ingestExtraServices(db, { jobs: [{ code: "OLD111", forRep: "A" }], monthCount: 5 }, yesterday);
   expect(await extraServicesBoard()).toMatchObject({ count: 0, month: 5 });
 });
+
+test("the sheet card's own Today number wins over counting entries", async () => {
+  await ingestExtraServices(db, { jobs: [{ code: "AAA111", forRep: "N" }], today: 6, target: 8, monthCount: 5 });
+  expect(await extraServicesBoard()).toMatchObject({ count: 6, target: 8, month: 5 });
+  await ingestExtraServices(db, { jobs: [{ code: "AAA111", forRep: "N" }, { code: "BBB222", forRep: "M" }], monthCount: 5 });
+  expect((await extraServicesBoard()).count).toBe(2); // no card number sent → counts entries
+});
