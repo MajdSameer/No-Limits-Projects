@@ -83,7 +83,7 @@ export function describeMoveproToken(raw: string | undefined): string {
   if (!raw) return "not set";
   const t = normalizeMoveproToken(raw);
   const pipe = t.indexOf("|");
-  return `length ${t.length}, ${pipe > 0 ? `id part ${pipe} digits + ${t.length - pipe - 1}-char secret` : "no '|' (expected 'id|secret')"}${raw !== t ? ", had extra whitespace/'Bearer'/quotes (auto-cleaned)" : ""}`;
+  return `length ${t.length}, ${pipe > 0 ? `id ${t.slice(0, pipe)} (the part before the |, not secret) + ${t.length - pipe - 1}-char secret` : "no '|' (expected 'id|secret')"}${raw !== t ? ", had extra whitespace/'Bearer'/quotes (auto-cleaned)" : ""}`;
 }
 
 interface JwtCacheEntry {
