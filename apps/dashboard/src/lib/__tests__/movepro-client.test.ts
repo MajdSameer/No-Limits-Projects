@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractEmbedJwt } from "../movepro-client";
+import { describeMoveproToken, extractEmbedJwt, normalizeMoveproToken } from "../movepro-client";
 
 // Verified live response shape (2026-07-31): { report: { metabase_token }}.
 // Report 17 (dashboard embed) also nests resource: { dashboard }, report 9
@@ -35,5 +35,23 @@ describe("extractEmbedJwt", () => {
     expect(() => extractEmbedJwt({ token: "not-where-we-look" })).toThrow(/report\.metabase_token/);
     expect(() => extractEmbedJwt({ report: {} })).toThrow(/report\.metabase_token/);
     expect(() => extractEmbedJwt(null)).toThrow(/report\.metabase_token/);
+  });
+});
+
+describe("normalizeMoveproToken", () => {
+  const tok = "258405|AbCdEf1234567890";
+  it("strips Bearer, quotes, whitespace and newlines from a pasted token", () => {
+    expect(normalizeMoveproToken(tok)).toBe(tok);
+    expect(normalizeMoveproToken("Bearer " + tok)).toBe(tok);
+    expect(normalizeMoveproToken("  authorization: Bearer " + tok + "\n")).toBe(tok);
+    expect(normalizeMoveproToken('"' + tok + '"')).toBe(tok);
+  });
+  it("describes the token's shape without leaking it", () => {
+    const d = describeMoveproToken("Bearer " + tok);
+    expect(d).not.toContain("AbCdEf");
+    expect(d).toContain("length 23");
+    expect(d).toContain("auto-cleaned");
+    expect(describeMoveproToken("abc")).toContain("no '|'");
+    expect(describeMoveproToken(undefined)).toBe("not set");
   });
 });
