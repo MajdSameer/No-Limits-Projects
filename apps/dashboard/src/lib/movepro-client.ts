@@ -69,6 +69,23 @@ export function extractEmbedJwt(body: unknown): string {
   return jwt;
 }
 
+/** Cleans a pasted MOVEPRO_TOKEN: trims whitespace/newlines, strips wrapping quotes and a leading
+ * "Bearer " — the usual copy/paste mistakes from the browser's Authorization header. */
+export function normalizeMoveproToken(raw: string): string {
+  let t = raw.trim().replace(/^["'`]+|["'`]+$/g, "").trim();
+  t = t.replace(/^authorization:\s*/i, "").replace(/^bearer\s+/i, "");
+  return t.replace(/\s+/g, "");
+}
+
+/** A SAFE description of the token's shape (never the value) for error messages — enough to spot a
+ * truncated / wrong / stale paste without leaking the credential. */
+export function describeMoveproToken(raw: string | undefined): string {
+  if (!raw) return "not set";
+  const t = normalizeMoveproToken(raw);
+  const pipe = t.indexOf("|");
+  return `length ${t.length}, ${pipe > 0 ? `id part ${pipe} digits + ${t.length - pipe - 1}-char secret` : "no '|' (expected 'id|secret')"}${raw !== t ? ", had extra whitespace/'Bearer'/quotes (auto-cleaned)" : ""}`;
+}
+
 interface JwtCacheEntry {
   token: string;
   at: number;
@@ -77,8 +94,9 @@ const JWT_TTL_MS = 24 * 60 * 60 * 1000;
 const jwtCaches = new Map<string, JwtCacheEntry>();
 
 async function mintEmbedJwt(reportUrl: string, cacheKey: string): Promise<string> {
-  const token = process.env.MOVEPRO_TOKEN;
-  if (!token) throw new Error("MOVEPRO_TOKEN is not set");
+  const rawToken = process.env.MOVEPRO_TOKEN;
+  if (!rawToken) throw new Error("MOVEPRO_TOKEN is not set");
+  const token = normalizeMoveproToken(rawToken);
 
   // Headers match MovePro's own app request exactly (verified externally) —
   // the API appears to expect this shape (origin/referer/x-request-with),
@@ -94,7 +112,8 @@ async function mintEmbedJwt(reportUrl: string, cacheKey: string): Promise<string
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!res.ok) {
-    throw new Error(`MovePro report mint ${res.status}: ${await res.text()}`);
+    const hint = res.status === 401 ? ` [MOVEPRO_TOKEN as deployed: ${describeMoveproToken(rawToken)}]` : "";
+    throw new Error(`MovePro report mint ${res.status}: ${await res.text()}${hint}`);
   }
   const jwt = extractEmbedJwt(await res.json());
   jwtCaches.set(cacheKey, { token: jwt, at: Date.now() });
