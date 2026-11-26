@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProp
 import { cx } from "@nlr/ui";
 
 import type { BoardRowDTO, BoardsDTO, InspectorRowDTO } from "./Board";
+import { AnnouncementCelebration } from "./AnnouncementCelebration";
 import { BookingCelebration } from "./BookingCelebration";
 import {
   armAudio,
@@ -1654,6 +1655,8 @@ export function GameDayWall({ initial }: { initial: BoardsDTO }) {
           inspections still pop their green celebration + gong. `gameDay` swaps
           the "new booking" beat for a goal celebration only while the battle is on. */}
       <BookingCelebration daily={inPlay} inspectors={inspectors} gameDay={on} />
+      {/* The instant "X booked #JOB for Y" moment from the public /booked form (same as /live). */}
+      <AnnouncementCelebration />
 
       {/* Roll-call background music (hype anthem). Hidden; driven by the ceremony. */}
       <audio ref={musicRef} src={MUSIC_SRC} preload="auto" className="hidden" aria-hidden />
